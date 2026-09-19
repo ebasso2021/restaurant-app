@@ -1,0 +1,1427 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Taste of Peru</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F7F4F8; --surface:#FFFFFF; --sunk:#EFEAF1; --ink:#24172A; --muted:#675A6D; --line:#E0D7E4;
+  --accent:#5B2366; --accent-ink:#FFFFFF; --warn:#9A4A00; --warn-bg:#FFF2E0; --bad:#A3243B; --bad-bg:#FCE8EC; --ok:#2F6B3A; --ok-bg:#E6F3E7;
+  --pc:#5B2366;
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15101A; --surface:#1F1825; --sunk:#281F2F; --ink:#F0E9F3; --muted:#A99DAF; --line:#3A2F42;
+    --accent:#C99AD6; --accent-ink:#1A1020; --warn:#F2B36B; --warn-bg:#3A2912; --bad:#F29AAB; --bad-bg:#3D1A22; --ok:#9BD3A3; --ok-bg:#1B3220;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15101A; --surface:#1F1825; --sunk:#281F2F; --ink:#F0E9F3; --muted:#A99DAF; --line:#3A2F42;
+  --accent:#C99AD6; --accent-ink:#1A1020; --warn:#F2B36B; --warn-bg:#3A2912; --bad:#F29AAB; --bad-bg:#3D1A22; --ok:#9BD3A3; --ok-bg:#1B3220;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;padding-inline:16px;padding-block:0 48px}
+.wrap{max-width:1040px;margin:0 auto}
+header.top{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px;padding-block:28px 16px}
+.brand h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,4vw,38px);line-height:1.1;margin:0;text-wrap:balance}
+.brand p{margin:6px 0 0;color:var(--muted);max-width:60ch}
+.lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+.lang button{border:0;background:transparent;color:var(--muted);font:600 13px var(--body);padding:6px 14px;border-radius:999px;cursor:pointer;letter-spacing:.04em}
+.lang button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+nav.tabs .row{display:flex;gap:4px;min-width:max-content;padding-block:8px}
+nav.tabs button{display:flex;align-items:center;gap:8px;border:1px solid transparent;background:transparent;color:var(--muted);font:600 14px var(--body);padding:8px 12px;border-radius:10px;cursor:pointer;white-space:nowrap}
+nav.tabs button .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+nav.tabs button:hover{color:var(--ink);background:var(--sunk)}
+nav.tabs button[aria-selected="true"]{color:var(--ink);background:var(--surface);border-color:var(--line)}
+nav.tabs .sep{width:1px;background:var(--line);margin:6px 6px}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{padding-top:22px}
+.hero{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:end;margin-bottom:18px}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--pc2)}
+.hero h2{font-family:var(--display);font-weight:400;font-size:clamp(24px,3.4vw,34px);margin:4px 0 6px;line-height:1.15;text-wrap:balance}
+.hero p{margin:0;color:var(--muted);max-width:65ch}
+.swatch{width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 35% 30%, color-mix(in oklab,var(--pc) 55%, white), var(--pc) 70%);box-shadow:inset 0 -6px 12px rgba(0,0,0,.18)}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}.hero{grid-template-columns:1fr}.swatch{display:none}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.panel h3{font:700 13px var(--body);letter-spacing:.07em;text-transform:uppercase;margin:0 0 12px;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:20px}
+.variants{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.variants button{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 13px var(--body);padding:6px 12px;border-radius:999px;cursor:pointer}
+.variants button[aria-pressed="true"]{background:var(--pc2);border-color:var(--pc2);color:var(--surface)}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;padding:14px;background:var(--sunk);border-radius:10px;margin-bottom:14px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font:600 12px var(--body);color:var(--muted);letter-spacing:.03em}
+.field input{width:110px;font:500 16px var(--mono);padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:500 13px var(--mono);padding:6px 9px;border-radius:7px;cursor:pointer}
+.chips button:hover{border-color:var(--pc2)}
+.factor{font:500 13px var(--mono);color:var(--muted);margin-left:auto}
+.factor b{color:var(--ink);font-weight:500}
+.tablewrap{overflow-x:auto}
+table.ing{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.ing td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.ing tr:last-child td{border-bottom:0}
+table.ing td.amt{width:1%;white-space:nowrap}
+table.ing input{width:92px;font:500 15px var(--mono);padding:5px 7px;border:1px solid transparent;border-radius:6px;background:var(--sunk);color:var(--ink);text-align:right}
+table.ing input:hover{border-color:var(--line)}
+table.ing input:focus{border-color:var(--pc2);background:var(--surface)}
+table.ing .unit{font:500 13px var(--mono);color:var(--muted);padding-left:4px}
+table.ing .conv{font:400 12px var(--mono);color:var(--muted);white-space:nowrap;text-align:right}
+table.ing .name small{display:block;color:var(--muted);font-size:12px}
+table.ing tr.driver .name{font-weight:600}
+table.ing tr.driver .name::after{content:" ●";color:var(--pc2);font-size:10px;vertical-align:middle}
+.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.ratio{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.ratio span{font:500 12px var(--mono);background:var(--sunk);padding:4px 8px;border-radius:6px;color:var(--ink)}
+ol.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+ol.steps li::marker{font:500 13px var(--mono);color:var(--pc2)}
+ul.plain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.claims{display:flex;flex-direction:column;gap:8px}
+.claim{border-radius:10px;padding:10px 12px;font-size:14px;border:1px solid var(--line)}
+.claim .v{display:inline-block;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-bottom:4px}
+.claim.bad .v{background:var(--bad-bg);color:var(--bad)}
+.claim.warn .v{background:var(--warn-bg);color:var(--warn)}
+.claim.ok .v{background:var(--ok-bg);color:var(--ok)}
+.claim .q{font-style:italic;display:block;margin-bottom:2px}
+.flow{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.flow li{display:grid;grid-template-columns:28px 1fr;gap:10px;position:relative;padding-bottom:12px}
+.flow li::before{content:"";position:absolute;left:13px;top:26px;bottom:0;width:2px;background:var(--line)}
+.flow li:last-child::before{display:none}
+.flow .n{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:500 12px var(--mono);background:var(--sunk);color:var(--ink);border:1px solid var(--line)}
+.flow li.ccp .n{background:var(--pc2);color:var(--surface);border-color:var(--pc2)}
+.flow .tag{font:600 10px var(--mono);letter-spacing:.06em;color:var(--pc2);border:1px solid var(--pc2);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+.note{background:var(--warn-bg);color:var(--ink);border-radius:10px;padding:12px 14px;font-size:14px}
+.note b{color:var(--warn)}
+.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+.rules .panel h4{font-family:var(--display);font-weight:400;font-size:19px;margin:0 0 8px}
+.temps{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.temp{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.temp .big{font:500 26px var(--mono);line-height:1.1}
+.temp .lbl{font-size:13px;color:var(--muted)}
+.temp.danger{background:var(--bad-bg);border-color:transparent}
+.temp.danger .big{color:var(--bad)}
+.src{font-size:12px;color:var(--muted);margin-top:8px}
+.src a,.sources a{color:var(--accent)}
+.unv{font:600 10px var(--mono);letter-spacing:.05em;color:var(--warn);background:var(--warn-bg);padding:1px 6px;border-radius:4px;margin-left:4px;white-space:nowrap}
+.sources{font-size:13px;color:var(--muted)}
+.sources ul{padding-left:18px}
+.path{display:flex;flex-direction:column;gap:12px}
+.pstep{display:grid;grid-template-columns:44px 1fr;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.pstep .n{font-family:var(--display);font-size:26px;color:var(--accent);line-height:1}
+.pstep h4{margin:0 0 4px;font-size:16px}
+.pstep p{margin:0;color:var(--muted);font-size:14px}
+.disclaimer{margin-top:28px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.mods .panel h4{font-family:var(--display);font-weight:400;font-size:19px;margin:0 0 4px}
+.mods .mnum{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.mods .fit{margin-top:10px;font-size:13px;background:var(--sunk);border-radius:8px;padding:8px 10px}
+.caps{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:22px}
+.cap{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.cap b{display:block;margin-bottom:4px}
+.cap span{font-size:14px;color:var(--muted)}
+h3.sec{font-family:var(--display);font-weight:400;font-size:22px;margin:26px 0 12px}
+.subnav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.subnav button{border:1px solid var(--line);background:var(--surface);color:var(--muted);font:600 13px var(--body);padding:7px 12px;border-radius:999px;cursor:pointer}
+.subnav button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.capnote{font-size:13px;color:var(--muted);margin:0 0 16px}
+.warnnote{background:var(--warn-bg);color:var(--ink);padding:10px 12px;border-radius:10px}
+.btn{border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 14px var(--body);padding:8px 14px;border-radius:9px;cursor:pointer;min-height:36px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.sm{font-size:13px;padding:5px 10px;min-height:30px}
+.linkbtn{border:0;background:none;color:var(--accent);font:600 13px var(--body);text-decoration:underline;cursor:pointer;padding:0}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-items:end}
+.fgrid.wide{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.full{grid-column:1/-1}
+.f.inline{flex-direction:row;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--muted)}
+.f label,.f>span{font:600 12px var(--body);color:var(--muted)}
+.f input,.f select,.f textarea,.aibox textarea,.chatbar input,.gen textarea,.gen input,.review textarea{font:15px var(--body);padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.f.inline input{width:80px}
+textarea{resize:vertical}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:4px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.kpi .big{font:500 24px var(--mono);line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi .lbl{font-size:13px;color:var(--muted)}
+.kpi.bad{background:var(--bad-bg);border-color:transparent}.kpi.bad .big{color:var(--bad)}
+.kpi.warn{background:var(--warn-bg);border-color:transparent}.kpi.warn .big{color:var(--warn)}
+.badge{display:inline-block;font:600 11px var(--mono);letter-spacing:.04em;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:1px;white-space:nowrap}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}.badge.warn{background:var(--warn-bg);color:var(--warn)}.badge.bad{background:var(--bad-bg);color:var(--bad)}
+ul.rows{list-style:none;margin:0;padding:0}
+ul.rows li{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--line)}
+ul.rows li:last-child{border-bottom:0}
+ul.rows small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+ul.rows .acts{margin-top:0}
+.empty{color:var(--muted);font-size:14px;margin:6px 0}
+.chat{height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--sunk);border-radius:10px;margin-bottom:10px}
+.bub{max-width:85%;padding:9px 12px;border-radius:12px;white-space:pre-wrap;font-size:14px}
+.bub.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px}
+.bub.bot{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:4px}
+.mic{display:inline-flex;align-items:center;gap:6px}
+.mic.rec{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+@media (prefers-reduced-motion:no-preference){.mic.rec svg{animation:pulse 1s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.35}}
+.voicebar{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:6px}
+.voicebar .f.inline{margin-top:0}
+.voicebar select{font:14px var(--body);padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.chatbar{display:flex;gap:6px;flex-wrap:wrap}.chatbar input{flex:1 1 180px;width:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+table.dt{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+table.dt th{text-align:left;font:600 12px var(--body);color:var(--muted);padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.dt td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}
+.addstock{margin:14px 0;padding:12px;background:var(--sunk);border-radius:10px}
+.addstock .minih{margin-top:0}
+.listbox{width:100%;font:14px var(--body);border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:4px}
+.listbox option{padding:6px 8px;border-radius:5px}
+.listbox option:checked{background:var(--accent);color:var(--accent-ink)}
+.resdetail{margin-top:12px;padding:12px;background:var(--sunk);border-radius:10px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.dimtxt{color:var(--muted)}
+table.dt td.nw{white-space:nowrap}
+table.dt td small{display:block;color:var(--muted);font-size:12px}
+table.dt input{width:84px;font:500 14px var(--mono);padding:4px 6px;border:1px solid transparent;border-radius:6px;background:var(--sunk);color:var(--ink)}
+table.dt input.txt{width:120px;font-family:var(--body)}
+table.dt input:focus{border-color:var(--accent);background:var(--surface)}
+.aiout{margin-top:12px;white-space:pre-wrap;font-size:14px}
+.aiout:empty{display:none}
+.aibox{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.aibox label{font:600 12px var(--body);color:var(--muted)}
+.aibox .btn{align-self:flex-start}
+.minih{font:700 12px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
+.hours{display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-top:6px}
+.hr{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:22px}
+.hr span{width:14px;background:var(--accent);border-radius:4px 4px 0 0}
+.hr small{font:11px var(--mono);color:var(--muted)}
+.chartbox svg{width:100%;height:auto;display:block}
+svg.bars .grid{stroke:var(--line);stroke-width:1}
+svg.bars .ax{fill:var(--muted);font:11px var(--mono)}
+svg.bars .mark{fill:var(--accent)}
+svg.bars .bar:hover .mark{opacity:.8}
+.costgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.gen{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.gen small{color:var(--muted);font-size:13px}
+.gen input{width:auto}
+.review{border-bottom:1px solid var(--line);padding:12px 0}
+.review:last-child{border-bottom:0}
+.review p{margin:6px 0}
+.rvh{font-size:13px;color:var(--muted)}.rvh b{color:var(--warn);letter-spacing:1px}.dim{opacity:.3}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20;max-width:calc(100% - 32px)}
+#toast.on{opacity:1;transform:translateX(-50%)}
+
+@media (prefers-reduced-motion:no-preference){main>section{animation:fade .25s ease}}
+@keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1 id="appTitle">Taste of Peru</h1>
+      <p id="appSub"></p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="btnEn" type="button" aria-pressed="true">EN</button>
+      <button id="btnEs" type="button" aria-pressed="false">ES</button>
+    </div>
+  </header>
+  <nav class="tabs" aria-label="Sections"><div class="row" id="tabs" role="tablist"></div></nav>
+  <main id="main"></main>
+  <p class="disclaimer" id="disc"></p>
+</div>
+
+<script>
+const T = (o)=> typeof o==="string" ? o : (o[state.lang] ?? o.en);
+const state = {lang:"en", tab:"quinoa", variant:{}, factor:{}};
+try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(state,{lang:s.lang||"en",tab:s.tab||"quinoa",aiView:s.aiView||"overview"}); }catch(e){}
+function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:state.lang,tab:state.tab,aiView:state.aiView})); }catch(e){} }
+
+const UI = {
+  sub:{en:"Batch calculators, benefits, Alberta food-safety rules and the path to sale for six Peruvian drinks and desserts — plus a working AI system to run the restaurant.",
+       es:"Calculadoras de lotes, beneficios, normas de inocuidad de Alberta y el camino a la venta para seis bebidas y postres peruanos — más un sistema de IA funcional para manejar el restaurante."},
+  ai:{en:"AI system",es:"Sistema IA"},
+  rules:{en:"AHS rules",es:"Normas AHS"}, path:{en:"Path to sale",es:"Camino a la venta"},
+  recipe:{en:"Recipe calculator",es:"Calculadora de receta"},
+  scaleBy:{en:"Servings",es:"Porciones"},
+  batch:{en:"Quick batch",es:"Lote rápido"},
+  factor:{en:"Scale",es:"Escala"},
+  hint:{en:"Type in any amount — every other ingredient rescales in proportion. ● marks the key ingredient.",
+        es:"Escribe cualquier cantidad — los demás ingredientes se ajustan en proporción. ● marca el ingrediente principal."},
+  method:{en:"Method",es:"Preparación"}, benefits:{en:"Benefits",es:"Beneficios"},
+  check:{en:"Claim check",es:"Verificación de afirmaciones"},
+  flow:{en:"From kitchen to customer",es:"De la cocina al cliente"},
+  ccp:{en:"CCP",es:"PCC"},
+  ccpNote:{en:"Filled steps are critical control points — log temperature and time here.",
+           es:"Los pasos rellenos son puntos críticos de control — registra temperatura y tiempo aquí."},
+  yield:{en:"Yield",es:"Rinde"}, per:{en:"servings of",es:"porciones de"},
+  src:{en:"Source",es:"Fuente"}, reset:{en:"Reset",es:"Reiniciar"},
+  unverified:{en:"UNVERIFIED",es:"NO VERIFICADO"},
+  disc:{en:"Information only — not legal, medical or regulatory advice. Rules change: confirm every requirement with AHS Environmental Public Health and the City of Edmonton before opening. Recipes marked “reference” are typical proportions, not lab-tested formulas; run a test batch first.",
+        es:"Solo informativo — no es asesoría legal, médica ni regulatoria. Las normas cambian: confirma cada requisito con AHS Environmental Public Health y la Ciudad de Edmonton antes de abrir. Las recetas marcadas “referencia” son proporciones típicas, no fórmulas probadas en laboratorio; haz primero un lote de prueba."}
+};
+
+/* ---------- PRODUCTS ---------- */
+const PULP_SRC={en:"Adapted to packaged frozen pulps — starting amounts, adjust to your brand's label after a test batch",es:"Adaptada a pulpas envasadas congeladas — cantidades iniciales, ajusta según la etiqueta de tu marca tras un lote de prueba"};
+const THAW={en:"Thaw the sealed pulp packs in the refrigerator (4 °C or colder), never on the counter; use within the time on the label once thawed.",es:"Descongela los paquetes de pulpa sellados en el refrigerador (4 °C o menos), nunca sobre la mesa; úsalos en el plazo que indique la etiqueta una vez descongelados."};
+const RECEIVE={t:{en:"Receive pulps frozen solid (−18 °C or colder) from a CFIA-licensed importer or approved distributor; reject thawed or damaged packs. Check the label: pasteurized or not.",es:"Recibe las pulpas bien congeladas (−18 °C o menos) de un importador con licencia CFIA o distribuidor aprobado; rechaza paquetes descongelados o dañados. Revisa la etiqueta: pasteurizada o no."},ccp:1};
+const THAWF={t:{en:"Thaw in the refrigerator at 4 °C or colder; label packs with thaw date. Never refreeze thawed pulp.",es:"Descongela en refrigeración a 4 °C o menos; etiqueta con la fecha de descongelación. Nunca vuelvas a congelar pulpa descongelada."},ccp:1};
+const P = [
+{ id:"quinoa", c:"#B0801F", name:{en:"Quinoa drink",es:"Jugo de quinua"},
+  eyebrow:{en:"Chenopodium quinoa · cooked grain drink",es:"Chenopodium quinoa · bebida de grano cocido"},
+  intro:{en:"Cooked quinoa with frozen pineapple and apple pulps and panela — served cold as a breakfast or energy drink.",
+         es:"Quinua cocida con pulpas congeladas de piña y manzana y panela — se sirve fría como bebida de desayuno o energía."},
+  variants:[
+   { name:{en:"House batch (panela & pineapple)",es:"Lote de la casa (panela y piña)"}, src:PULP_SRC,
+     servings:12, serveMl:240, driver:1,
+     ing:[
+      {n:{en:"Water",es:"Agua"},q:2840,u:"ml"},
+      {n:{en:"Quinoa, rinsed",es:"Quinua, lavada"},q:250,u:"g",note:{en:"grain — no pulp form",es:"grano — no existe en pulpa"}},
+      {n:{en:"Panela",es:"Panela"},q:150,u:"g"},
+      {n:{en:"Frozen pineapple pulp",es:"Pulpa de piña congelada"},q:500,u:"g",note:{en:"replaces 2 cans of pineapple",es:"reemplaza 2 latas de piña"}},
+      {n:{en:"Frozen apple pulp",es:"Pulpa de manzana congelada"},q:400,u:"g",note:{en:"replaces 3 green apples",es:"reemplaza 3 manzanas verdes"}}],
+     steps:[
+      THAW,
+      {en:"Rinse the quinoa well under running water to remove the bitter saponins.",es:"Lava bien la quinua con agua corriente para quitar las saponinas amargas."},
+      {en:"Simmer the quinoa and panela in the water for 30 minutes.",es:"Cocina la quinua y la panela en el agua a fuego lento 30 minutos."},
+      {en:"Stir in the thawed pineapple and apple pulps and bring back to a boil for 2–3 minutes.",es:"Incorpora las pulpas descongeladas de piña y manzana y vuelve a hervir 2–3 minutos."},
+      {en:"Blend (optional) and strain for a smoother drink.",es:"Licúa (opcional) y cuela para una bebida más fina."},
+      {en:"Cool quickly and refrigerate at 4 °C or colder. Serve cold.",es:"Enfría rápido y refrigera a 4 °C o menos. Sirve frío."}]},
+   { name:{en:"Cold quinoa juice (lime & honey)",es:"Jugo de quinua frío (limón y miel)"}, src:PULP_SRC,
+     servings:4, serveMl:250, driver:0,
+     ing:[
+      {n:{en:"Quinoa, rinsed",es:"Quinua, lavada"},q:170,u:"g",note:{en:"1 cup",es:"1 taza"}},
+      {n:{en:"Water (2 cups cooking + 2 cups blending)",es:"Agua (2 tazas cocción + 2 tazas licuado)"},q:946,u:"ml"},
+      {n:{en:"Frozen lime (limón) pulp",es:"Pulpa de limón congelada"},q:60,u:"g",note:{en:"replaces fresh lemon juice",es:"reemplaza el jugo de limón fresco"}},
+      {n:{en:"Honey or agave",es:"Miel o agave"},q:3,u:"tbsp"},
+      {n:{en:"Mint leaves (optional)",es:"Hojas de menta (opcional)"},q:6,u:"u"}],
+     steps:[
+      THAW,
+      {en:"Rinse the quinoa; cook with half the water for 15 minutes; cool.",es:"Lava la quinua; cocínala con la mitad del agua 15 minutos; enfría."},
+      {en:"Blend with the remaining water and the lime pulp.",es:"Licúa con el resto del agua y la pulpa de limón."},
+      {en:"Sweeten, strain, and serve cold with ice and mint.",es:"Endulza, cuela y sirve frío con hielo y menta."}]}],
+  benefits:[
+   {en:"Quinoa provides all nine essential amino acids, which is uncommon for a plant food.",es:"La quinua aporta los nueve aminoácidos esenciales, algo poco común en un alimento vegetal."},
+   {en:"A source of fibre, magnesium, iron, folate and other B vitamins.",es:"Fuente de fibra, magnesio, hierro, folato y otras vitaminas del grupo B."},
+   {en:"Naturally gluten-free — but watch for cross-contact if you advertise it that way.",es:"Naturalmente sin gluten — pero cuida la contaminación cruzada si lo anuncias así."},
+   {en:"Unsweetened fruit pulps add less sugar than canned pineapple in syrup; check whether your pulp brand is sweetened.",es:"Las pulpas sin azúcar añaden menos azúcar que la piña en almíbar; revisa si tu marca de pulpa está endulzada."}],
+  claims:[
+   {v:"ok",q:{en:"“Complete plant protein”",es:"“Proteína vegetal completa”"},t:{en:"Supported: quinoa contains all essential amino acids. In the drink the amount per glass is small.",es:"Respaldado: la quinua contiene todos los aminoácidos esenciales. En la bebida la cantidad por vaso es pequeña."}}],
+  flow:[
+   RECEIVE,
+   {t:{en:"Store quinoa dry, sealed, off the floor; pulps in the freezer at −18 °C or colder.",es:"Guarda la quinua seca, sellada y lejos del piso; las pulpas en el congelador a −18 °C o menos."}},
+   THAWF,
+   {t:{en:"Cook: simmer 30 min, then re-boil after adding the pulps.",es:"Cocción: 30 min a fuego lento y volver a hervir tras añadir las pulpas."},ccp:1},
+   {t:{en:"Cool fast in shallow containers or an ice bath — cooked grains are a high-risk food.",es:"Enfría rápido en recipientes poco profundos o baño de hielo — los granos cocidos son alimento de alto riesgo."},ccp:1},
+   {t:{en:"Cold-hold at 4 °C or colder; label with date and time made.",es:"Mantén en frío a 4 °C o menos; etiqueta con fecha y hora de elaboración."},ccp:1},
+   {t:{en:"Portion and sell. Discard anything left out more than 2 hours.",es:"Sirve y vende. Desecha lo que haya estado fuera más de 2 horas."}}]},
+
+{ id:"chicha", c:"#5B2366", name:{en:"Chicha morada",es:"Chicha morada"},
+  eyebrow:{en:"Purple corn · non-fermented",es:"Maíz morado · no fermentada"},
+  intro:{en:"Purple corn simmered with spices, finished with frozen pineapple, apple and lime pulps — or made straight from a frozen chicha morada pulp.",
+         es:"Maíz morado hervido con especias y terminado con pulpas congeladas de piña, manzana y limón — o preparado directo con pulpa congelada de chicha morada."},
+  variants:[
+   { name:{en:"Purple corn + frozen fruit pulps",es:"Maíz morado + pulpas de fruta congeladas"}, src:PULP_SRC,
+     servings:9, serveMl:250, driver:0,
+     ing:[
+      {n:{en:"Purple corn (maíz morado)",es:"Maíz morado"},q:450,u:"g"},
+      {n:{en:"Water",es:"Agua"},q:2370,u:"ml",note:{en:"10 cups",es:"10 tazas"}},
+      {n:{en:"Frozen pineapple pulp",es:"Pulpa de piña congelada"},q:250,u:"g",note:{en:"replaces pineapple peel",es:"reemplaza la cáscara de piña"}},
+      {n:{en:"Frozen apple pulp",es:"Pulpa de manzana congelada"},q:150,u:"g",note:{en:"replaces 1 apple",es:"reemplaza 1 manzana"}},
+      {n:{en:"Cinnamon sticks",es:"Ramas de canela"},q:2,u:"u"},
+      {n:{en:"Whole cloves",es:"Clavos de olor"},q:5,u:"u",note:{en:"4–6",es:"4–6"}},
+      {n:{en:"Sugar or panela",es:"Azúcar o panela"},q:100,u:"g",note:{en:"½ cup, adjust",es:"½ taza, ajustar"}},
+      {n:{en:"Frozen lime (limón) pulp",es:"Pulpa de limón congelada"},q:60,u:"g",note:{en:"replaces 3 limes",es:"reemplaza 3 limones"}}],
+     steps:[
+      THAW,
+      {en:"Boil the corn, cinnamon and cloves in the water; simmer 45–60 minutes until deep purple.",es:"Hierve el maíz, la canela y el clavo en el agua; cocina 45–60 minutos hasta un morado intenso."},
+      {en:"Add the pineapple and apple pulps for the last 10 minutes.",es:"Agrega las pulpas de piña y manzana en los últimos 10 minutos."},
+      {en:"Strain and discard the solids; sweeten while warm.",es:"Cuela y desecha los sólidos; endulza mientras está tibia."},
+      {en:"Cool rapidly, then stir in the lime pulp.",es:"Enfría rápido y luego incorpora la pulpa de limón."},
+      {en:"Refrigerate; serve cold.",es:"Refrigera; sirve fría."}]},
+   { name:{en:"From frozen chicha morada pulp",es:"Con pulpa congelada de chicha morada"}, src:{en:"Example 1 : 3 dilution only — replace with the ratio on your pulp's label",es:"Dilución de ejemplo 1 : 3 — reemplázala con la proporción de la etiqueta de tu pulpa"},
+     servings:16, serveMl:250, driver:0,
+     ing:[
+      {n:{en:"Frozen chicha morada pulp / concentrate",es:"Pulpa / concentrado congelado de chicha morada"},q:1000,u:"g"},
+      {n:{en:"Cold potable water",es:"Agua potable fría"},q:3000,u:"ml",note:{en:"per label",es:"según etiqueta"}},
+      {n:{en:"Sugar (only if unsweetened)",es:"Azúcar (solo si no está endulzada)"},q:100,u:"g"},
+      {n:{en:"Frozen lime (limón) pulp",es:"Pulpa de limón congelada"},q:40,u:"g"}],
+     steps:[
+      THAW,
+      {en:"Mix the pulp with cold water at the ratio on the label.",es:"Mezcla la pulpa con agua fría en la proporción de la etiqueta."},
+      {en:"Adjust sugar and lime to taste; stir well.",es:"Ajusta azúcar y limón al gusto; mezcla bien."},
+      {en:"Hold at 4 °C or colder in a covered dispenser; serve cold.",es:"Mantén a 4 °C o menos en dispensador tapado; sirve fría."}]}],
+  benefits:[
+   {en:"Purple corn is rich in anthocyanins (mainly cyanidin-3-glucoside), the antioxidant pigments that give the colour.",es:"El maíz morado es rico en antocianinas (principalmente cianidina-3-glucósido), los pigmentos antioxidantes que dan el color."},
+   {en:"Lab, animal and small human studies of purple-corn extract point to anti-inflammatory and blood-pressure effects — promising, but not proven for the drink.",es:"Estudios de laboratorio, en animales y pequeños estudios en humanos con extracto de maíz morado sugieren efectos antiinflamatorios y sobre la presión arterial — prometedor, pero no probado para la bebida."},
+   {en:"Naturally caffeine-free and non-fermented, so suitable for all ages.",es:"Sin cafeína y no fermentada, apta para todas las edades."},
+   {en:"Commercial chicha pulps vary in added sugar — compare labels.",es:"Las pulpas comerciales de chicha varían en azúcar añadido — compara etiquetas."}],
+  claims:[
+   {v:"warn",q:{en:"“Lowers systolic pressure by up to 12 points”",es:"“Reduce hasta 12 puntos la presión sistólica”"},t:{en:"Could not verify this figure; studies use concentrated extracts, not the drink. Do not use in marketing.",es:"No pude verificar esta cifra; los estudios usan extractos concentrados, no la bebida. No la uses en publicidad."}},
+   {v:"warn",q:{en:"“4× the antioxidants of blueberries”",es:"“4 veces más antioxidantes que los arándanos”"},t:{en:"Could not verify. Avoid comparative claims on menus or labels.",es:"No verificado. Evita afirmaciones comparativas en menús o etiquetas."}},
+   {v:"warn",q:{en:"“Over 90% of Peruvian families drink it regularly”",es:"“Más del 90% de las familias peruanas la consumen”"},t:{en:"Could not verify this statistic.",es:"No pude verificar esta estadística."}}],
+  flow:[
+   RECEIVE,
+   THAWF,
+   {t:{en:"Corn version: boil, simmer 45–60 min, add pulps, strain.",es:"Versión con maíz: hervir, cocinar 45–60 min, añadir pulpas, colar."},ccp:1},
+   {t:{en:"Cool rapidly (ice bath, shallow containers).",es:"Enfría rápido (baño de hielo, recipientes poco profundos)."},ccp:1},
+   {t:{en:"Pulp version: mix with cold potable water only; if the pulp is not pasteurized, treat the drink as unpasteurized.",es:"Versión con pulpa: mezcla solo con agua potable fría; si la pulpa no es pasteurizada, trata la bebida como no pasteurizada."}},
+   {t:{en:"Hold at 4 °C or colder in a labelled, covered dispenser; serve with a clean ice scoop.",es:"Mantén a 4 °C o menos en dispensador tapado y etiquetado; sirve con pala limpia para el hielo."},ccp:1}]},
+
+{ id:"maca", c:"#8B6A3E", name:{en:"Maca shake",es:"Jugo de maca"},
+  eyebrow:{en:"Lepidium meyenii · Andean root",es:"Lepidium meyenii · raíz andina"},
+  intro:{en:"Maca powder blended with milk, frozen banana pulp, honey and cinnamon.",
+         es:"Maca en polvo licuada con leche, pulpa de plátano congelada, miel y canela."},
+  variants:[
+   { name:{en:"Maca with milk & banana pulp",es:"Maca con leche y pulpa de plátano"}, src:PULP_SRC,
+     servings:2, serveMl:250, driver:0,
+     ing:[
+      {n:{en:"Maca powder",es:"Maca en polvo"},q:2,u:"tbsp",note:{en:"sold as powder — no pulp form",es:"se vende en polvo — no existe en pulpa"}},
+      {n:{en:"Milk (evaporated, fresh or plant)",es:"Leche (evaporada, fresca o vegetal)"},q:240,u:"ml"},
+      {n:{en:"Hot water",es:"Agua caliente"},q:240,u:"ml"},
+      {n:{en:"Frozen banana pulp",es:"Pulpa de plátano congelada"},q:120,u:"g",note:{en:"replaces 1 banana",es:"reemplaza 1 plátano"}},
+      {n:{en:"Honey or sugar",es:"Miel o azúcar"},q:1.5,u:"tbsp"},
+      {n:{en:"Ground cinnamon (optional)",es:"Canela en polvo (opcional)"},q:1,u:"tsp"}],
+     steps:[
+      THAW,
+      {en:"Dissolve the maca in the hot water, stirring to avoid lumps.",es:"Disuelve la maca en el agua caliente, mezclando para evitar grumos."},
+      {en:"Add the milk and banana pulp; blend until smooth.",es:"Agrega la leche y la pulpa de plátano; licúa hasta que quede suave."},
+      {en:"Sweeten with honey or sugar; add cinnamon.",es:"Endulza con miel o azúcar; añade canela."},
+      {en:"Serve warm or cold.",es:"Sirve tibio o frío."}]}],
+  benefits:[
+   {en:"Maca powder supplies carbohydrate, fibre, some protein, vitamin C, copper and iron.",es:"La maca en polvo aporta carbohidratos, fibra, algo de proteína, vitamina C, cobre y hierro."},
+   {en:"Small clinical trials suggest possible effects on libido and mood; the evidence is limited and inconsistent.",es:"Pequeños ensayos clínicos sugieren posibles efectos sobre la libido y el ánimo; la evidencia es limitada e inconsistente."},
+   {en:"With milk and banana it is a filling, energy-dense drink (not low-calorie).",es:"Con leche y plátano es una bebida saciante y energética (no baja en calorías)."},
+   {en:"Little safety data in pregnancy or breastfeeding — worth a note on the menu.",es:"Hay pocos datos de seguridad en embarazo o lactancia — vale la pena una nota en el menú."}],
+  claims:[
+   {v:"bad",q:{en:"“Prevents and fights cancer cells”",es:"“Previene y combate las células cancerígenas”"},t:{en:"Not supported by human evidence. Disease claims on foods are restricted in Canada — never use it.",es:"Sin respaldo en evidencia humana. Las afirmaciones sobre enfermedades en alimentos están restringidas en Canadá — nunca la uses."}},
+   {v:"warn",q:{en:"“Aphrodisiac / Peruvian ginseng”",es:"“Afrodisíaco / ginseng peruano”"},t:{en:"Some small trials; limited evidence. Maca is not related to ginseng botanically.",es:"Algunos ensayos pequeños; evidencia limitada. La maca no está emparentada botánicamente con el ginseng."}},
+   {v:"bad",q:{en:"Raw egg in the second recipe in your doc",es:"Huevo crudo en la segunda receta de tu documento"},t:{en:"Food-safety risk (Salmonella). For sale, omit the egg or use pasteurized egg.",es:"Riesgo de inocuidad (Salmonella). Para la venta, omite el huevo o usa huevo pasteurizado."}}],
+  allergen:{en:"Contains milk (unless plant milk). Declare allergens to customers.",es:"Contiene leche (salvo leche vegetal). Informa los alérgenos a los clientes."},
+  flow:[
+   RECEIVE,
+   {t:{en:"Keep maca powder sealed and dry; milk at 4 °C or colder until use.",es:"Guarda la maca sellada y seca; la leche a 4 °C o menos hasta usarla."},ccp:1},
+   THAWF,
+   {t:{en:"Make to order: dissolve, blend, sweeten.",es:"Prepara al momento: disuelve, licúa, endulza."}},
+   {t:{en:"Serve immediately. Pre-made batches: hold at 4 °C or colder, or 60 °C or hotter if served warm.",es:"Sirve de inmediato. Lotes preparados: mantén a 4 °C o menos, o a 60 °C o más si se sirve caliente."},ccp:1},
+   {t:{en:"Wash and sanitize the blender jar between dairy and non-dairy orders.",es:"Lava y desinfecta el vaso de la licuadora entre pedidos con y sin lácteos."}}]},
+
+{ id:"mazamorra", c:"#7C2D5A", name:{en:"Mazamorra morada",es:"Mazamorra morada"},
+  eyebrow:{en:"Purple corn pudding · dessert",es:"Postre de maíz morado"},
+  intro:{en:"Purple-corn base with frozen pineapple, quince and lime pulps, thickened with sweet-potato flour or cornstarch.",
+         es:"Base de maíz morado con pulpas congeladas de piña, membrillo y limón, espesada con harina de camote o maicena."},
+  variants:[
+   { name:{en:"Classic with frozen pulps (reference)",es:"Clásica con pulpas congeladas (referencia)"}, src:{en:"Typical proportions adapted to frozen pulps — not from your docs; test first",es:"Proporciones típicas adaptadas a pulpas congeladas — no están en tus documentos; prueba primero"},
+     servings:10, serveMl:200, driver:0,
+     ing:[
+      {n:{en:"Purple corn (maíz morado)",es:"Maíz morado"},q:500,u:"g"},
+      {n:{en:"Water",es:"Agua"},q:3000,u:"ml"},
+      {n:{en:"Cinnamon sticks",es:"Ramas de canela"},q:2,u:"u"},
+      {n:{en:"Whole cloves",es:"Clavos de olor"},q:6,u:"u"},
+      {n:{en:"Frozen pineapple pulp",es:"Pulpa de piña congelada"},q:350,u:"g",note:{en:"replaces peel + fresh pineapple",es:"reemplaza cáscara y piña fresca"}},
+      {n:{en:"Frozen quince or apple pulp",es:"Pulpa de membrillo o manzana congelada"},q:150,u:"g"},
+      {n:{en:"Sugar",es:"Azúcar"},q:200,u:"g"},
+      {n:{en:"Prunes, pitted",es:"Ciruelas pasas sin hueso"},q:100,u:"g",note:{en:"dried fruit — keep",es:"fruta seca — se mantiene"}},
+      {n:{en:"Dried apricots",es:"Orejones (albaricoque seco)"},q:100,u:"g"},
+      {n:{en:"Sweet-potato flour or cornstarch",es:"Harina de camote o maicena"},q:90,u:"g"},
+      {n:{en:"Cold water (for the slurry)",es:"Agua fría (para disolver)"},q:250,u:"ml"},
+      {n:{en:"Frozen lime (limón) pulp",es:"Pulpa de limón congelada"},q:30,u:"g"}],
+     steps:[
+      THAW,
+      {en:"Boil the corn, cinnamon and cloves in the water for 40–45 minutes.",es:"Hierve el maíz, la canela y el clavo en el agua 40–45 minutos."},
+      {en:"Strain; you should have about 2 L of purple liquid (top up with water if less).",es:"Cuela; debes tener unos 2 L de líquido morado (completa con agua si falta)."},
+      {en:"Add sugar, prunes, apricots, pineapple and quince pulps; simmer 10 minutes.",es:"Agrega azúcar, ciruelas, orejones y las pulpas de piña y membrillo; cocina 10 minutos."},
+      {en:"Dissolve the flour in the cold water, stir it in, and cook while stirring until thick and bubbling (about 5 min).",es:"Disuelve la harina en el agua fría, incorpórala y cocina moviendo hasta que espese y burbujee (unos 5 min)."},
+      {en:"Off the heat, stir in the lime pulp.",es:"Fuera del fuego, incorpora la pulpa de limón."},
+      {en:"Portion into cups, cool quickly, refrigerate. Dust with cinnamon to serve.",es:"Sirve en vasitos, enfría rápido y refrigera. Espolvorea canela al servir."}]}],
+  benefits:[
+   {en:"Same anthocyanin-rich purple-corn base as chicha morada.",es:"La misma base de maíz morado rica en antocianinas que la chicha."},
+   {en:"Dried fruit adds fibre, potassium and iron.",es:"La fruta seca aporta fibra, potasio y hierro."},
+   {en:"It is a dessert: sugar and starch are high, so present it as a treat, not a health food.",es:"Es un postre: alto en azúcar y almidón; preséntalo como gusto, no como alimento saludable."}],
+  claims:[],
+  flow:[
+   RECEIVE,
+   {t:{en:"Check dried fruit for sulphites (a priority allergen to declare).",es:"Revisa si la fruta seca tiene sulfitos (alérgeno prioritario a declarar)."}},
+   THAWF,
+   {t:{en:"Boil the corn base; cook the thickened pudding until it bubbles.",es:"Hierve la base; cocina la mazamorra espesada hasta que burbujee."},ccp:1},
+   {t:{en:"Portion hot into small cups so it cools faster; cool rapidly.",es:"Sirve caliente en vasitos pequeños para que enfríe más rápido; enfría con rapidez."},ccp:1},
+   {t:{en:"Cover, label with date, cold-hold at 4 °C or colder; sell from a refrigerated case.",es:"Tapa, etiqueta con fecha, mantén a 4 °C o menos; vende desde vitrina refrigerada."},ccp:1}]},
+
+{ id:"lucuma", c:"#C97418", name:{en:"Lúcuma juice",es:"Jugo de lúcuma"},
+  eyebrow:{en:"Pouteria lucuma · Andean fruit",es:"Pouteria lucuma · fruta andina"},
+  intro:{en:"Packaged frozen lúcuma pulp blended with cold milk — sweet, caramel-like and creamy.",
+         es:"Pulpa de lúcuma envasada congelada licuada con leche fría — dulce, con sabor a caramelo y cremosa."},
+  variants:[
+   { name:{en:"With milk (reference)",es:"Con leche (referencia)"}, src:PULP_SRC,
+     servings:3, serveMl:250, driver:0,
+     ing:[
+      {n:{en:"Frozen lúcuma pulp",es:"Pulpa de lúcuma congelada"},q:200,u:"g"},
+      {n:{en:"Cold milk (or water)",es:"Leche fría (o agua)"},q:500,u:"ml"},
+      {n:{en:"Sugar",es:"Azúcar"},q:30,u:"g"},
+      {n:{en:"Ice",es:"Hielo"},q:150,u:"g"}],
+     steps:[
+      THAW,
+      {en:"Blend pulp, cold milk and sugar until smooth.",es:"Licúa la pulpa, la leche fría y el azúcar hasta que quede suave."},
+      {en:"Add ice and blend briefly; serve right away.",es:"Agrega hielo, licúa brevemente y sirve de inmediato."}]}],
+  benefits:[
+   {en:"Lúcuma provides fibre, beta-carotene (a vitamin A precursor), niacin (B3) and iron.",es:"La lúcuma aporta fibra, betacaroteno (precursor de vitamina A), niacina (B3) y hierro."},
+   {en:"Its natural sweetness lets you use less added sugar.",es:"Su dulzor natural permite usar menos azúcar añadido."},
+   {en:"Claims about blood-sugar control come from lab studies only.",es:"Las afirmaciones sobre control de azúcar en sangre vienen solo de estudios de laboratorio."}],
+  claims:[
+   {v:"warn",q:{en:"“Low-glycemic superfood sweetener”",es:"“Endulzante superalimento de bajo índice glucémico”"},t:{en:"Limited to in-vitro research; avoid on labels.",es:"Limitado a investigación in vitro; evítalo en etiquetas."}}],
+  allergen:{en:"Contains milk if made with dairy.",es:"Contiene leche si se prepara con lácteos."},
+  flow:[
+   RECEIVE, THAWF,
+   {t:{en:"Blend to order with cold milk.",es:"Licúa al momento con leche fría."}},
+   {t:{en:"Serve immediately; any pre-made juice holds at 4 °C or colder and is discarded at day end (house rule).",es:"Sirve de inmediato; el jugo preparado se mantiene a 4 °C o menos y se desecha al final del día (regla de la casa)."},ccp:1}]},
+
+{ id:"chirimoya", c:"#5A8744", name:{en:"Chirimoya juice",es:"Jugo de chirimoya"},
+  eyebrow:{en:"Annona cherimola · custard apple",es:"Annona cherimola · chirimoya"},
+  intro:{en:"Packaged frozen cherimoya pulp blended with cold water or milk.",
+         es:"Pulpa de chirimoya envasada congelada licuada con agua fría o leche."},
+  variants:[
+   { name:{en:"Classic (reference)",es:"Clásico (referencia)"}, src:PULP_SRC,
+     servings:3, serveMl:250, driver:0,
+     ing:[
+      {n:{en:"Frozen cherimoya pulp",es:"Pulpa de chirimoya congelada"},q:350,u:"g"},
+      {n:{en:"Cold water or milk",es:"Agua fría o leche"},q:500,u:"ml"},
+      {n:{en:"Sugar",es:"Azúcar"},q:20,u:"g"},
+      {n:{en:"Frozen lime (limón) pulp",es:"Pulpa de limón congelada"},q:10,u:"g"},
+      {n:{en:"Ice",es:"Hielo"},q:150,u:"g"}],
+     steps:[
+      THAW,
+      {en:"Check the thawed pulp for any stray seed fragments.",es:"Revisa la pulpa descongelada por si quedara algún fragmento de pepa."},
+      {en:"Blend pulp, liquid, sugar and lime pulp; the lime slows browning.",es:"Licúa la pulpa, el líquido, el azúcar y la pulpa de limón; el limón retrasa el oscurecimiento."},
+      {en:"Add ice and serve right away.",es:"Agrega hielo y sirve de inmediato."}]}],
+  benefits:[
+   {en:"Cherimoya is a source of vitamin C, vitamin B6, fibre and potassium.",es:"La chirimoya es fuente de vitamina C, vitamina B6, fibra y potasio."},
+   {en:"Naturally sweet and creamy, so little added sugar is needed.",es:"Naturalmente dulce y cremosa; necesita poco azúcar añadido."},
+   {en:"Seeds and skin contain annonacin, a neurotoxin — commercial pulp is seedless, but still inspect it.",es:"Las pepas y la cáscara contienen anonacina, una neurotoxina — la pulpa comercial viene sin pepas, pero igual revísala."}],
+  claims:[],
+  flow:[
+   RECEIVE, THAWF,
+   {t:{en:"Inspect pulp for seed fragments before blending.",es:"Revisa la pulpa por fragmentos de pepa antes de licuar."},ccp:1},
+   {t:{en:"Blend to order.",es:"Licúa al momento."}},
+   {t:{en:"Serve immediately or hold at 4 °C or colder; if the pulp is unpasteurized and you bottle the juice, label it “unpasteurized”.",es:"Sirve de inmediato o mantén a 4 °C o menos; si la pulpa no es pasteurizada y embotellas el jugo, etiquétalo “no pasteurizado”."},ccp:1}]}
+];
+/* ---------- FORMATTING ---------- */
+function nice(x){ if(x>=100) return Math.round(x).toString(); if(x>=10) return (Math.round(x*10)/10).toString(); return (Math.round(x*100)/100).toString(); }
+function frac(x){ const w=Math.floor(x), r=x-w, qs=[[0,""],[.25,"¼"],[.33,"⅓"],[.5,"½"],[.67,"⅔"],[.75,"¾"],[1,""]]; let best=qs[0]; for(const q of qs){ if(Math.abs(r-q[0])<Math.abs(r-best[0])) best=q; } const ww=best[0]===1?w+1:w; return (ww?ww:"")+(best[1]) || "0"; }
+const UN = {
+  g:{en:"g",es:"g"}, ml:{en:"mL",es:"mL"}, u:{en:"pc",es:"und"}, tbsp:{en:"tbsp",es:"cda"}, tsp:{en:"tsp",es:"cdta"}
+};
+function conv(q,u){
+  if(u==="ml"){ const cups=q/236.6; return (q>=1000? nice(q/1000)+" L · ":"")+frac(cups)+(state.lang==="es"?" tazas":" cups"); }
+  if(u==="g"){ return q>=1000? nice(q/1000)+" kg" : (nice(q/28.35)+" oz"); }
+  if(u==="tbsp"){ return nice(q*15)+" mL"; }
+  if(u==="tsp"){ return nice(q*5)+" mL"; }
+  if(u==="u"){ return "≈ "+frac(q); }
+  return "";
+}
+
+/* ---------- RENDER ---------- */
+const tabsEl=document.getElementById("tabs"), main=document.getElementById("main");
+function renderTabs(){
+  const items=[...P.map(p=>({id:p.id,label:T(p.name),c:p.c})),{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
+  tabsEl.innerHTML=items.map(it=>it.sep?'<span class="sep" aria-hidden="true"></span>':
+    `<button role="tab" id="tab-${it.id}" aria-selected="${state.tab===it.id}" data-tab="${it.id}" style="--c:${it.c}"><span class="dot"></span>${it.label}</button>`).join("");
+}
+tabsEl.addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return; state.tab=b.dataset.tab; save(); render(); window.scrollTo({top:0});});
+
+function product(p){
+  const vi=state.variant[p.id]||0, v=p.variants[vi], key=p.id+":"+vi, f=state.factor[key]??1;
+  const pc2=`color-mix(in oklab, ${p.c} 80%, var(--ink))`;
+  const rows=v.ing.map((g,i)=>`<tr class="${i===v.driver?"driver":""}">
+      <td class="name">${T(g.n)}${g.note?`<small>${T(g.note)}</small>`:""}</td>
+      <td class="amt"><input id="amt-${p.id}-${vi}-${i}" type="number" inputmode="decimal" min="0" step="any" data-i="${i}" value="${nice(g.q*f)}" aria-label="${T(g.n)}"><span class="unit">${T(UN[g.u])}</span></td>
+      <td class="conv" data-conv="${i}">${conv(g.q*f,g.u)}</td></tr>`).join("");
+  const water=v.ing.findIndex(g=>g.u==="ml"), drv=v.ing[v.driver];
+  const ratio=(water>=0 && drv.u==="g" && water!==v.driver)? `<div class="ratio"><span>${T(v.ing[water].n).split(" (")[0]} : ${T(drv.n).split(",")[0].split(" (")[0]} = ${nice(v.ing[water].q/drv.q)} : 1 ${state.lang==="es"?"(mL por g)":"(mL per g)"}</span><span>${T(UI.yield)} ≈ <b data-yield>${nice(v.servings*f)}</b> ${T(UI.per)} ${v.serveMl} mL</span></div>`
+     : `<div class="ratio"><span>${T(UI.yield)} ≈ <b data-yield>${nice(v.servings*f)}</b> ${T(UI.per)} ${v.serveMl} mL</span></div>`;
+  return `<section style="--pc:${p.c};--pc2:${pc2}" aria-labelledby="h-${p.id}">
+   <div class="hero"><div><div class="eyebrow">${T(p.eyebrow)}</div><h2 id="h-${p.id}">${T(p.name)}</h2><p>${T(p.intro)}</p></div><div class="swatch" aria-hidden="true"></div></div>
+   <div class="grid">
+    <div class="stack">
+     <div class="panel">
+      <h3>${T(UI.recipe)}</h3>
+      ${p.variants.length>1?`<div class="variants">${p.variants.map((x,i)=>`<button type="button" data-variant="${i}" aria-pressed="${i===vi}">${T(x.name)}</button>`).join("")}</div>`:`<div class="variants"><button type="button" aria-pressed="true">${T(v.name)}</button></div>`}
+      <div class="controls">
+        <div class="field"><label for="srv-${p.id}">${T(UI.scaleBy)} (${v.serveMl} mL)</label><input id="srv-${p.id}" type="number" min="0" step="any" value="${nice(v.servings*f)}"></div>
+        <div class="field"><label>${T(UI.batch)}</label><div class="chips">${[0.5,1,2,5,10].map(m=>`<button type="button" data-mult="${m}">×${m}</button>`).join("")}</div></div>
+        <div class="factor">${T(UI.factor)} <b data-factor>×${nice(f)}</b></div>
+      </div>
+      <div class="tablewrap"><table class="ing"><tbody>${rows}</tbody></table></div>
+      ${ratio}
+      <p class="hint">${T(UI.hint)} ${T(UI.src)}: ${T(v.src)}.</p>
+     </div>
+     <div class="panel"><h3>${T(UI.method)}</h3><ol class="steps">${v.steps.map(s=>`<li>${T(s)}</li>`).join("")}</ol></div>
+     <div class="panel"><h3>${T(UI.flow)}</h3>
+      <ol class="flow">${p.flow.map((s,i)=>`<li class="${s.ccp?"ccp":""}"><span class="n">${i+1}</span><div>${T(s.t)}${s.ccp?`<span class="tag">${T(UI.ccp)}</span>`:""}</div></li>`).join("")}</ol>
+      <p class="hint">${T(UI.ccpNote)}</p></div>
+    </div>
+    <div class="stack">
+     <div class="panel"><h3>${T(UI.benefits)}</h3><ul class="plain">${p.benefits.map(b=>`<li>${T(b)}</li>`).join("")}</ul>
+      ${p.allergen?`<p class="note" style="margin-top:12px"><b>${state.lang==="es"?"Alérgenos":"Allergens"}:</b> ${T(p.allergen)}</p>`:""}</div>
+     ${p.claims.length?`<div class="panel"><h3>${T(UI.check)}</h3><div class="claims">${p.claims.map(c=>`<div class="claim ${c.v}"><span class="v">${c.v==="bad"?(state.lang==="es"?"Falso / riesgo":"False / risk"):c.v==="warn"?(state.lang==="es"?"No verificado":"Unverified"):(state.lang==="es"?"Respaldado":"Supported")}</span><span class="q">${T(c.q)}</span>${T(c.t)}</div>`).join("")}</div></div>`:""}
+    </div>
+   </div></section>`;
+}
+
+function wireProduct(p){
+  const vi=state.variant[p.id]||0, v=p.variants[vi], key=p.id+":"+vi;
+  const sec=main.querySelector("section");
+  const update=(f,skip)=>{
+    state.factor[key]=f;
+    sec.querySelectorAll("table.ing input").forEach(inp=>{const i=+inp.dataset.i; if(inp!==skip) inp.value=nice(v.ing[i].q*f); sec.querySelector(`[data-conv="${i}"]`).textContent=conv(v.ing[i].q*f,v.ing[i].u);});
+    const s=sec.querySelector(`#srv-${p.id}`); if(s!==skip) s.value=nice(v.servings*f);
+    sec.querySelector("[data-factor]").textContent="×"+nice(f);
+    sec.querySelectorAll("[data-yield]").forEach(y=>y.textContent=nice(v.servings*f));
+  };
+  sec.querySelectorAll("table.ing input").forEach(inp=>inp.addEventListener("input",()=>{const x=parseFloat(inp.value); if(x>0) update(x/v.ing[+inp.dataset.i].q,inp);}));
+  sec.querySelector(`#srv-${p.id}`).addEventListener("input",e=>{const x=parseFloat(e.target.value); if(x>0) update(x/v.servings,e.target);});
+  sec.querySelectorAll("[data-mult]").forEach(b=>b.addEventListener("click",()=>update(+b.dataset.mult)));
+  sec.querySelectorAll("[data-variant]").forEach(b=>b.addEventListener("click",()=>{state.variant[p.id]=+b.dataset.variant; render();}));
+}
+
+const SRC={
+  ahs:"https://www.albertahealthservices.ca/assets/wf/eph/wf-eph-start-food-business.pdf",
+  temp:"https://www.albertahealthservices.ca/assets/wf/eph/wf-eph-important-temperatures-safe-food-handling.pdf",
+  hc:"https://www.canada.ca/en/health-canada/services/food-safety-fruits-vegetables/unpasteurized-juice-cider.html",
+  code:"https://open.alberta.ca/dataset/0ea69179-2f90-4776-a64d-c903299b2ca6/resource/3354d461-6834-4744-b185-18dfa401960d/download/health-food-retail-and-foodservices-code-2020.pdf",
+  cfia:"https://inspection.canada.ca/en/food-labels/labelling",
+  sigala:"https://www.sciencedirect.com/science/article/pii/S0956053X25001072",
+  winnow:"https://www.winnowsolutions.com/en/case-studies",
+  oracle:"https://www.oracle.com/news/announcement/oracle-and-netsuite-deliver-new-ai-powered-solution-for-restaurant-operations-2026-03-31/",
+  oxm:"https://oxmaint.com/industries/hospitality/ai-demand-forecasting-hospitality-operations"
+};
+const L=(k,t)=>`<a href="${SRC[k]}" target="_blank" rel="noopener">${t}</a>`;
+
+function aiOverview(){
+  const es=state.lang==="es";
+  const caps=es?[
+   ["Atender clientes","Chatbots que responden preguntas, toman reservas y pedidos; se integran con WhatsApp, Facebook e Instagram."],
+   ["Predecir la demanda","Analiza ventas históricas, clima, eventos y estacionalidad para comprar lo justo y no quedarse sin producto."],
+   ["Inventario en tiempo real","Detecta faltantes y exceso de stock y recomienda compras."],
+   ["Reducir desperdicio y costos","Registra la merma y muestra qué se bota y por qué."],
+   ["Menú y food cost","Costo automático por plato y ajuste de precios según los precios de proveedores."],
+   ["Marketing y ventas","Genera contenido, segmenta audiencias y optimiza anuncios."],
+   ["Reseñas y reputación","Analiza reseñas y detecta patrones de quejas."]
+  ]:[
+   ["Serve customers","Chatbots answer questions, take bookings and orders; integrate with WhatsApp, Facebook and Instagram."],
+   ["Forecast demand","Uses sales history, weather, events and seasonality so you buy what you need and don't run out."],
+   ["Real-time inventory","Flags shortages and overstock and recommends purchases."],
+   ["Cut waste and cost","Logs waste and shows what gets thrown out and why."],
+   ["Menu and food cost","Automatic cost per dish; prices adjusted to supplier prices."],
+   ["Marketing and sales","Generates content, segments audiences and optimizes ads."],
+   ["Reviews and reputation","Analyzes reviews and spots complaint patterns."]
+  ];
+  const mods=es?[
+   ["Atención al cliente",["Chatbot para WhatsApp, Instagram y web","Reservas automáticas","Confirmación de mesas","Recomendaciones personalizadas"],"Para Taste of Peru: responder alérgenos (leche, sulfitos) y la nota “no pasteurizado” sin prometer beneficios de salud."],
+   ["Cocina e inventario",["Control de stock en tiempo real","Alertas de faltantes","Predicción de demanda por hora","Órdenes de compra automáticas"],"Para Taste of Peru: stock de pulpas congeladas, maíz morado, quinua y maca; conectar con las calculadoras de lote y los registros de PCC (temperaturas, descongelación)."],
+   ["Ventas y análisis",["Dashboard de ventas, márgenes y platos más rentables","Detección de productos que rotan pero no dejan utilidad","Proyecciones diarias y semanales"],"Para Taste of Peru: costo por vaso de cada bebida a partir de las recetas de esta app."],
+   ["Marketing",["Generación automática de contenido","Optimización de anuncios","Publicaciones programadas","Análisis de engagement"],"Filtro obligatorio: nada de afirmaciones de salud marcadas como falsas o no verificadas en las pestañas de producto."],
+   ["Reseñas y reputación",["Respuestas automáticas a reseñas","Detección de problemas recurrentes","Reportes semanales"],"Revisa a mano las respuestas sobre quejas de salud o intoxicación antes de publicarlas."]
+  ]:[
+   ["Customer service",["Chatbot for WhatsApp, Instagram and web","Automatic bookings","Table confirmation","Personalized recommendations"],"For Taste of Peru: answer allergen (milk, sulphites) and “unpasteurized” questions without promising health benefits."],
+   ["Kitchen and inventory",["Real-time stock control","Shortage alerts","Hourly demand forecast","Automatic purchase orders"],"For Taste of Peru: stock of frozen pulps, purple corn, quinoa and maca; link to the batch calculators and CCP logs (temperatures, thawing)."],
+   ["Sales and analytics",["Dashboard of sales, margins and most profitable items","Spot items that sell but don't make money","Daily and weekly sales projections"],"For Taste of Peru: cost per cup for each drink, from this app's recipes."],
+   ["Marketing",["Automatic content generation","Ad optimization","Scheduled posts","Engagement analysis"],"Required filter: no health claims marked false or unverified on the product tabs."],
+   ["Reviews and reputation",["Automatic review replies","Recurring-problem detection","Weekly reports"],"Check replies about illness or food-safety complaints by hand before posting."]
+  ];
+  const claims=es?[
+   ["warn","“Predicción de demanda con 85–92% de precisión según Oracle Hospitality”","No encontré esta cifra en Oracle. Aparece en un blog de un proveedor de software (Oxmaint), sin fuente, y se refiere a ocupación hotelera; su propia tabla da 83% para demanda de alimentos y bebidas.",L("oxm","Oxmaint")+" · "+L("oracle","Oracle, mar. 2026")],
+   ["warn","“Reducción de merma del 22% en 90 días”","No verificado; no encontré la fuente. Un estudio revisado por pares (Sigala et al., 2025) midió 23–51% menos desperdicio en 4 de 5 locales, pero en 7–10 meses, y un hotel aumentó 13%.",L("sigala","Waste Management, 2025")],
+   ["warn","“Ahorros de $1,200 a $6,000 USD al mes”","No verificado. El mismo estudio reporta hasta 39% menos costo de comida desperdiciada por plato; Winnow (proveedor) reporta 2–8% de ahorro en costo de alimentos, sobre todo en hoteles y comedores grandes.",L("sigala","Sigala et al.")+" · "+L("winnow","Winnow")],
+   ["warn","“Reducción del costo por lead hasta 40%”","No verificado; no encontré una fuente con esta cifra.",""],
+   ["ok","Chatbots, reservas, inventario, costo por plato y análisis de reseñas","Son funciones que ya ofrecen herramientas del mercado; los resultados dependen de tus datos y de cómo se usen.",""]
+  ]:[
+   ["warn","“85–92% demand-forecast accuracy, per Oracle Hospitality”","Not found at Oracle. It appears on a software vendor's blog (Oxmaint), uncited, and refers to hotel occupancy; its own table gives 83% for food & beverage demand.",L("oxm","Oxmaint")+" · "+L("oracle","Oracle, Mar 2026")],
+   ["warn","“22% less waste in 90 days”","Unverified; source not found. A peer-reviewed study (Sigala et al., 2025) measured 23–51% less waste at 4 of 5 sites, but over 7–10 months, and one hotel rose 13%.",L("sigala","Waste Management, 2025")],
+   ["warn","“$1,200–$6,000 USD saved per month”","Unverified. The same study reports up to 39% lower cost of wasted food per meal; Winnow (a vendor) reports 2–8% food-cost savings, mostly in hotels and large caterers.",L("sigala","Sigala et al.")+" · "+L("winnow","Winnow")],
+   ["warn","“Up to 40% lower cost per lead”","Unverified; no source with this figure found.",""],
+   ["ok","Chatbots, bookings, inventory, cost per dish and review analysis","These features exist in tools on the market today; results depend on your data and how you use them.",""]
+  ];
+  const lbl={ok:es?"Respaldado":"Supported",warn:es?"No verificado":"Unverified"};
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">
+   <div class="hero"><div><div class="eyebrow">${es?"Inteligencia artificial para el restaurante":"Artificial intelligence for the restaurant"}</div><h2>${es?"Sistema de IA":"AI system"}</h2><p>${es?"Qué puede hacer la IA en un restaurante y cómo serían los cinco módulos del sistema. Las cifras de ahorro se revisaron contra sus fuentes: ver la verificación al final.":"What AI can do in a restaurant and how the system's five modules would work. Savings figures were checked against their sources — see the claim check at the end."}</p></div></div>
+   <h3 class="sec">${es?"Qué puede hacer":"What it can do"}</h3>
+   <div class="caps">${caps.map(c=>`<div class="cap"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("")}</div>
+   <h3 class="sec">${es?"Los cinco módulos":"The five modules"}</h3>
+   <div class="mods">${mods.map((m,i)=>`<div class="panel"><div class="mnum">${es?"Módulo":"Module"} ${i+1}</div><h4>${m[0]}</h4><ul class="plain">${m[1].map(x=>`<li>${x}</li>`).join("")}</ul><div class="fit">${m[2]}</div></div>`).join("")}</div>
+   <h3 class="sec">${T(UI.check)}</h3>
+   <div class="panel"><div class="claims">${claims.map(c=>`<div class="claim ${c[0]}"><span class="v">${lbl[c[0]]}</span><span class="q">${c[1]}</span>${c[2]}${c[3]?`<div class="src">${T(UI.src)}: ${c[3]}</div>`:""}</div>`).join("")}</div></div>
+  </section>`;
+}
+
+/* ================= AI SYSTEM — WORKING MODULES ================= */
+const tt=(en,es)=>state.lang==="es"?es:en;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>{const x=parseFloat(v);return isFinite(x)?x:0;};
+const money=v=>"$"+(Math.round(v*100)/100).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+const dow=iso=>new Date(iso+"T12:00:00").getDay();
+const DOWN={en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],es:["dom","lun","mar","mié","jue","vie","sáb"]};
+const pname=id=>{const p=P.find(x=>x.id===id);return p?T(p.name):id;};
+
+let DB=null, SAMPLE=null, capsReady=false;
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],costs:{}};
+if(!state.aiView) state.aiView="overview";
+
+function subscribe(name){
+  DB.collection(name).onSnapshot(s=>{D[name]=s.docs.map(d=>({id:d.id,...d.data()}));refreshAI();},
+    e=>{console.warn(name,e.code);});
+}
+(async()=>{
+  const use=window.claude&&window.claude.use?window.claude.use.bind(window.claude):null;
+  if(use){
+    try{SAMPLE=await use("sample");}catch(e){SAMPLE=null;}
+    try{DB=await use("db");}catch(e){DB=null;}
+  }
+  capsReady=true;
+  if(DB){
+    ["inventory","waste","reservations","sales","posts","reviews"].forEach(subscribe);
+    DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+  }
+  if(state.tab==="ai") render(); else refreshAI();
+})();
+
+async function dbAdd(col,data){ if(!DB) return noDb(); try{await DB.collection(col).add(data);}catch(e){dbErr(e);} }
+async function dbUpd(col,id,data){ if(!DB) return noDb(); try{await DB.collection(col).doc(id).update(data);}catch(e){dbErr(e);} }
+async function dbSet(path,data){ if(!DB) return noDb(); try{await DB.doc(path).set(data);}catch(e){dbErr(e);} }
+async function dbDel(col,id){ if(!DB) return noDb(); try{await DB.collection(col).doc(id).delete();}catch(e){dbErr(e);} }
+function noDb(){ toast(tt("Saving is not available in this view. Open the app in Claude.","El guardado no está disponible en esta vista. Abre la app en Claude.")); }
+function dbErr(e){ toast(e&&e.code==="quota_exceeded"?tt("Storage is full — delete old records.","El almacenamiento está lleno — borra registros antiguos."):e&&e.code==="invalid_argument"?tt("You don't have permission to change this data.","No tienes permiso para cambiar estos datos."):tt("Could not save. Try again.","No se pudo guardar. Inténtalo de nuevo.")); }
+function toast(msg){ let el=document.getElementById("toast"); if(!el){el=document.createElement("div");el.id="toast";el.setAttribute("role","status");document.body.appendChild(el);} el.textContent=msg; el.classList.add("on"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("on"),3500); }
+
+function aiErr(e){ const c=e&&e.code;
+  if(c==="not_granted"||c==="sampling_disabled"||c==="not_declared"||c==="capability_disabled"||c==="capability_removed") return tt("AI is not allowed in this view.","La IA no está permitida en esta vista.");
+  if(c==="rate_limited") return tt("Too many AI requests — wait a moment and try again.","Demasiadas solicitudes de IA — espera un momento e inténtalo de nuevo.");
+  if(c==="session_expired") return tt("Sign in again to use AI.","Vuelve a iniciar sesión para usar la IA.");
+  if(c==="refused") return tt("The AI declined this request. Rephrase it.","La IA rechazó esta solicitud. Reformúlala.");
+  if(c==="invalid_json") return tt("The AI answer could not be read. Try again.","No se pudo leer la respuesta de la IA. Inténtalo de nuevo.");
+  if(c==="cancelled") return "";
+  return tt("AI request failed. Try again.","La solicitud de IA falló. Inténtalo de nuevo.");
+}
+const LANGLINE=()=>state.lang==="es"?"Write in Spanish.":"Write in English.";
+const CLAIM_RULES=()=>{
+  const bad=[];P.forEach(p=>p.claims.forEach(c=>{if(c.v!=="ok")bad.push(c.q.en);}));
+  return "Never make health or disease claims. Never use these unverified or false claims: "+bad.join("; ")+". Do not call any product medicine or a cure.";
+};
+const MENU_TEXT=()=>P.map(p=>`- ${p.name.en} / ${p.name.es}: ${p.intro.en}${p.allergen?" Allergens: "+p.allergen.en:""}`).join("\n");
+
+/* ---------- shell ---------- */
+const MODS=[
+  {id:"overview",en:"Overview",es:"Resumen"},
+  {id:"m1",en:"1 · Customers",es:"1 · Clientes"},
+  {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
+  {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
+  {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
+  {id:"m5",en:"5 · Reviews",es:"5 · Reseñas"}
+];
+function aiSys(){
+  const v=state.aiView;
+  const banner = !capsReady ? `<p class="capnote">${tt("Connecting to data and AI…","Conectando con datos e IA…")}</p>`
+    : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
+  const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():aiOverview();
+  return nav+banner+body;
+}
+function wireAI(){
+  main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
+  const v=state.aiView;
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5();
+  refreshAI();
+  main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
+}
+function refreshAI(){
+  if(state.tab!=="ai") return;
+  const v=state.aiView;
+  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5();
+}
+const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
+const field=(id,label,input)=>`<div class="f"><label for="${id}">${label}</label>${input}</div>`;
+const val=id=>{const el=document.getElementById(id);return el?el.value.trim():"";};
+const prodOptions=(sel)=>P.map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(T(p.name))}</option>`).join("");
+async function copyText(txt){ try{await navigator.clipboard.writeText(txt);toast(tt("Copied","Copiado"));}catch(e){toast(tt("Select the text and copy it manually.","Selecciona el texto y cópialo manualmente."));} }
+
+/* ================= MODULE 1 — CUSTOMER SERVICE ================= */
+let chatTurns=[], chatCtl=null;
+function m1(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 1","Módulo 1"),tt("Customer service","Atención al cliente"),tt("Test the customer assistant, take bookings and confirm tables. The assistant only knows your menu, allergens and the claim rules in this app.","Prueba el asistente para clientes, toma reservas y confirma mesas. El asistente solo conoce tu menú, los alérgenos y las reglas de afirmaciones de esta app."))}
+  <div class="grid">
+   <div class="stack">
+    <div class="panel"><h3>${tt("Customer assistant","Asistente para clientes")}</h3>
+     <div class="chat" id="chatLog" aria-live="polite">${chatTurns.length?chatTurns.map(bubble).join(""):`<p class="empty">${tt("Write as if you were a customer: “What do you recommend without milk?”, “Can I book for 4 on Friday?”","Escribe como si fueras un cliente: “¿Qué me recomiendas sin leche?”, “¿Puedo reservar para 4 el viernes?”")}</p>`}</div>
+     <form id="chatForm" class="chatbar"><label class="sr" for="chatIn">${tt("Message","Mensaje")}</label><input id="chatIn" autocomplete="off" placeholder="${tt("Type a message…","Escribe un mensaje…")}"><button type="button" class="btn ghost mic" id="chatMic" aria-pressed="false" data-needs-ai title="${tt("Speak","Hablar")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg><span id="micLbl">${tt("Speak","Hablar")}</span></button><button type="submit" class="btn" data-needs-ai>${tt("Send","Enviar")}</button><button type="button" class="btn ghost" id="chatStop" hidden>${tt("Stop","Detener")}</button><button type="button" class="btn ghost" id="chatReset">${tt("Clear","Limpiar")}</button></form>
+     <div class="voicebar"><label class="f inline"><span>${tt("Voice language","Idioma de voz")}</span><select id="vLang"><option value="es-PE"${voiceLang()==="es-PE"?" selected":""}>Español</option><option value="en-CA"${voiceLang()==="en-CA"?" selected":""}>English</option></select></label>
+      <label class="chk"><input type="checkbox" id="vSpeak"${speakOn()?" checked":""}> ${tt("Read replies aloud","Leer respuestas en voz alta")}</label></div>
+     <p class="hint" id="vMsg" aria-live="polite"></p>
+     <p class="hint">${tt("To answer on WhatsApp, Instagram or Facebook you need a Meta Business account and a messaging provider; use this console to test the answers first.","Para responder en WhatsApp, Instagram o Facebook necesitas una cuenta Meta Business y un proveedor de mensajería; usa esta consola para probar las respuestas primero.")}</p>
+    </div>
+   </div>
+   <div class="stack">
+    <div class="panel"><h3>${tt("New booking","Nueva reserva")}</h3>
+     <form id="resForm" class="fgrid">
+      ${field("rName",tt("Name","Nombre"),`<input id="rName" required>`)}
+      ${field("rContact",tt("Phone or email","Teléfono o correo"),`<input id="rContact">`)}
+      ${field("rDate",tt("Date","Fecha"),`<input id="rDate" type="date" required value="${today()}">`)}
+      ${field("rTime",tt("Time","Hora"),`<input id="rTime" type="time" required>`)}
+      ${field("rParty",tt("People","Personas"),`<input id="rParty" type="number" min="1" value="2">`)}
+      ${field("rNotes",tt("Notes (allergies…)","Notas (alergias…)"),`<input id="rNotes">`)}
+      <button class="btn" type="submit">${tt("Save booking","Guardar reserva")}</button>
+     </form></div>
+    <div class="panel"><h3>${tt("Bookings","Reservas")}</h3><div id="resList"></div></div>
+   </div>
+  </div></section>`;
+}
+function bubble(t){return `<div class="bub ${t.role==="user"?"me":"bot"}">${esc(t.content)}</div>`;}
+function chatRules(){
+  return `You are the customer-service assistant of "Taste of Peru", a small Peruvian drinks and desserts counter in Edmonton, Alberta. Answer customers briefly and warmly in the language they write in.
+Menu:
+${MENU_TEXT()}
+Rules: ${CLAIM_RULES()} If a customer asks about allergies, name the allergens listed above and tell them to confirm with staff. Drinks made from unpasteurized pulp may be unpasteurized. For bookings, collect name, date, time and number of people, then say staff will confirm — never confirm a booking yourself. You do not know prices, opening hours or the address unless the customer's message contains them: say staff will confirm. Give personalized recommendations based on what the customer says they like. Keep answers to 2-4 short sentences of plain text with no lists, markdown or emoji, because they may be read aloud.`;
+}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recog=null, listening=false, lastByVoice=false;
+function voiceLang(){ try{return localStorage.getItem("adl-vlang")||(state.lang==="es"?"es-PE":"en-CA");}catch(e){return state.lang==="es"?"es-PE":"en-CA";} }
+function speakOn(){ try{return localStorage.getItem("adl-vspeak")!=="0";}catch(e){return true;} }
+function vMsg(t){const el=document.getElementById("vMsg"); if(el) el.textContent=t;}
+function speak(text){
+  if(!("speechSynthesis" in window)||!text) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text), lang=voiceLang(), base=lang.slice(0,2);
+  u.lang=lang; const vs=speechSynthesis.getVoices(); const v=vs.find(x=>x.lang===lang)||vs.find(x=>x.lang&&x.lang.startsWith(base)); if(v) u.voice=v;
+  speechSynthesis.speak(u);
+}
+function setMic(on){ listening=on; const b=document.getElementById("chatMic"); if(!b) return; b.setAttribute("aria-pressed",on); b.classList.toggle("rec",on); document.getElementById("micLbl").textContent=on?tt("Listening… tap to stop","Escuchando… toca para parar"):tt("Speak","Hablar"); }
+function startVoice(){
+  if(!SR){ vMsg(tt("This browser can't take voice input. Use Chrome, Edge or Safari, or type the message.","Este navegador no admite voz. Usa Chrome, Edge o Safari, o escribe el mensaje.")); return; }
+  if(listening){ recog?.stop(); return; }
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+  const inp=document.getElementById("chatIn"); let finalTxt="";
+  recog=new SR(); recog.lang=voiceLang(); recog.interimResults=true; recog.continuous=false; recog.maxAlternatives=1;
+  recog.onstart=()=>{setMic(true);vMsg("");};
+  recog.onresult=e=>{ let interim=""; for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i]; if(r.isFinal) finalTxt+=r[0].transcript; else interim+=r[0].transcript;} inp.value=(finalTxt+interim).trim(); };
+  recog.onerror=e=>{ const c=e.error;
+    vMsg(c==="not-allowed"||c==="service-not-allowed"?tt("Microphone access is blocked. Allow the microphone for this page in your browser settings.","El micrófono está bloqueado. Permite el micrófono para esta página en la configuración del navegador.")
+      :c==="no-speech"?tt("I didn't hear anything. Try again.","No escuché nada. Inténtalo de nuevo.")
+      :c==="audio-capture"?tt("No microphone found.","No se encontró un micrófono.")
+      :c==="network"?tt("Voice recognition needs an internet connection.","El reconocimiento de voz necesita conexión a internet.")
+      :c==="aborted"?"":tt("Voice input stopped. Try again or type.","La entrada de voz se detuvo. Inténtalo de nuevo o escribe.")); };
+  recog.onend=()=>{ setMic(false); if(inp.value.trim()){ lastByVoice=true; document.getElementById("chatForm").requestSubmit(); } };
+  try{ recog.start(); }catch(err){ setMic(false); vMsg(tt("Could not start the microphone.","No se pudo iniciar el micrófono.")); }
+}
+function wireM1(){
+  const log=document.getElementById("chatLog");
+  document.getElementById("chatMic").onclick=startVoice;
+  document.getElementById("vLang").onchange=e=>{try{localStorage.setItem("adl-vlang",e.target.value);}catch(_){}};
+  document.getElementById("vSpeak").onchange=e=>{try{localStorage.setItem("adl-vspeak",e.target.checked?"1":"0");}catch(_){} if(!e.target.checked&&"speechSynthesis" in window) speechSynthesis.cancel();};
+  if(!SR) vMsg(tt("Voice input isn't supported in this browser — use Chrome, Edge or Safari. Replies can still be read aloud.","Este navegador no admite entrada de voz — usa Chrome, Edge o Safari. Las respuestas igual se pueden leer en voz alta."));
+  document.getElementById("chatReset").onclick=()=>{chatCtl?.abort();recog?.abort();if("speechSynthesis" in window)speechSynthesis.cancel();chatTurns=[];render();};
+  document.getElementById("chatStop").onclick=()=>{chatCtl?.abort();if("speechSynthesis" in window)speechSynthesis.cancel();};
+  document.getElementById("chatForm").onsubmit=async e=>{
+    e.preventDefault(); const inp=document.getElementById("chatIn"); const msg=inp.value.trim(); if(!msg||!SAMPLE) return;
+    inp.value=""; chatTurns.push({role:"user",content:msg});
+    if(chatTurns.length>20) chatTurns=chatTurns.slice(-20);
+    log.innerHTML=chatTurns.map(bubble).join("")+`<div class="bub bot" id="liveBub">${tt("Thinking…","Pensando…")}</div>`;
+    log.scrollTop=log.scrollHeight;
+    const live=document.getElementById("liveBub"), stop=document.getElementById("chatStop"); stop.hidden=false;
+    chatCtl=new AbortController();
+    const turns=chatTurns[0].role==="user"?chatTurns:chatTurns.slice(1);
+    try{
+      const {text}=await SAMPLE([{role:"user",content:chatRules()},...turns],{cache:false,modelTier:"quick",signal:chatCtl.signal,onText:({text})=>{live.textContent=text;log.scrollTop=log.scrollHeight;}});
+      chatTurns.push({role:"assistant",content:text});
+      if(speakOn()&&(lastByVoice||document.getElementById("vSpeak")?.checked)) speak(text);
+    }catch(err){ live.textContent=err.text||aiErr(err)||"—"; if(err.text) chatTurns.push({role:"assistant",content:err.text}); }
+    stop.hidden=true; lastByVoice=false;
+  };
+  document.getElementById("resForm").onsubmit=async e=>{
+    e.preventDefault(); if(!val("rName")||!val("rDate")||!val("rTime")) return;
+    await dbAdd("reservations",{name:val("rName"),contact:val("rContact"),date:val("rDate"),time:val("rTime"),party:Math.max(1,num(val("rParty"))),notes:val("rNotes"),status:"pending",created:new Date().toISOString()});
+    e.target.reset(); document.getElementById("rDate").value=today(); document.getElementById("rParty").value=2;
+  };
+  document.getElementById("resList").onclick=async e=>{
+    const b=e.target.closest("[data-act]"); if(!b) return; const id=b.dataset.id, r=D.reservations.find(x=>x.id===id); if(!r) return;
+    if(b.dataset.act==="confirm") await dbUpd("reservations",id,{status:"confirmed"});
+    if(b.dataset.act==="cancel") await dbUpd("reservations",id,{status:"cancelled"});
+    if(b.dataset.act==="del") await dbDel("reservations",id);
+    if(b.dataset.act==="msg") copyText(confirmMsg(r));
+  };
+}
+function confirmMsg(r){
+  return state.lang==="es"
+   ? `Hola ${r.name}, confirmamos tu reserva en Taste of Peru para ${r.party} persona(s) el ${r.date} a las ${r.time}. ¡Te esperamos!`
+   : `Hi ${r.name}, your Taste of Peru booking for ${r.party} is confirmed for ${r.date} at ${r.time}. See you soon!`;
+}
+let resSel=null, resFilter="upcoming";
+function listM1(){
+  const el=document.getElementById("resList"); if(!el) return;
+  const t=today();
+  const all=[...D.reservations].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const rows=resFilter==="upcoming"?all.filter(r=>r.date>=t&&r.status!=="cancelled"):resFilter==="past"?all.filter(r=>r.date<t).reverse():resFilter==="cancelled"?all.filter(r=>r.status==="cancelled"):all;
+  if(!rows.find(r=>r.id===resSel)) resSel=rows[0]?.id||null;
+  const st=r=>r.status==="confirmed"?tt("Confirmed","Confirmada"):r.status==="cancelled"?tt("Cancelled","Cancelada"):tt("Pending","Pendiente");
+  const filt=[["upcoming",tt("Upcoming","Próximas")],["all",tt("All","Todas")],["past",tt("Past","Pasadas")],["cancelled",tt("Cancelled","Canceladas")]];
+  const r=rows.find(x=>x.id===resSel);
+  el.innerHTML=`<div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
+   ${rows.length?`<label class="sr" for="resBox">${tt("Bookings","Reservas")}</label>
+   <select id="resBox" class="listbox" size="${Math.min(8,Math.max(4,rows.length))}">${rows.map(x=>`<option value="${x.id}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)}) · ${st(x)}</option>`).join("")}</select>
+   <p class="hint">${rows.length} ${tt("booking(s)","reserva(s)")}</p>`:`<p class="empty">${tt("No bookings in this view.","No hay reservas en esta vista.")}</p>`}
+   ${r?`<div class="resdetail"><div><b>${esc(r.name)}</b><span class="badge ${r.status==="confirmed"?"ok":r.status==="cancelled"?"bad":"warn"}">${st(r)}</span></div>
+    <div>${esc(r.date)} · ${esc(r.time)} · ${esc(r.party)} ${tt("people","personas")}</div>
+    ${r.contact?`<div>${esc(r.contact)}</div>`:""}${r.notes?`<div class="dimtxt">${esc(r.notes)}</div>`:""}
+    <div class="acts">${r.status!=="confirmed"?`<button class="btn sm" data-act="confirm" data-id="${r.id}">${tt("Confirm","Confirmar")}</button>`:""}<button class="btn sm ghost" data-act="msg" data-id="${r.id}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${r.id}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${r.id}">${tt("Delete","Borrar")}</button></div></div>`:""}`;
+  const box=document.getElementById("resBox"); if(box) box.onchange=()=>{resSel=box.value;listM1();document.getElementById("resBox")?.focus();};
+  document.getElementById("resFilt").onchange=e=>{resFilter=e.target.value;resSel=null;listM1();};
+}
+
+/* ================= MODULE 2 — KITCHEN & INVENTORY ================= */
+const UNITS=["g","kg","ml","L","pc"];
+const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
+function m2(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
+   <div class="kpis" id="invKpis"></div>
+   <div class="panel"><h3>${tt("Stock","Stock")}</h3>
+    <form id="invForm" class="fgrid wide">
+     ${field("iName",tt("Item","Artículo"),`<input id="iName" required>`)}
+     ${field("iUnit",tt("Unit","Unidad"),`<select id="iUnit">${UNITS.map(u=>`<option>${u}</option>`).join("")}</select>`)}
+     ${field("iQty",tt("On hand","En stock"),`<input id="iQty" type="number" step="any" min="0">`)}
+     ${field("iMin",tt("Alert below","Alerta bajo"),`<input id="iMin" type="number" step="any" min="0">`)}
+     ${field("iPar",tt("Maximum quantity","Cantidad máxima"),`<input id="iPar" type="number" step="any" min="0">`)}
+     ${field("iCost",tt("Cost per unit ($)","Costo por unidad ($)"),`<input id="iCost" type="number" step="any" min="0">`)}
+     ${field("iSup",tt("Supplier","Proveedor"),`<input id="iSup">`)}
+     <button class="btn" type="submit">${tt("Add item","Agregar item")}</button>
+    </form>
+    <p class="hint"><button type="button" class="linkbtn" id="loadIng">${tt("Add all ingredients from the recipes","Agregar todos los ingredientes de las recetas")}</button> — ${tt("names only; you fill in quantities.","solo nombres; tú completas las cantidades.")}</p>
+    <form id="addStockForm" class="addstock"><h4 class="minih">${tt("Add stock","Agregar stock")}</h4>
+     <div class="fgrid">
+      ${field("asItem",tt("Item","Artículo"),`<select id="asItem"></select>`)}
+      ${field("asQty",tt("Quantity received","Cantidad recibida"),`<input id="asQty" type="number" step="any" min="0" required>`)}
+      ${field("asCost",tt("New cost per unit (optional)","Nuevo costo por unidad (opcional)"),`<input id="asCost" type="number" step="any" min="0">`)}
+      <button class="btn" type="submit">${tt("Add stock","Agregar stock")}</button>
+     </div><p class="hint" id="asMsg" aria-live="polite"></p></form>
+    <div class="tablewrap" id="invTable"></div>
+   </div>
+   <div class="grid" style="margin-top:20px">
+    <div class="stack">
+     <div class="panel"><h3>${tt("Automatic purchase order","Orden de compra automática")}</h3><div id="poBox"></div></div>
+     <div class="panel"><h3>${tt("Demand forecast","Predicción de demanda")}</h3><div id="fcBox"></div>
+      <div class="aibox"><label for="fcNotes">${tt("Weather, events or holidays coming up (optional)","Clima, eventos o feriados próximos (opcional)")}</label><textarea id="fcNotes" rows="2"></textarea>
+      <button class="btn" id="fcAI" data-needs-ai>${tt("Adjust forecast with AI","Ajustar predicción con IA")}</button><div id="fcOut" class="aiout"></div></div></div>
+    </div>
+    <div class="stack">
+     <div class="panel"><h3>${tt("Waste log","Registro de merma")}</h3>
+      <form id="wForm" class="fgrid">
+       ${field("wItem",tt("Item","Artículo"),`<select id="wItem"></select>`)}
+       ${field("wQty",tt("Quantity","Cantidad"),`<input id="wQty" type="number" step="any" min="0" required>`)}
+       ${field("wReason",tt("Reason","Motivo"),`<select id="wReason">${REASONS.map(r=>`<option value="${r[0]}">${tt(r[1],r[2])}</option>`).join("")}</select>`)}
+       ${field("wDate",tt("Date","Fecha"),`<input id="wDate" type="date" value="${today()}">`)}
+       <button class="btn" type="submit">${tt("Log waste","Registrar merma")}</button>
+      </form><div id="wBox"></div></div>
+    </div>
+   </div></section>`;
+}
+function wireM2(){
+  document.getElementById("invForm").onsubmit=async e=>{
+    e.preventDefault(); if(!val("iName")) return;
+    await dbAdd("inventory",{name:val("iName"),unit:val("iUnit"),qty:num(val("iQty")),min:num(val("iMin")),par:num(val("iPar")),cost:num(val("iCost")),supplier:val("iSup"),updated:new Date().toISOString()});
+    e.target.reset();
+  };
+  document.getElementById("loadIng").onclick=async()=>{
+    if(!DB) return noDb();
+    const have=new Set(D.inventory.map(i=>i.name.toLowerCase())), seen=new Set(), adds=[];
+    P.forEach(p=>p.variants.forEach(v=>v.ing.forEach(g=>{
+      const n=T(g.n).split(" (")[0]; const k=n.toLowerCase();
+      if(/^(water|agua|ice|hielo|hot water|agua caliente|cold)/i.test(n)||have.has(k)||seen.has(k)) return;
+      seen.add(k); adds.push({name:n,unit:g.u==="u"?"pc":g.u==="tbsp"||g.u==="tsp"?"g":g.u,qty:0,min:0,par:0,cost:0,supplier:"",updated:new Date().toISOString()});
+    })));
+    for(const a of adds) await dbAdd("inventory",a);
+    toast(tt(`${adds.length} items added`,`${adds.length} artículos agregados`));
+  };
+  document.getElementById("invTable").addEventListener("change",async e=>{
+    const inp=e.target.closest("[data-f]"); if(!inp) return;
+    await dbUpd("inventory",inp.dataset.id,{[inp.dataset.f]:inp.dataset.f==="supplier"?inp.value.trim():num(inp.value),updated:new Date().toISOString()});
+  });
+  ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
+  document.getElementById("invTable").addEventListener("click",async e=>{
+    const b=e.target.closest("[data-del]"); if(b) await dbDel("inventory",b.dataset.del);
+    const a=e.target.closest("[data-add]"); if(a){ document.getElementById("asItem").value=a.dataset.add; document.getElementById("addStockForm").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asQty").focus({preventScroll:true}); }
+  });
+  document.getElementById("addStockForm").onsubmit=async e=>{
+    e.preventDefault(); const it=D.inventory.find(i=>i.id===val("asItem")); const q=num(val("asQty"));
+    if(!it||q<=0) return;
+    const upd={qty:num(it.qty)+q,updated:new Date().toISOString()}; if(val("asCost")!=="") upd.cost=num(val("asCost"));
+    await dbUpd("inventory",it.id,upd);
+    document.getElementById("asMsg").textContent=tt(`Added ${q} ${it.unit} of ${it.name}. New stock: ${+upd.qty.toFixed(2)} ${it.unit}.`,`Se agregaron ${q} ${it.unit} de ${it.name}. Stock nuevo: ${+upd.qty.toFixed(2)} ${it.unit}.`);
+    document.getElementById("asQty").value=""; document.getElementById("asCost").value="";
+  };
+  document.getElementById("wForm").onsubmit=async e=>{
+    e.preventDefault(); const it=D.inventory.find(i=>i.id===val("wItem")); if(!it||!num(val("wQty"))) return;
+    await dbAdd("waste",{itemId:it.id,item:it.name,unit:it.unit,qty:num(val("wQty")),cost:num(val("wQty"))*num(it.cost),reason:val("wReason"),date:val("wDate")||today()});
+    document.getElementById("wQty").value="";
+  };
+  document.getElementById("poBox").addEventListener("click",e=>{if(e.target.closest("#poCopy")) copyText(poText());});
+  document.getElementById("fcAI").onclick=forecastAI;
+}
+function invStatus(i){ if(i.min>0&&i.qty<=i.min) return ["bad",tt("Low","Bajo")]; if(i.par>0&&i.qty>i.par) return ["warn",tt("Overstock","Exceso")]; return ["ok","OK"]; }
+function poLines(){ return D.inventory.filter(i=>i.min>0&&i.qty<=i.min&&i.par>i.qty).map(i=>({...i,order:i.par-i.qty,est:(i.par-i.qty)*num(i.cost)})); }
+function poText(){ const L=poLines(); const by={}; L.forEach(l=>{(by[l.supplier||tt("No supplier","Sin proveedor")] ||= []).push(l);});
+  return tt("PURCHASE ORDER","ORDEN DE COMPRA")+" — "+today()+"\n"+Object.entries(by).map(([s,ls])=>`\n${s}\n`+ls.map(l=>`• ${l.name}: ${+l.order.toFixed(2)} ${l.unit}`).join("\n")).join("\n"); }
+function listM2(){
+  const tb=document.getElementById("invTable"); if(!tb) return;
+  const inv=[...D.inventory].sort((a,b)=>a.name.localeCompare(b.name));
+  const low=inv.filter(i=>invStatus(i)[0]==="bad"), over=inv.filter(i=>invStatus(i)[0]==="warn");
+  const stockVal=inv.reduce((s,i)=>s+num(i.qty)*num(i.cost),0);
+  const since=addDays(today(),-30), w30=D.waste.filter(w=>w.date>=since), wCost=w30.reduce((s,w)=>s+num(w.cost),0);
+  document.getElementById("invKpis").innerHTML=[
+    [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
+    [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
+  ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
+  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Cost/unit","Costo/u")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i);return `<tr><td>${esc(i.name)} <small>${esc(i.unit)}</small></td>
+     <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.qty)}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
+     <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.min)}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
+     <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.par)}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
+     <td><input data-f="cost" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.cost)}" aria-label="${tt("Cost","Costo")} ${esc(i.name)}"></td>
+     <td><input data-f="supplier" data-id="${i.id}" class="txt" value="${esc(i.supplier)}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
+     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}" aria-label="${tt("Add stock","Agregar stock")} ${esc(i.name)}">+ ${tt("Stock","Stock")}</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
+    :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
+  const po=poLines(), poBox=document.getElementById("poBox");
+  poBox.innerHTML=po.length?`<p>${tt("Items at or below their alert level, ordered up to the maximum quantity:","Artículos en o bajo su nivel de alerta, pedidos hasta la cantidad máxima:")}</p><ul class="rows">${po.map(l=>`<li><div><b>${esc(l.name)}</b>: ${+l.order.toFixed(2)} ${esc(l.unit)}<small>${esc(l.supplier||tt("No supplier","Sin proveedor"))}${l.cost?" · ≈ "+money(l.est):""}</small></div></li>`).join("")}</ul><p><b>${tt("Estimated total","Total estimado")}: ${money(po.reduce((s,l)=>s+l.est,0))}</b></p><button class="btn" id="poCopy">${tt("Copy order","Copiar orden")}</button>`
+    :`<p class="empty">${tt("Nothing to order. Items appear here when stock falls to the alert level (set the alert level and maximum quantity first).","Nada que pedir. Los artículos aparecen aquí cuando el stock llega al nivel de alerta (primero define la alerta y la cantidad máxima).")}</p>`;
+  const as=document.getElementById("asItem"); if(as){const cur=as.value; as.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`;}
+  const ws=document.getElementById("wItem"); if(ws){const cur=ws.value; ws.innerHTML=inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)})</option>`).join("");}
+  const byR={},byI={}; w30.forEach(w=>{byR[w.reason]=(byR[w.reason]||0)+num(w.cost);byI[w.item]=(byI[w.item]||0)+num(w.cost);});
+  document.getElementById("wBox").innerHTML=w30.length?`<h4 class="minih">${tt("Last 30 days — cost by reason","Últimos 30 días — costo por motivo")}</h4><ul class="rows">${REASONS.filter(r=>r[0] in byR).map(r=>`<li><div>${tt(r[1],r[2])}</div><b>${money(byR[r[0]])}</b></li>`).join("")}</ul>
+    <h4 class="minih">${tt("Top items wasted","Artículos con más merma")}</h4><ul class="rows">${Object.entries(byI).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`<li><div>${esc(k)}</div><b>${money(v)}</b></li>`).join("")}</ul>
+    <h4 class="minih">${tt("Recent entries","Entradas recientes")}</h4><ul class="rows">${[...D.waste].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(w=>`<li><div>${esc(w.date)} — ${esc(w.item)}: ${num(w.qty)} ${esc(w.unit)}<small>${tt(...(REASONS.find(r=>r[0]===w.reason)||REASONS[4]).slice(1))}</small></div><button class="btn sm ghost" data-wdel="${w.id}" aria-label="${tt("Delete","Borrar")}">✕</button></li>`).join("")}</ul>`
+    :`<p class="empty">${tt("No waste logged in the last 30 days.","No hay merma registrada en los últimos 30 días.")}</p>`;
+  document.getElementById("wBox").onclick=async e=>{const b=e.target.closest("[data-wdel]"); if(b) await dbDel("waste",b.dataset.wdel);};
+  document.getElementById("fcBox").innerHTML=forecastHTML();
+}
+
+/* ---------- sales helpers (used by modules 2, 3, 5) ---------- */
+function salesDays(n){ const out=[]; for(let i=n-1;i>=0;i--){const d=addDays(today(),-i); const s=D.sales.find(x=>x.id===d); out.push({date:d,items:(s&&s.items)||{},hours:(s&&s.hours)||{}});} return out; }
+function dayTotals(day){ let cups=0,rev=0,cost=0; Object.entries(day.items).forEach(([pid,it])=>{cups+=num(it.cups);rev+=num(it.revenue);cost+=num(it.cups)*num(D.costs[pid]);}); return {cups,rev,cost}; }
+function weekdayForecast(){
+  const hist=salesDays(56).filter(d=>Object.keys(d.items).length);
+  if(hist.length<7) return null;
+  const res=[];
+  for(let i=1;i<=7;i++){ const d=addDays(today(),i), wd=dow(d); const same=hist.filter(h=>dow(h.date)===wd).slice(-4);
+    const per={}; P.forEach(p=>{per[p.id]=same.length?same.reduce((s,h)=>s+num(h.items[p.id]?.cups),0)/same.length:0;});
+    const rev=same.length?same.reduce((s,h)=>s+dayTotals(h).rev,0)/same.length:0;
+    res.push({date:d,per,cups:Object.values(per).reduce((a,b)=>a+b,0),rev,n:same.length}); }
+  return res;
+}
+function hourlyProfile(){ const hrs={}; salesDays(28).forEach(d=>Object.entries(d.hours).forEach(([h,c])=>{hrs[h]=(hrs[h]||0)+num(c);})); const days=salesDays(28).filter(d=>Object.keys(d.hours).length).length; return {hrs,days}; }
+function forecastHTML(){
+  const f=weekdayForecast(); const {hrs,days}=hourlyProfile();
+  if(!f) return `<p class="empty">${tt("Needs at least 7 days of sales (Module 3). Forecast = average of the same weekday over the last 4 weeks.","Necesita al menos 7 días de ventas (Módulo 3). Predicción = promedio del mismo día de la semana en las últimas 4 semanas.")}</p>`;
+  const hh=Object.keys(hrs).sort();
+  return `<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(T(p.name))}</th>`).join("")}<th>${tt("Total cups","Total vasos")}</th></tr></thead><tbody>${f.map(r=>`<tr><td class="nw">${DOWN[state.lang][dow(r.date)]} ${+r.date.slice(8)}</td>${P.map(p=>`<td>${Math.round(r.per[p.id])}</td>`).join("")}<td><b>${Math.round(r.cups)}</b></td></tr>`).join("")}</tbody></table></div>
+   <p class="hint">${tt("Estimate from your own sales: average of the same weekday, last 4 weeks.","Estimación con tus propias ventas: promedio del mismo día de la semana, últimas 4 semanas.")}</p>
+   ${hh.length?`<h4 class="minih">${tt("Average cups by hour","Vasos promedio por hora")} (${days} ${tt("days with hourly data","días con datos por hora")})</h4><div class="hours">${hh.map(h=>{const v=hrs[h]/Math.max(1,days);const mx=Math.max(...hh.map(k=>hrs[k]/Math.max(1,days)));return `<div class="hr" title="${h}:00 — ${v.toFixed(1)}"><span style="height:${Math.max(4,v/mx*60)}px"></span><small>${h}</small></div>`;}).join("")}</div>`:`<p class="hint">${tt("Add the hour when you log sales to see the hourly forecast.","Agrega la hora al registrar ventas para ver la predicción por hora.")}</p>`}`;
+}
+async function forecastAI(){
+  const out=document.getElementById("fcOut"); const f=weekdayForecast();
+  if(!f){out.textContent=tt("Log at least 7 days of sales first.","Registra primero al menos 7 días de ventas.");return;}
+  const hist=salesDays(28).map(d=>d.date+" ("+DOWN.en[dow(d.date)]+"): "+P.map(p=>p.id+"="+num(d.items[p.id]?.cups)).join(", ")).join("\n");
+  const base=f.map(r=>r.date+" ("+DOWN.en[dow(r.date)]+"): "+P.map(p=>p.id+"="+Math.round(r.per[p.id])).join(", ")).join("\n");
+  const notes=val("fcNotes");
+  const prompt=`You help a small Peruvian drinks counter in Edmonton plan production. Below are its real daily sales in cups for the last 28 days, and a baseline forecast for the next 7 days (average of the same weekday). ${notes?"The owner adds this context about the coming days: "+notes:"There is no extra context."}
+Adjust the baseline only where the context or a clear trend in the data justifies it, and keep changes modest. ${LANGLINE()}
+Reply with only JSON: {"days":[{"date":"YYYY-MM-DD","cups":{"quinoa":0,"chicha":0,"maca":0,"mazamorra":0,"lucuma":0,"chirimoya":0}}],"reasons":["short sentence", "..."]}
+SALES:
+${hist}
+BASELINE:
+${base}`;
+  out.textContent=tt("Thinking…","Pensando…");
+  try{ const j=await SAMPLE.json(prompt,{cache:false});
+    if(!j||!Array.isArray(j.days)) throw {code:"invalid_json"};
+    out.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(T(p.name))}</th>`).join("")}</tr></thead><tbody>${j.days.map(d=>`<tr><td>${esc(d.date)}</td>${P.map(p=>`<td>${Math.round(num(d.cups?.[p.id]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div><ul class="plain">${(j.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul><p class="hint">${tt("AI-adjusted estimate — check it against your judgement.","Estimación ajustada por IA — compárala con tu criterio.")}</p>`;
+  }catch(e){ out.textContent=aiErr(e); }
+}
+
+/* ================= MODULE 3 — SALES & ANALYTICS ================= */
+let range=14;
+function m3(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Sales & analytics","Ventas y análisis"),tt("Log sales, set the cost per cup, and see revenue, margins, the most profitable drinks and the ones that sell but earn little.","Registra ventas, define el costo por vaso y mira ingresos, márgenes, las bebidas más rentables y las que se venden pero dejan poco."))}
+   <div class="grid">
+    <div class="stack">
+     <div class="panel"><h3>${tt("Log sales","Registrar ventas")}</h3>
+      <form id="sForm" class="fgrid">
+       ${field("sDate",tt("Date","Fecha"),`<input id="sDate" type="date" value="${today()}" required>`)}
+       ${field("sHour",tt("Hour (optional)","Hora (opcional)"),`<select id="sHour"><option value="">—</option>${Array.from({length:24},(_,h)=>`<option value="${String(h).padStart(2,"0")}">${String(h).padStart(2,"0")}:00</option>`).join("")}</select>`)}
+       ${field("sProd",tt("Drink","Bebida"),`<select id="sProd">${prodOptions()}</select>`)}
+       ${field("sCups",tt("Cups sold","Vasos vendidos"),`<input id="sCups" type="number" min="1" step="1" required>`)}
+       ${field("sPrice",tt("Price per cup ($)","Precio por vaso ($)"),`<input id="sPrice" type="number" min="0" step="0.01" required>`)}
+       <button class="btn" type="submit">${tt("Add","Agregar")}</button>
+      </form><p class="hint">${tt("Entries add up: logging 10 cups twice on the same day gives 20.","Las entradas se suman: registrar 10 vasos dos veces el mismo día da 20.")}</p></div>
+     <div class="panel"><h3>${tt("Cost per cup","Costo por vaso")}</h3><div id="costBox"></div><p class="hint">${tt("Use the recipe calculators and your supplier prices to work out each cost.","Usa las calculadoras de receta y los precios de tus proveedores para calcular cada costo.")}</p></div>
+    </div>
+    <div class="stack">
+     <div class="panel"><h3>${tt("Period","Periodo")}</h3><div class="variants" id="rangeBtns">${[7,14,30].map(r=>`<button type="button" data-range="${r}" aria-pressed="${r===range}">${r} ${tt("days","días")}</button>`).join("")}</div>
+      <label class="f inline"><span>${tt("Target margin %","Margen objetivo %")}</span><input id="tMargin" type="number" min="0" max="100" value="${num(D.costs._target)||60}"></label></div>
+    </div>
+   </div>
+   <div class="kpis" id="sKpis" style="margin-top:20px"></div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("Daily revenue","Ingresos diarios")}</h3><div id="sChart" class="chartbox"></div></div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("By drink","Por bebida")}</h3><div class="tablewrap" id="sTable"></div></div>
+   <div class="grid" style="margin-top:20px">
+    <div class="panel"><h3>${tt("Projection","Proyección")}</h3><div id="sProj"></div></div>
+    <div class="panel"><h3>${tt("AI analysis","Análisis con IA")}</h3><button class="btn" id="sAI" data-needs-ai>${tt("Explain my numbers","Explicar mis números")}</button><div id="sAIout" class="aiout"></div></div>
+   </div></section>`;
+}
+function wireM3(){
+  document.getElementById("sForm").onsubmit=async e=>{
+    e.preventDefault(); const d=val("sDate"), pid=val("sProd"), cups=Math.round(num(val("sCups"))), price=num(val("sPrice")), h=val("sHour");
+    if(!d||cups<=0) return;
+    const cur=D.sales.find(s=>s.id===d)||{items:{},hours:{}};
+    const items=JSON.parse(JSON.stringify(cur.items||{})), hours=JSON.parse(JSON.stringify(cur.hours||{}));
+    const it=items[pid]||{cups:0,revenue:0}; it.cups=num(it.cups)+cups; it.revenue=num(it.revenue)+cups*price; items[pid]=it;
+    if(h) hours[h]=num(hours[h])+cups;
+    await dbSet("sales/"+d,{items,hours});
+    document.getElementById("sCups").value="";
+  };
+  document.getElementById("rangeBtns").onclick=e=>{const b=e.target.closest("[data-range]"); if(!b) return; range=+b.dataset.range; render();};
+  document.getElementById("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
+  document.getElementById("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:num(i.value)});});
+  document.getElementById("sAI").onclick=salesAI;
+}
+function prodStats(n){
+  const days=salesDays(n), st={};
+  P.forEach(p=>st[p.id]={cups:0,rev:0});
+  days.forEach(d=>Object.entries(d.items).forEach(([pid,it])=>{ if(!st[pid]) st[pid]={cups:0,rev:0}; st[pid].cups+=num(it.cups); st[pid].rev+=num(it.revenue); }));
+  return Object.entries(st).map(([pid,s])=>{const c=num(D.costs[pid]);const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0};});
+}
+function listM3(){
+  const cb=document.getElementById("costBox"); if(!cb) return;
+  if(document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])||""}" placeholder="$"></label>`).join("")}</div>`;
+  const days=salesDays(range), tot=days.map(dayTotals);
+  const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
+  const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
+  document.getElementById("sKpis").innerHTML=[[money(rev),tt("revenue","ingresos")],[cups,tt("cups sold","vasos vendidos")],[cups?money(rev/cups):"—",tt("average price","precio promedio")],
+    [costKnown&&rev?money(rev-cost):"—",tt("gross margin","margen bruto")],[costKnown&&rev?Math.round((rev-cost)/rev*100)+"%":"—",tt("margin %","margen %")]]
+    .map(k=>`<div class="kpi"><div class="big">${k[0]}</div><div class="lbl">${k[1]} · ${range} ${tt("days","días")}</div></div>`).join("")+(!costKnown&&rev?`<p class="hint" style="grid-column:1/-1">${tt("Enter the cost per cup of every drink sold to see margins.","Ingresa el costo por vaso de cada bebida vendida para ver márgenes.")}</p>`:"");
+  document.getElementById("sChart").innerHTML=rev?barChart(days.map((d,i)=>({x:d.date,y:tot[i].rev})),document.getElementById("sChart").clientWidth):`<p class="empty">${tt("No sales in this period yet.","Aún no hay ventas en este periodo.")}</p>`;
+  const target=num(D.costs._target)||60, sold=st.filter(s=>s.cups>0), avgCups=sold.length?sold.reduce((a,s)=>a+s.cups,0)/sold.length:0;
+  const rows=[...st].sort((a,b)=>b.margin-a.margin);
+  document.getElementById("sTable").innerHTML=`<table class="dt"><thead><tr><th>${tt("Drink","Bebida")}</th><th>${tt("Cups","Vasos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th><th>${tt("Note","Nota")}</th></tr></thead><tbody>${rows.map((s,i)=>{
+     let note=""; if(s.cups&&!s.hasCost) note=`<span class="badge warn">${tt("No cost set","Sin costo")}</span>`;
+     else if(s.cups>=avgCups&&s.cups>0&&s.pct<target) note=`<span class="badge bad">${tt("Sells well, low margin","Se vende bien, margen bajo")}</span>`;
+     else if(i===0&&s.margin>0) note=`<span class="badge ok">${tt("Most profitable","Más rentable")}</span>`;
+     return `<tr><td>${esc(pname(s.pid))}</td><td>${s.cups}</td><td>${money(s.rev)}</td><td>${s.hasCost?money(s.cost):"—"}</td><td>${s.hasCost?money(s.margin):"—"}</td><td>${s.hasCost&&s.rev?Math.round(s.pct)+"%":"—"}</td><td>${note}</td></tr>`;}).join("")}</tbody></table>`;
+  const f=weekdayForecast();
+  document.getElementById("sProj").innerHTML=f?`<ul class="rows">${f.map(r=>`<li><div>${DOWN[state.lang][dow(r.date)]} ${r.date.slice(5)}</div><b>${Math.round(r.cups)} ${tt("cups","vasos")} · ${money(r.rev)}</b></li>`).join("")}</ul><p><b>${tt("Next 7 days","Próximos 7 días")}: ${Math.round(f.reduce((s,r)=>s+r.cups,0))} ${tt("cups","vasos")} · ${money(f.reduce((s,r)=>s+r.rev,0))}</b></p><p class="hint">${tt("Average of the same weekday over the last 4 weeks.","Promedio del mismo día de la semana en las últimas 4 semanas.")}</p>`
+    :`<p class="empty">${tt("Needs at least 7 days of sales.","Necesita al menos 7 días de ventas.")}</p>`;
+}
+function barChart(pts,W0){
+  const W=Math.max(300,Math.min(900,W0||640)),H=200,pl=48,pb=24,pt=10,max=Math.max(...pts.map(p=>p.y),1),n=pts.length,bw=(W-pl)/n;
+  const nice=m=>{const e=Math.pow(10,Math.floor(Math.log10(m)));return Math.ceil(m/e)*e;}; const top=nice(max);
+  const y=v=>H-pb-(v/top)*(H-pb-pt);
+  const ticks=[0,top/2,top];
+  return `<svg viewBox="0 0 ${W} ${H}" class="bars" role="img" aria-label="${tt("Daily revenue","Ingresos diarios")}">
+   ${ticks.map(t=>`<line x1="${pl}" x2="${W}" y1="${y(t)}" y2="${y(t)}" class="grid"/><text x="${pl-6}" y="${y(t)+4}" text-anchor="end" class="ax">$${Math.round(t)}</text>`).join("")}
+   ${pts.map((p,i)=>{const x=pl+i*bw+2,w=Math.max(2,bw-4),h=H-pb-y(p.y);return `<g class="bar"><rect x="${pl+i*bw}" y="${pt}" width="${bw}" height="${H-pb-pt}" fill="transparent"><title>${p.x}: ${money(p.y)}</title></rect>${p.y>0?`<path d="M${x},${H-pb} v${-(h-Math.min(4,h))} q0,-${Math.min(4,h)} ${Math.min(4,w/2)},-${Math.min(4,h)} h${w-2*Math.min(4,w/2)} q${Math.min(4,w/2)},0 ${Math.min(4,w/2)},${Math.min(4,h)} v${h-Math.min(4,h)} z" class="mark"><title>${p.x}: ${money(p.y)}</title></path>`:""}${(i%Math.ceil(n/Math.max(4,Math.floor(W/44)))===0)?`<text x="${pl+i*bw+bw/2}" y="${H-6}" text-anchor="middle" class="ax">${p.x.slice(8)}</text>`:""}</g>`;}).join("")}
+  </svg>`;
+}
+async function salesAI(){
+  const out=document.getElementById("sAIout"); const st=prodStats(30);
+  const lines=st.map(s=>`${pname(s.pid)}: cups=${s.cups}, revenue=${s.rev.toFixed(2)}, cost_per_cup=${s.hasCost?s.unitCost:"unknown"}, margin_pct=${s.hasCost&&s.rev?s.pct.toFixed(0):"unknown"}`).join("\n");
+  const daily=salesDays(30).map(d=>d.date+" "+DOWN.en[dow(d.date)]+": "+dayTotals(d).cups+" cups, $"+dayTotals(d).rev.toFixed(2)).join("\n");
+  if(!st.some(s=>s.cups)){out.textContent=tt("Log some sales first.","Registra algunas ventas primero.");return;}
+  out.textContent=tt("Thinking…","Pensando…");
+  try{ await SAMPLE(`You are a restaurant analyst. Using ONLY the real data below from a small Peruvian drinks counter (last 30 days; target margin ${num(D.costs._target)||60}%), give 4-6 short, specific bullet points: best and weakest drinks by profit, drinks that sell but earn little, weekday patterns, and one concrete action each. Do not invent numbers that are not in the data; say "unknown" when cost is missing. ${LANGLINE()}
+BY DRINK:
+${lines}
+BY DAY:
+${daily}`,{cache:false,onText:({text})=>{out.textContent=text;}}); }
+  catch(e){ out.textContent=e.text||aiErr(e); }
+}
+
+/* ================= MODULE 4 — MARKETING ================= */
+const CHANNELS=["Instagram","Facebook","WhatsApp","Google Business","TikTok"];
+let genResults=[];
+function m4(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 4","Módulo 4"),tt("Marketing","Marketing"),tt("Generate posts and ad copy that follow the claim rules, plan a posting calendar, and track engagement.","Genera publicaciones y textos de anuncios que respetan las reglas de afirmaciones, planifica un calendario y mide el engagement."))}
+   <div class="grid">
+    <div class="stack"><div class="panel"><h3>${tt("Content generator","Generador de contenido")}</h3>
+     <form id="gForm" class="fgrid">
+      ${field("gProd",tt("Product","Producto"),`<select id="gProd"><option value="all">${tt("Whole menu","Todo el menú")}</option>${prodOptions()}</select>`)}
+      ${field("gCh",tt("Channel","Canal"),`<select id="gCh">${CHANNELS.map(c=>`<option>${c}</option>`).join("")}</select>`)}
+      ${field("gGoal",tt("Type","Tipo"),`<select id="gGoal"><option value="post">${tt("Organic post","Publicación orgánica")}</option><option value="ad">${tt("Paid ad (copy + audience)","Anuncio pagado (texto + audiencia)")}</option><option value="promo">${tt("Promotion","Promoción")}</option><option value="event">${tt("Event","Evento")}</option></select>`)}
+      ${field("gLang",tt("Language","Idioma"),`<select id="gLang"><option value="both">${tt("English + Spanish","Inglés + español")}</option><option value="en">English</option><option value="es">Español</option></select>`)}
+      <div class="f full"><label for="gNotes">${tt("Details (offer, date, location, audience…)","Detalles (oferta, fecha, ubicación, público…)")}</label><textarea id="gNotes" rows="2"></textarea></div>
+      <button class="btn" type="submit" data-needs-ai>${tt("Generate 3 options","Generar 3 opciones")}</button>
+     </form><div id="gOut" class="aiout"></div></div></div>
+    <div class="stack"><div class="panel"><h3>${tt("Posting calendar","Calendario de publicaciones")}</h3><div id="postList"></div>
+     <p class="hint">${tt("This app does not post for you. It reminds you what to publish and when; connect a scheduler such as Meta Business Suite to post automatically.","Esta app no publica por ti. Te recuerda qué publicar y cuándo; conecta un programador como Meta Business Suite para publicar automáticamente.")}</p></div></div>
+   </div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("Engagement","Engagement")}</h3><div class="tablewrap" id="engTable"></div>
+    <button class="btn" id="engAI" data-needs-ai style="margin-top:12px">${tt("Analyze engagement","Analizar engagement")}</button><div id="engOut" class="aiout"></div></div>
+  </section>`;
+}
+function wireM4(){
+  const gOut=document.getElementById("gOut");
+  if(genResults.length) gOut.innerHTML=genHTML();
+  document.getElementById("gForm").onsubmit=async e=>{
+    e.preventDefault(); if(!SAMPLE) return;
+    const prod=val("gProd"), ch=val("gCh"), goal=val("gGoal"), lang=val("gLang"), notes=val("gNotes");
+    const about=prod==="all"?"the whole menu":P.find(p=>p.id===prod).name.en+" — "+P.find(p=>p.id===prod).intro.en;
+    const L=lang==="both"?"Write each option in English followed by Spanish.":lang==="es"?"Write in Spanish.":"Write in English.";
+    const prompt=`Write 3 different ${goal==="ad"?"paid ad":goal} options for ${ch} for "Taste of Peru", a small Peruvian drinks and desserts counter in Edmonton, Alberta. Topic: ${about}. ${notes?"Details from the owner: "+notes+".":""}
+Menu for reference:
+${MENU_TEXT()}
+Rules: ${CLAIM_RULES()} Do not invent prices, dates, discounts or addresses the owner did not give. Fit the channel's length and style. ${L}
+${goal==="ad"?'Reply with only JSON: [{"text":"ad copy","headline":"short headline","hashtags":"#...","image":"photo idea","audience":"suggested targeting"}]':'Reply with only JSON: [{"text":"post text","hashtags":"#...","image":"photo idea"}]'}`;
+    gOut.textContent=tt("Thinking…","Pensando…");
+    try{ const j=await SAMPLE.json(prompt,{cache:false}); if(!Array.isArray(j)) throw {code:"invalid_json"};
+      genResults=j.slice(0,3).map(o=>({channel:ch,text:[o.headline,o.text,o.hashtags].filter(Boolean).join("\n\n"),image:o.image||"",audience:o.audience||""})); gOut.innerHTML=genHTML();
+    }catch(err){ gOut.textContent=aiErr(err); }
+  };
+  gOut.onclick=async e=>{
+    const b=e.target.closest("[data-g]"); if(!b) return; const i=+b.dataset.i, g=genResults[i];
+    const txt=document.getElementById("gTxt"+i).value;
+    if(b.dataset.g==="copy") copyText(txt);
+    if(b.dataset.g==="sched"){ const when=document.getElementById("gWhen"+i).value; if(!when){toast(tt("Pick a date and time","Elige fecha y hora"));return;}
+      await dbAdd("posts",{channel:g.channel,text:txt,image:g.image,when,status:"scheduled",reach:0,likes:0,comments:0,saves:0}); toast(tt("Added to calendar","Agregado al calendario")); }
+  };
+  document.getElementById("postList").onclick=async e=>{const b=e.target.closest("[data-p]"); if(!b) return; const id=b.dataset.id, p=D.posts.find(x=>x.id===id);
+    if(b.dataset.p==="pub") await dbUpd("posts",id,{status:"published"});
+    if(b.dataset.p==="del") await dbDel("posts",id);
+    if(b.dataset.p==="copy"&&p) copyText(p.text);};
+  document.getElementById("engTable").addEventListener("change",e=>{const i=e.target.closest("[data-e]"); if(i) dbUpd("posts",i.dataset.id,{[i.dataset.e]:num(i.value)});});
+  document.getElementById("engAI").onclick=engAI;
+  const et=document.getElementById("engTable"); et.addEventListener("focusout",()=>setTimeout(()=>{if(!et.contains(document.activeElement))refreshAI();},50));
+}
+function genHTML(){ return genResults.map((g,i)=>`<div class="gen"><textarea id="gTxt${i}" rows="6" aria-label="${tt("Option","Opción")} ${i+1}">${esc(g.text)}</textarea>
+  ${g.image?`<small>📷 ${esc(g.image)}</small>`:""}${g.audience?`<small>🎯 ${esc(g.audience)}</small>`:""}
+  <div class="acts"><button class="btn sm ghost" data-g="copy" data-i="${i}">${tt("Copy","Copiar")}</button><label class="sr" for="gWhen${i}">${tt("When","Cuándo")}</label><input id="gWhen${i}" type="datetime-local"><button class="btn sm" data-g="sched" data-i="${i}">${tt("Schedule","Programar")}</button></div></div>`).join(""); }
+const engRate=p=>num(p.reach)?(num(p.likes)+num(p.comments)+num(p.saves))/num(p.reach)*100:null;
+function listM4(){
+  const pl=document.getElementById("postList"); if(!pl) return;
+  const up=D.posts.filter(p=>p.status==="scheduled").sort((a,b)=>a.when.localeCompare(b.when));
+  pl.innerHTML=up.length?`<ul class="rows">${up.map(p=>`<li><div><b>${esc(p.when.replace("T"," "))}</b> · ${esc(p.channel)}${p.when<new Date().toISOString().slice(0,16)?`<span class="badge bad">${tt("Overdue","Atrasada")}</span>`:""}<small>${esc(p.text.slice(0,120))}${p.text.length>120?"…":""}</small></div>
+   <div class="acts"><button class="btn sm ghost" data-p="copy" data-id="${p.id}">${tt("Copy","Copiar")}</button><button class="btn sm" data-p="pub" data-id="${p.id}">${tt("Mark published","Marcar publicada")}</button><button class="btn sm ghost" data-p="del" data-id="${p.id}" aria-label="${tt("Delete","Borrar")}">✕</button></div></li>`).join("")}</ul>`
+   :`<p class="empty">${tt("Nothing scheduled. Generate content and press Schedule.","Nada programado. Genera contenido y pulsa Programar.")}</p>`;
+  const pub=D.posts.filter(p=>p.status==="published").sort((a,b)=>b.when.localeCompare(a.when));
+  const et=document.getElementById("engTable");
+  if(et.contains(document.activeElement)) return;
+  et.innerHTML=pub.length?`<table class="dt"><thead><tr><th>${tt("Post","Publicación")}</th><th>${tt("Reach","Alcance")}</th><th>Likes</th><th>${tt("Comments","Comentarios")}</th><th>${tt("Saves/shares","Guardados")}</th><th>${tt("Engagement","Engagement")}</th></tr></thead><tbody>${pub.map(p=>`<tr><td>${esc(p.when.slice(0,10))} · ${esc(p.channel)}<small>${esc(p.text.slice(0,60))}…</small></td>${["reach","likes","comments","saves"].map(f=>`<td><input data-e="${f}" data-id="${p.id}" type="number" min="0" value="${num(p[f])}" aria-label="${f}"></td>`).join("")}<td>${engRate(p)==null?"—":engRate(p).toFixed(1)+"%"}</td></tr>`).join("")}</tbody></table><p class="hint">${tt("Engagement = (likes + comments + saves) ÷ reach. Copy the numbers from each platform's insights.","Engagement = (likes + comentarios + guardados) ÷ alcance. Copia los números de las estadísticas de cada plataforma.")}</p>`
+   :`<p class="empty">${tt("Published posts appear here so you can enter their results.","Las publicaciones marcadas como publicadas aparecen aquí para ingresar sus resultados.")}</p>`;
+}
+async function engAI(){
+  const out=document.getElementById("engOut"); const pub=D.posts.filter(p=>p.status==="published"&&num(p.reach));
+  if(pub.length<2){out.textContent=tt("Enter results for at least 2 published posts.","Ingresa resultados de al menos 2 publicaciones.");return;}
+  const data=pub.map(p=>`${p.when} ${p.channel} reach=${num(p.reach)} likes=${num(p.likes)} comments=${num(p.comments)} saves=${num(p.saves)} rate=${engRate(p).toFixed(1)}% text="${p.text.slice(0,200).replace(/\s+/g," ")}"`).join("\n");
+  out.textContent=tt("Thinking…","Pensando…");
+  try{ await SAMPLE(`Analyze the real social-media results below for a small Peruvian drinks counter. In 4-5 short bullets: what worked, what didn't, best channel and time if visible, and what to post next. Use only these numbers. ${LANGLINE()}\n${data}`,{cache:false,onText:({text})=>{out.textContent=text;}}); }
+  catch(e){ out.textContent=e.text||aiErr(e); }
+}
+
+/* ================= MODULE 5 — REVIEWS & REPUTATION ================= */
+const SOURCES=()=>["Google","Instagram","Facebook","TripAdvisor","Yelp",tt("Other","Otro")];
+const RISK=/sick|ill|vomit|diarr|poison|food ?poisoning|allerg|reaction|hospital|hair|insect|bug|mold|mould|enferm|vómit|vomit|intoxic|alerg|pelo|insecto|moho|hospital/i;
+function m5(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 5","Módulo 5"),tt("Reviews & reputation","Reseñas y reputación"),tt("Collect reviews, draft replies with AI, spot recurring problems and get a weekly report.","Reúne reseñas, redacta respuestas con IA, detecta problemas recurrentes y obtén un reporte semanal."))}
+   <div class="kpis" id="rKpis"></div>
+   <div class="grid" style="margin-top:20px">
+    <div class="stack"><div class="panel"><h3>${tt("Add a review","Agregar reseña")}</h3>
+     <form id="rvForm" class="fgrid">
+      ${field("rvSrc",tt("Source","Fuente"),`<select id="rvSrc">${SOURCES().map(s=>`<option>${s}</option>`).join("")}</select>`)}
+      ${field("rvStars",tt("Rating","Calificación"),`<select id="rvStars">${[5,4,3,2,1].map(n=>`<option value="${n}">${"★".repeat(n)}</option>`).join("")}</select>`)}
+      ${field("rvDate",tt("Date","Fecha"),`<input id="rvDate" type="date" value="${today()}">`)}
+      ${field("rvName",tt("Reviewer (optional)","Autor (opcional)"),`<input id="rvName">`)}
+      <div class="f full"><label for="rvText">${tt("Review text","Texto de la reseña")}</label><textarea id="rvText" rows="3" required></textarea></div>
+      <button class="btn" type="submit">${tt("Save review","Guardar reseña")}</button>
+     </form><p class="hint">${tt("Paste reviews from Google, Instagram, etc. Automatic import needs each platform's business API.","Pega reseñas de Google, Instagram, etc. La importación automática necesita la API empresarial de cada plataforma.")}</p></div>
+     <div class="panel"><h3>${tt("Recurring problems","Problemas recurrentes")}</h3><button class="btn" id="patAI" data-needs-ai>${tt("Find patterns (last 60 days)","Buscar patrones (últimos 60 días)")}</button><div id="patOut" class="aiout"></div></div>
+     <div class="panel"><h3>${tt("Weekly report","Reporte semanal")}</h3><p class="hint">${tt("Combines the last 7 days of reviews, sales, stock alerts and waste.","Combina los últimos 7 días de reseñas, ventas, alertas de stock y merma.")}</p><button class="btn" id="repAI" data-needs-ai>${tt("Generate report","Generar reporte")}</button><div id="repOut" class="aiout"></div></div>
+    </div>
+    <div class="stack"><div class="panel"><h3>${tt("Reviews","Reseñas")}</h3><div id="rvList"></div></div></div>
+   </div></section>`;
+}
+function wireM5(){
+  document.getElementById("rvForm").onsubmit=async e=>{e.preventDefault(); if(!val("rvText")) return;
+    await dbAdd("reviews",{source:val("rvSrc"),stars:num(val("rvStars")),date:val("rvDate")||today(),name:val("rvName"),text:val("rvText"),reply:"",replied:false});
+    document.getElementById("rvText").value=""; document.getElementById("rvName").value="";};
+  document.getElementById("rvList").onclick=async e=>{const b=e.target.closest("[data-r]"); if(!b) return; const id=b.dataset.id, r=D.reviews.find(x=>x.id===id); if(!r) return;
+    if(b.dataset.r==="draft") draftReply(r);
+    if(b.dataset.r==="save") await dbUpd("reviews",id,{reply:document.getElementById("rp"+id).value,replied:true});
+    if(b.dataset.r==="copy") copyText(document.getElementById("rp"+id).value);
+    if(b.dataset.r==="del") await dbDel("reviews",id);};
+  document.getElementById("patAI").onclick=patternsAI;
+  const rl=document.getElementById("rvList"); rl.addEventListener("focusout",()=>setTimeout(()=>{if(!rl.contains(document.activeElement))refreshAI();},50));
+  document.getElementById("repAI").onclick=reportAI;
+}
+function listM5(){
+  const el=document.getElementById("rvList"); if(!el) return;
+  const rv=[...D.reviews].sort((a,b)=>b.date.localeCompare(a.date));
+  const avg=rv.length?rv.reduce((s,r)=>s+num(r.stars),0)/rv.length:0, wk=rv.filter(r=>r.date>=addDays(today(),-6));
+  document.getElementById("rKpis").innerHTML=[[rv.length?avg.toFixed(1)+" ★":"—",tt("average rating","calificación promedio")],[rv.length,tt("reviews","reseñas")],[wk.length,tt("this week","esta semana")],[rv.filter(r=>!r.replied).length,tt("waiting for reply","sin respuesta"),rv.some(r=>!r.replied)?"warn":""],[rv.filter(r=>RISK.test(r.text)).length,tt("need a manual check","requieren revisión manual"),rv.some(r=>RISK.test(r.text))?"bad":""]]
+    .map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
+  if(el.contains(document.activeElement)&&document.activeElement.tagName==="TEXTAREA") return;
+  el.innerHTML=rv.length?rv.map(r=>`<div class="review"><div class="rvh"><b>${"★".repeat(num(r.stars))}<span class="dim">${"★".repeat(5-num(r.stars))}</span></b> ${esc(r.source)} · ${esc(r.date)}${r.name?" · "+esc(r.name):""}
+     ${RISK.test(r.text)?`<span class="badge bad">${tt("Health/safety — reply by hand","Salud/inocuidad — responde a mano")}</span>`:""}${r.replied?`<span class="badge ok">${tt("Replied","Respondida")}</span>`:""}</div>
+     <p>${esc(r.text)}</p>
+     <label class="sr" for="rp${r.id}">${tt("Reply","Respuesta")}</label><textarea id="rp${r.id}" rows="3" placeholder="${tt("Reply…","Respuesta…")}">${esc(r.reply)}</textarea>
+     <div class="acts"><button class="btn sm" data-r="draft" data-id="${r.id}" data-needs-ai ${capsReady&&!SAMPLE?"disabled":""}>${tt("Draft with AI","Redactar con IA")}</button><button class="btn sm ghost" data-r="save" data-id="${r.id}">${tt("Save reply","Guardar")}</button><button class="btn sm ghost" data-r="copy" data-id="${r.id}">${tt("Copy","Copiar")}</button><button class="btn sm ghost" data-r="del" data-id="${r.id}" aria-label="${tt("Delete","Borrar")}">✕</button></div></div>`).join("")
+    :`<p class="empty">${tt("No reviews yet.","Aún no hay reseñas.")}</p>`;
+}
+async function draftReply(r){
+  const box=document.getElementById("rp"+r.id); if(!SAMPLE||!box) return;
+  const risky=RISK.test(r.text);
+  box.value=tt("Thinking…","Pensando…");
+  try{ await SAMPLE(`Write a short public reply from the owner of "Taste of Peru" (a Peruvian drinks counter in Edmonton) to this ${num(r.stars)}-star ${r.source} review. Reply in the review's language. Be warm and specific, thank them, and address any complaint without excuses. ${risky?"The review mentions a possible health or safety problem: do not admit fault or discuss medical details publicly; apologize for the experience, say you take it seriously, and invite them to contact the business privately.":""} ${CLAIM_RULES()} Do not invent facts, offers or names. Reply with the text only.
+REVIEW: ${r.text}`,{cache:false,modelTier:"quick",onText:({text})=>{box.value=text;}}); }
+  catch(e){ box.value=e.text||r.reply||""; toast(aiErr(e)); }
+}
+async function patternsAI(){
+  const out=document.getElementById("patOut"); const rv=D.reviews.filter(r=>r.date>=addDays(today(),-60));
+  if(rv.length<3){out.textContent=tt("Add at least 3 reviews from the last 60 days.","Agrega al menos 3 reseñas de los últimos 60 días.");return;}
+  out.textContent=tt("Thinking…","Pensando…");
+  try{ const j=await SAMPLE.json(`Find recurring themes in these customer reviews of a Peruvian drinks counter. Count only reviews that clearly mention each theme. ${LANGLINE()}
+Reply with only JSON: [{"theme":"short name","type":"complaint"|"praise","count":0,"example":"short quote","action":"one concrete fix or next step"}]
+REVIEWS:
+${rv.map((r,i)=>`${i+1}. (${r.stars}★ ${r.date}) ${r.text.slice(0,500)}`).join("\n")}`,{cache:false});
+    if(!Array.isArray(j)) throw {code:"invalid_json"};
+    const sorted=[...j].sort((a,b)=>(a.type===b.type?num(b.count)-num(a.count):a.type==="complaint"?-1:1));
+    out.innerHTML=`<ul class="rows">${sorted.map(t=>`<li><div><span class="badge ${t.type==="complaint"?"bad":"ok"}">${t.type==="complaint"?tt("Complaint","Queja"):tt("Praise","Elogio")}</span> <b>${esc(t.theme)}</b> — ${num(t.count)}<small>“${esc(t.example)}”</small><small>→ ${esc(t.action)}</small></div></li>`).join("")}</ul>`;
+  }catch(e){ out.textContent=aiErr(e); }
+}
+async function reportAI(){
+  const out=document.getElementById("repOut"); const since=addDays(today(),-6);
+  const rv=D.reviews.filter(r=>r.date>=since), days=salesDays(7), st=prodStats(7);
+  const low=D.inventory.filter(i=>invStatus(i)[0]==="bad").map(i=>i.name), waste=D.waste.filter(w=>w.date>=since);
+  const ctx=`PERIOD: ${since} to ${today()}
+SALES BY DAY: ${days.map(d=>d.date+": "+dayTotals(d).cups+" cups $"+dayTotals(d).rev.toFixed(2)).join("; ")}
+SALES BY DRINK: ${st.map(s=>pname(s.pid)+" "+s.cups+" cups $"+s.rev.toFixed(2)+(s.hasCost?" margin "+s.pct.toFixed(0)+"%":"")).join("; ")}
+LOW STOCK: ${low.join(", ")||"none"}
+WASTE: ${waste.map(w=>w.item+" "+w.qty+w.unit+" ("+w.reason+") $"+num(w.cost).toFixed(2)).join("; ")||"none logged"}
+REVIEWS: ${rv.map(r=>r.stars+"★ "+r.text.slice(0,300)).join(" | ")||"none"}`;
+  out.textContent=tt("Thinking…","Pensando…");
+  try{ await SAMPLE(`Write a concise weekly report for the owner of a small Peruvian drinks counter, using ONLY the data below. Sections: Summary, Sales, Stock & waste, Reviews, 3 priorities for next week. Say "no data" where a section is empty; never invent figures. ${LANGLINE()}\n\n${ctx}`,{cache:false,onText:({text})=>{out.textContent=text;}});
+    out.insertAdjacentHTML("beforeend",`<p><button class="btn sm ghost" id="repCopy">${tt("Copy report","Copiar reporte")}</button></p>`);
+    document.getElementById("repCopy").onclick=()=>copyText(out.firstChild.textContent);
+  }catch(e){ out.textContent=e.text||aiErr(e); }
+}
+
+function rules(){
+  const es=state.lang==="es";
+  const cards=[
+   {h:es?"Permiso de manipulación de alimentos":"Food Handling Permit",
+    b:es?["Lo emite AHS Environmental Public Health; obligatorio para establecimientos comerciales de alimentos.","Se solicita en línea. El inspector busca programar la inspección de aprobación dentro de 7 días hábiles tras recibir la documentación completa.","No puedes operar antes de la inspección de aprobación. El permiso se exhibe al público, vale 1 año y se renueva cada año.","No es transferible: si compras un negocio existente, solicita al menos 7 días antes de asumirlo."]
+        :["Issued by AHS Environmental Public Health; required for commercial food establishments.","Apply online. The inspector aims to book the approval inspection within 7 business days of receiving complete documents.","You cannot operate before the approval inspection. The permit is posted publicly, valid 1 year, renewed yearly.","Not transferable: if you buy an existing business, apply at least 7 days before taking over."],
+    s:L("ahs","AHS — Starting a Food Business (Jan 2026)")},
+   {h:es?"Revisión de planos (Edmonton)":"Plan review (Edmonton)",
+    b:es?["Antes de construir o remodelar, envía planos al menos 6 semanas antes de empezar la obra.","En Edmonton van directo al departamento de planificación de la Ciudad (311), que envía copia a AHS.","Incluye: plano a escala con todo el equipo, fontanería, iluminación, fuente de agua, acabados (lisos, lavables, durables, claros), asientos y menú completo."]
+        :["Before building or renovating, submit plans at least 6 weeks before construction starts.","In Edmonton they go straight to the City planning department (311), which copies AHS.","Include: scaled drawing with all equipment, plumbing, lighting, water source, finishes (impervious, washable, durable, light-coloured), seating and full menu."],
+    s:L("ahs","AHS — Starting a Food Business")},
+   {h:es?"Clase de permiso y tarifa":"Permit class & fee",
+    b:es?["Clase I $100 — productos no perecederos o preempacados.","Clase II $175 — manipulación limitada, preparación al momento.","Clase III $250 — manipulación extensa o alimentos de alto riesgo.","Clase IV $500 — varias operaciones en un edificio, mismo dueño.","AHS decide tu clase; un bar de bebidas cocidas y con leche probablemente no sería Clase I."]
+        :["Class I $100 — non-perishable or prepackaged products.","Class II $175 — limited handling, cook-to-order.","Class III $250 — extensive handling or high-risk food.","Class IV $500 — multiple operations in one building, same owner.","AHS assigns your class; a bar serving cooked and dairy drinks would likely not be Class I."],
+    s:L("ahs","AHS — Starting a Food Business")},
+   {h:es?"Certificación en inocuidad":"Food safety certification",
+    b:es?["Al menos una persona a cargo del local debe estar certificada en inocuidad alimentaria (curso aprobado por Alberta).","Con 6 o más manipuladores por turno (incluido el personal de servicio), una persona certificada debe estar en el local en todo momento.","Ten los certificados disponibles para la inspección."]
+        :["At least one person in charge of the facility must hold an Alberta-approved food safety certificate.","With 6 or more food handlers on a shift (serving staff included), a certified person must be on site at all times.","Keep certificates available for inspection."],
+    s:L("ahs","AHS — Starting a Food Business")},
+   {h:es?"Lavamanos y fregaderos":"Handwashing & sinks",
+    b:es?["Lavamanos accesible, a la vista y recomendado a menos de 8 m de toda zona de alimentos o bebidas.","Jabón líquido y toallas de papel en dispensador; agua caliente y fría en todos los fregaderos.","Sin utensilios reutilizables: lavamanos + fregadero de 2 compartimientos. Con utensilios sin lavavajillas: lavamanos + 3 compartimientos. Además un lavamanos adicional y fregadero de preparación de 1 compartimiento.","Los lavabos de baño o de trapeador no cuentan como lavamanos."]
+        :["Handwash basin accessible, in line of sight, recommended within 8 m of every food or beverage area.","Liquid soap and paper towels in dispensers; hot and cold water at all sinks.","No reusable utensils: hand sink + 2-compartment sink. Reusable, no dishwasher: hand sink + 3-compartment. Plus an extra hand sink and a 1-compartment prep sink.","Washroom or mop sinks do not count as handwashing sinks."],
+    s:L("ahs","AHS — Starting a Food Business")},
+   {h:es?"Agua, limpieza y plagas":"Water, cleaning & pests",
+    b:es?["Solo agua potable (incluido hielo y vapor) de fuente aprobada, según las Guías de Calidad de Agua Potable de Health Canada.","Plan escrito de limpieza y plan escrito de control de plagas.","Desinfectante de grado alimentario con tiras de prueba.","Desinfección manual: 77 °C por 2 min. Lavavajillas: 82 °C por 10 s."]
+        :["Potable water only (including ice and steam) from an approved source, meeting Health Canada's Drinking Water Guidelines.","Written cleaning schedule and written pest-control plan.","Food-grade sanitizer with test strips.","Manual hot-water sanitizing: 77 °C for 2 min. Dishwasher: 82 °C for 10 s."],
+    s:L("ahs","AHS — Starting a Food Business")+" · "+L("temp","AHS — Important Temperatures")},
+   {h:es?"Jugos no pasteurizados":"Unpasteurized juice",
+    b:es?["El jugo “recién exprimido” suele ser no pasteurizado y puede contener Salmonella, E. coli o Cryptosporidium.","Refrigerar o congelar no lo hace seguro; solo la pasteurización (calor o luz UV) elimina las bacterias.","Health Canada recomienda etiquetarlo como “no pasteurizado”; grupos de riesgo: niños, adultos mayores, embarazadas, inmunodeprimidos.","Revisa la etiqueta de cada pulpa; aplica a lúcuma, chirimoya y chicha de pulpa; la chicha de maíz y la mazamorra se hierven."]
+        :["“Fresh-squeezed” juice is usually unpasteurized and can carry Salmonella, E. coli or Cryptosporidium.","Refrigerating or freezing does not make it safe; only pasteurization (heat or UV) kills the bacteria.","Health Canada encourages labelling it “unpasteurized”; at-risk groups: children, older adults, pregnant people, the immunocompromised.","Check each frozen pulp label; relevant to lúcuma, chirimoya and chicha-pulp drinks; corn-based chicha and mazamorra are boiled."],
+    s:L("hc","Health Canada — Unpasteurized juice")},
+   {h:es?"Pulpas congeladas":"Frozen pulps",
+    b:es?["Compra solo a importadores con licencia CFIA o distribuidores aprobados, con etiqueta bilingüe y lote.","Recibe a −18 °C o menos; rechaza paquetes blandos, con escarcha excesiva o rotos.","Descongela en refrigerador a 4 °C o menos; nunca a temperatura ambiente; no recongeles.","Revisa si la pulpa es pasteurizada: si no lo es, el jugo es no pasteurizado (ver tarjeta anterior)."]
+        :["Buy only from CFIA-licensed importers or approved distributors, with bilingual labels and lot codes.","Receive at −18 °C or colder; reject soft, heavily frosted or torn packs.","Thaw in the refrigerator at 4 °C or colder; never at room temperature; do not refreeze.","Check whether the pulp is pasteurized: if not, the juice is unpasteurized (see previous card)."],
+    s:L("temp","AHS — Important Temperatures")+" · "+L("hc","Health Canada")},
+   {h:es?"Etiquetado y publicidad":"Labelling & advertising",
+    b:es?["Para productos preempacados, el etiquetado lo regula la CFIA (nombre, ingredientes, alérgenos, bilingüe, etc.). Revisa exenciones para alimentos preparados en el local.","Declara alérgenos prioritarios: leche (maca, lúcuma), sulfitos (fruta seca de la mazamorra).","La ley federal de alimentos restringe las afirmaciones de prevención o tratamiento de enfermedades — ver “Verificación de afirmaciones” en cada pestaña."]
+        :["For prepackaged products, labelling is regulated by CFIA (name, ingredients, allergens, bilingual, etc.). Check exemptions for food prepared on site.","Declare priority allergens: milk (maca, lúcuma), sulphites (dried fruit in mazamorra).","Federal food law restricts claims that a food prevents or treats disease — see “Claim check” on each tab."],
+    s:L("cfia","CFIA — Food labelling")+" · "+L("ahs","AHS")},
+   {h:es?"Leyes aplicables":"Laws that apply",
+    b:es?["Public Health Act (Alberta) — base de las inspecciones sin previo aviso.","Food Regulation de Alberta — construcción, saneamiento, higiene y operación.","Food Retail and Foodservices Code — complementa el Reglamento con interpretaciones y guía.","Códigos Nacionales de Edificación, Incendios y Fontanería (edición Alberta); interceptor de grasa si aplica."]
+        :["Public Health Act (Alberta) — basis for unannounced inspections.","Alberta Food Regulation — construction, sanitation, hygiene and operations.","Food Retail and Foodservices Code — supplements the Regulation with interpretation and guidance.","National Building, Fire and Plumbing Codes (Alberta editions); grease interceptor where required."],
+    s:L("ahs","AHS")+" · "+L("code","Food Retail & Foodservices Code")}
+  ];
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">
+   <div class="hero"><div><div class="eyebrow">Alberta Health Services · Environmental Public Health</div><h2>${es?"Normas de inocuidad en Alberta":"Alberta food-safety rules"}</h2><p>${es?"Lo que exige AHS para preparar y vender estas bebidas en Edmonton, resumido de las fuentes oficiales.":"What AHS requires to prepare and sell these drinks in Edmonton, summarized from official sources."}</p></div></div>
+   <div class="temps">
+    <div class="temp"><div class="big">≤ 4 °C</div><div class="lbl">${es?"Mantener en frío":"Cold holding"}</div></div>
+    <div class="temp danger"><div class="big">4–60 °C</div><div class="lbl">${es?"Zona de peligro · máx. 2 h":"Danger zone · max 2 h"}</div></div>
+    <div class="temp"><div class="big">≥ 60 °C</div><div class="lbl">${es?"Mantener en caliente":"Hot holding"}</div></div>
+    <div class="temp"><div class="big">74 °C</div><div class="lbl">${es?"Cocción mín. 15 s · recalentar en ≤ 2 h":"Cook min 15 s · reheat within 2 h"}</div></div>
+    <div class="temp"><div class="big">≤ −18 °C</div><div class="lbl">${es?"Congelado":"Frozen"}</div></div>
+   </div>
+   <p class="note" style="margin-bottom:20px"><b>${es?"Enfriamiento":"Cooling"}:</b> ${es?"La regla que enseñan los cursos de inocuidad es de 60 °C a 20 °C en 2 h y de 20 °C a 4 °C en 4 h más.":"The rule taught in food-safety courses is 60 °C to 20 °C within 2 h, then 20 °C to 4 °C within a further 4 h."}<span class="unv">${T(UI.unverified)}</span> ${es?"No aparece en las páginas de AHS que revisé — confírmalo con tu inspector o en el Food Retail and Foodservices Code. Es clave para la chicha, la quinua y la mazamorra.":"It is not on the AHS pages I checked — confirm with your inspector or the Food Retail and Foodservices Code. It matters for chicha, quinoa and mazamorra."}</p>
+   <div class="rules">${cards.map(c=>`<div class="panel"><h4>${c.h}</h4><ul class="plain">${c.b.map(x=>`<li>${x}</li>`).join("")}</ul><div class="src">${T(UI.src)}: ${c.s}</div></div>`).join("")}</div>
+  </section>`;
+}
+
+function path(){
+  const es=state.lang==="es";
+  const S=es?[
+   ["Define el concepto y el menú","Elige qué bebidas venderás, tamaños de porción y si serán al momento, en dispensador o embotelladas. Esto define tu clase de permiso y tu equipo."],
+   ["Registra el negocio y la licencia municipal","Registra el nombre o la empresa en Alberta y solicita la licencia de negocio de la Ciudad de Edmonton. Si alquilas en un centro comercial o campus, revisa los requisitos del arrendador."],
+   ["Revisión de planos","Envía los planos a la Ciudad de Edmonton al menos 6 semanas antes de construir; incluye equipo, lavamanos, fregaderos y menú completo."],
+   ["Certificación en inocuidad","Al menos una persona a cargo certificada; si hay 6+ manipuladores por turno, siempre una persona certificada presente."],
+   ["Proveedores aprobados","Compra pulpas congeladas (piña, manzana, membrillo, limón, plátano, lúcuma, chirimoya, chicha morada), maíz morado, maca y quinua a importadores con licencia CFIA o distribuidores establecidos. Guarda facturas y números de lote para trazabilidad. Necesitarás congelador a −18 °C."],
+   ["Estandariza las recetas","Usa las calculadoras de esta app para fijar lotes, rendimiento y costo por vaso. Haz lotes de prueba de las recetas de referencia."],
+   ["Plan de inocuidad escrito","Para cada producto registra los PCC: recepción congelada, descongelación en refrigerador, cocción, enfriamiento, frío ≤ 4 °C. Añade plan de limpieza y de plagas."],
+   ["Solicita el permiso e inspección","Solicita el permiso de AHS en línea; la inspección de aprobación se hace con el equipo instalado y funcionando."],
+   ["Etiquetas y menú","Declara alérgenos (leche, sulfitos), marca “no pasteurizado” en jugos frescos embotellados y evita afirmaciones de salud no verificadas."],
+   ["Costeo y precio","Suma ingredientes, envases, mano de obra y gastos fijos por porción; fija el precio con tu margen objetivo."],
+   ["Venta y registros diarios","Registra temperaturas de refrigeradores, lotes (fecha/hora) y desechos; exhibe el permiso; prepárate para inspecciones sin aviso."]
+  ]:[
+   ["Define the concept and menu","Choose which drinks you will sell, serving sizes, and whether they are made to order, dispensed, or bottled. This drives your permit class and equipment."],
+   ["Register the business and city licence","Register the trade name or company in Alberta and apply for a City of Edmonton business licence. If leasing in a mall or campus, check the landlord's requirements."],
+   ["Plan review","Send plans to the City of Edmonton at least 6 weeks before construction, including equipment, hand sinks, prep sinks and full menu."],
+   ["Food safety certification","At least one certified person in charge; with 6+ handlers per shift, a certified person on site at all times."],
+   ["Approved suppliers","Buy frozen pulps (pineapple, apple, quince, lime, banana, lúcuma, cherimoya, chicha morada), purple corn, maca and quinoa from CFIA-licensed importers or established distributors. Keep invoices and lot codes for traceability. You will need freezer space at −18 °C."],
+   ["Standardize recipes","Use this app's calculators to lock batch sizes, yield and cost per cup. Test-batch the reference recipes."],
+   ["Written food-safety plan","Record CCPs for each product: frozen receiving, fridge thawing, cooking, cooling, cold-hold ≤ 4 °C. Add cleaning and pest plans."],
+   ["Apply for the permit and inspection","Apply online to AHS; the approval inspection happens with equipment installed and working."],
+   ["Labels and menu","Declare allergens (milk, sulphites), mark bottled fresh juice “unpasteurized”, and avoid unverified health claims."],
+   ["Costing and pricing","Add ingredients, packaging, labour and overhead per serving; set price at your target margin."],
+   ["Sale and daily records","Log fridge temperatures, batches (date/time) and waste; post the permit; be ready for unannounced inspections."]
+  ];
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">
+   <div class="hero"><div><div class="eyebrow">${es?"De la idea al primer vaso vendido":"From idea to first cup sold"}</div><h2>${es?"Camino a la venta":"Path to sale"}</h2><p>${es?"Pasos en orden para vender las seis bebidas en Edmonton. Cada pestaña de producto tiene además su propio flujo con puntos críticos de control.":"Ordered steps to sell all six drinks in Edmonton. Each product tab also has its own flow with critical control points."}</p></div></div>
+   <div class="path">${S.map((s,i)=>`<div class="pstep"><div class="n">${i+1}</div><div><h4>${s[0]}</h4><p>${s[1]}</p></div></div>`).join("")}</div>
+   <div class="panel sources" style="margin-top:20px"><h3>${es?"Fuentes":"Sources"}</h3><ul>
+    <li>${L("ahs","AHS — Starting a Food Business (PUB-0420-202601)")}</li>
+    <li>${L("temp","AHS — Important Temperatures for Safe Food Handling")}</li>
+    <li>${L("hc","Health Canada — Unpasteurized juice and cider")}</li>
+    <li>${L("code","Alberta — Food Retail and Foodservices Code (2020)")}</li>
+    <li>${L("cfia","CFIA — Food labelling")}</li></ul></div>
+  </section>`;
+}
+
+function render(){
+  document.documentElement.lang=state.lang;
+  document.getElementById("btnEn").setAttribute("aria-pressed",state.lang==="en");
+  document.getElementById("btnEs").setAttribute("aria-pressed",state.lang==="es");
+  document.getElementById("appTitle").textContent=state.lang==="es"?"Taste of Peru":"Taste of Peru";
+  document.getElementById("appSub").textContent=T(UI.sub);
+  document.getElementById("disc").textContent=T(UI.disc);
+  renderTabs();
+  const p=P.find(x=>x.id===state.tab);
+  if(p){ main.innerHTML=product(p); wireProduct(p); }
+  else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
+  else main.innerHTML= state.tab==="rules"? rules() : path();
+}
+document.getElementById("btnEn").onclick=()=>{state.lang="en";save();render();};
+document.getElementById("btnEs").onclick=()=>{state.lang="es";save();render();};
+render();
+</script>
+
+</body></html>

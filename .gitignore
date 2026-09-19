@@ -1,0 +1,9 @@
+# Office lock files
+.~lock*
+~$*
+# Large video (keep only on this computer)
+*.mp4
+# System files
+Thumbs.db
+desktop.ini
+.DS_Store
