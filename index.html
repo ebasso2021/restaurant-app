@@ -667,7 +667,12 @@ const dow=iso=>new Date(iso+"T12:00:00").getDay();
 const DOWN={en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],es:["dom","lun","mar","mié","jue","vie","sáb"]};
 const pname=id=>{const p=P.find(x=>x.id===id);return p?T(p.name):id;};
 
-let DB=null, SAMPLE=null, capsReady=false;
+let DB=null, SAMPLE=null, DL=null, capsReady=false;
+async function saveFile(filename,text){
+  if(DL){ try{ await DL.save({filename,data:text}); return true; }catch(e){ if(e&&e.code!=="declined") toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; } }
+  try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
+}
+function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
 const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],costs:{}};
 if(!state.aiView) state.aiView="overview";
 
@@ -675,12 +680,105 @@ function subscribe(name){
   DB.collection(name).onSnapshot(s=>{D[name]=s.docs.map(d=>({id:d.id,...d.data()}));refreshAI();},
     e=>{console.warn(name,e.code);});
 }
+
+/* ===== Standalone mode (GitHub Pages / any web host): browser storage + optional Anthropic API key ===== */
+let MODE="claude"; // "claude" | "local"
+const LS_DB="top-db-v1", LS_KEY="top-apikey";
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
+function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+function makeLocalDB(){
+  let store={}; try{store=JSON.parse(lsGet(LS_DB)||"{}")||{};}catch(e){store={};}
+  const subs=new Set();
+  const persist=()=>{ if(!lsSet(LS_DB,JSON.stringify(store))) toast(tt("Browser storage is full or blocked.","El almacenamiento del navegador está lleno o bloqueado.")); };
+  const notify=()=>setTimeout(()=>subs.forEach(f=>f()),0);
+  const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  const snapDoc=(path)=>({id:path.split("/").pop(),exists:path in store,data:()=>store[path]?JSON.parse(JSON.stringify(store[path])):undefined,metadata:{fromCache:false,hasPendingWrites:false}});
+  function docRef(path){return{id:path.split("/").pop(),path,
+    async get(){return snapDoc(path);},
+    async set(d){store[path]=JSON.parse(JSON.stringify(d));persist();notify();},
+    async update(d){if(!(path in store))throw{code:"invalid_argument"};Object.assign(store[path],JSON.parse(JSON.stringify(d)));persist();notify();},
+    async delete(){delete store[path];persist();notify();},
+    onSnapshot(next){const f=()=>next(snapDoc(path));subs.add(f);setTimeout(f,0);return()=>subs.delete(f);}};}
+  function col(name){return{path:name,
+    doc(id){return docRef(name+"/"+(id||rid()));},
+    async add(d){const r=this.doc();await r.set(d);return r;},
+    onSnapshot(next){const f=()=>{const docs=Object.keys(store).filter(k=>k.startsWith(name+"/")&&k.split("/").length===2).sort().map(snapDoc);next({docs,size:docs.length,empty:!docs.length,metadata:{fromCache:false,hasPendingWrites:false}});};subs.add(f);setTimeout(f,0);return()=>subs.delete(f);}};}
+  return {collection:col,doc:docRef,_dump:()=>JSON.parse(JSON.stringify(store)),_load:obj=>{store=obj||{};persist();notify();},_empty:()=>!Object.keys(store).length};
+}
+let MODELS=null;
+async function pickModel(tier){
+  const key=lsGet(LS_KEY);
+  if(!MODELS){ try{ const r=await fetch("https://api.anthropic.com/v1/models?limit=50",{headers:{"x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"}}); if(r.ok){MODELS=(await r.json()).data.map(m=>m.id);} }catch(e){} }
+  const list=MODELS||[];
+  return (tier==="quick"&&list.find(m=>/haiku/.test(m)))||list.find(m=>/sonnet/.test(m))||list[0]||"claude-sonnet-4-5";
+}
+function makeApiSample(){
+  async function call(input,opts={}){
+    const key=lsGet(LS_KEY); if(!key) throw {code:"not_granted",message:"no key"};
+    let msgs=typeof input==="string"?[{role:"user",content:input}]:input.map(m=>({role:m.role,content:m.content}));
+    const merged=[]; msgs.forEach(m=>{const last=merged[merged.length-1]; if(last&&last.role===m.role) last.content+="\n\n"+m.content; else merged.push({...m});});
+    let r;
+    try{ r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:opts.signal,headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:await pickModel(opts.modelTier),max_tokens:2048,messages:merged})}); }
+    catch(e){ throw {code:e&&e.name==="AbortError"?"cancelled":"upstream_error",message:String(e)}; }
+    if(!r.ok){ const code=r.status===401||r.status===403?"bad_key":r.status===429?"rate_limited":"upstream_error"; throw {code,message:"HTTP "+r.status}; }
+    const j=await r.json(); const text=(j.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("").trim();
+    if(!text) throw {code:"empty_completion"};
+    opts.onText&&opts.onText({text,delta:text});
+    return {text,truncated:j.stop_reason==="max_tokens",modelTierApplied:opts.modelTier||"default"};
+  }
+  const fn=(i,o)=>call(i,o);
+  fn.json=async(i,o)=>{ const {text}=await call(typeof i==="string"?i+"\n\nReply with the JSON only.":i,o);
+    const tryP=s=>{try{return JSON.parse(s);}catch(e){return undefined;}};
+    let v=tryP(text); if(v===undefined){const m=text.match(/```(?:json)?\s*([\s\S]*?)```/); if(m) v=tryP(m[1]);}
+    if(v===undefined){const a=text.search(/[\[{]/), b=Math.max(text.lastIndexOf("]"),text.lastIndexOf("}")); if(a>=0&&b>a) v=tryP(text.slice(a,b+1));}
+    if(v===undefined) throw {code:"invalid_json",text}; return v; };
+  return fn;
+}
+async function seedFromRepo(){
+  // first run on the website: load the inventory exported to data/inventory.json (bookings are not loaded)
+  try{ const r=await fetch("data/inventory.json",{cache:"no-store"}); if(!r.ok) return; const rows=await r.json(); if(!Array.isArray(rows)) return;
+    for(const x of rows){ const {id,...rest}=x; await DB.collection("inventory").doc(id||undefined).set(rest); }
+  }catch(e){}
+}
+function settingsView(){
+  const hasKey=!!lsGet(LS_KEY);
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Data and AI on this website","Datos e IA en este sitio web"),
+   MODE==="claude"?tt("You're using the app inside Claude: data is saved in Claude and AI uses your Claude account. Nothing to set up here.","Estás usando la app dentro de Claude: los datos se guardan en Claude y la IA usa tu cuenta de Claude. No hay nada que configurar aquí.")
+   :tt("On this website, data is saved in this browser only, on this device. Export a backup often.","En este sitio web los datos se guardan solo en este navegador, en este dispositivo. Exporta un respaldo seguido."))}
+   ${MODE==="local"?`<div class="grid">
+    <div class="panel"><h3>${tt("AI (Anthropic API key)","IA (clave de API de Anthropic)")}</h3>
+     <p>${hasKey?`<span class="badge ok">${tt("Key saved in this browser","Clave guardada en este navegador")}</span>`:`<span class="badge warn">${tt("No key — AI buttons are off","Sin clave — los botones de IA están apagados")}</span>`}</p>
+     <form id="keyForm" class="fgrid">${field("apiKey",tt("API key (starts with sk-ant-)","Clave de API (empieza con sk-ant-)"),`<input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-...">`)}
+      <button class="btn" type="submit">${tt("Save key","Guardar clave")}</button>${hasKey?`<button class="btn ghost" type="button" id="keyDel">${tt("Remove key","Quitar clave")}</button><button class="btn ghost" type="button" id="keyTest">${tt("Test","Probar")}</button>`:""}</form>
+     <p class="hint" id="keyMsg" aria-live="polite"></p>
+     <p class="hint">${tt("Get a key at console.anthropic.com (paid per use). It is stored only in this browser and sent only to api.anthropic.com — never put it in the GitHub files. Use it only on your own devices; anyone using this browser can use it.","Consigue una clave en console.anthropic.com (se paga por uso). Se guarda solo en este navegador y se envía solo a api.anthropic.com — nunca la pongas en los archivos de GitHub. Úsala solo en tus propios dispositivos; cualquiera que use este navegador puede usarla.")}</p></div>
+    <div class="panel"><h3>${tt("Backup","Respaldo")}</h3>
+     <p>${tt("Download all app data (inventory, bookings, sales, waste, posts, reviews, costs) as one file, or restore it on another device.","Descarga todos los datos de la app (inventario, reservas, ventas, merma, publicaciones, reseñas, costos) en un archivo, o restáuralos en otro dispositivo.")}</p>
+     <div class="acts"><button class="btn" id="expBtn">${tt("Export data","Exportar datos")}</button><label class="btn ghost" for="impFile" style="display:inline-flex;align-items:center">${tt("Import data","Importar datos")}</label><input id="impFile" type="file" accept="application/json,.json" hidden></div>
+     <p class="hint" id="bkMsg" aria-live="polite"></p>
+     <p class="hint">${tt("Don't upload the backup to a public GitHub repository: it contains customers' names and phone numbers.","No subas el respaldo a un repositorio público de GitHub: contiene nombres y teléfonos de clientes.")}</p></div>
+   </div>`:""}</section>`;
+}
+function wireSettings(){
+  if(MODE!=="local") return;
+  const msg=t=>{document.getElementById("keyMsg").textContent=t;};
+  document.getElementById("keyForm").onsubmit=e=>{e.preventDefault(); const k=val("apiKey"); if(!/^sk-ant-/.test(k)){msg(tt("That doesn't look like an Anthropic key.","Eso no parece una clave de Anthropic."));return;} lsSet(LS_KEY,k); MODELS=null; SAMPLE=makeApiSample(); render();};
+  const del=document.getElementById("keyDel"); if(del) del.onclick=()=>{lsDel(LS_KEY); SAMPLE=null; MODELS=null; render();};
+  const test=document.getElementById("keyTest"); if(test) test.onclick=async()=>{msg(tt("Testing…","Probando…")); try{await SAMPLE("Reply with the single word OK.",{modelTier:"quick"}); msg(tt("The key works.","La clave funciona."));}catch(e){msg(aiErr(e));}};
+  document.getElementById("expBtn").onclick=async()=>{ if(await saveFile("taste-of-peru-backup-"+today()+".json",JSON.stringify({app:"taste-of-peru",exported:new Date().toISOString(),data:DB._dump()},null,2))) document.getElementById("bkMsg").textContent=tt("Backup downloaded.","Respaldo descargado."); };
+  document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object") throw 0; if(!confirm(tt("Replace all data in this browser with this backup?","¿Reemplazar todos los datos de este navegador con este respaldo?"))) return; DB._load(j.data); document.getElementById("bkMsg").textContent=tt("Data restored.","Datos restaurados."); }catch(err){ document.getElementById("bkMsg").textContent=tt("That file is not a valid backup.","Ese archivo no es un respaldo válido."); } };
+}
+
 (async()=>{
+  await null; // let the rest of the script define everything first
   const use=window.claude&&window.claude.use?window.claude.use.bind(window.claude):null;
   if(use){
     try{SAMPLE=await use("sample");}catch(e){SAMPLE=null;}
     try{DB=await use("db");}catch(e){DB=null;}
+    try{DL=await use("downloads");}catch(e){DL=null;}
   }
+  if(!DB){ MODE="local"; DB=makeLocalDB(); if(DB._empty()) await seedFromRepo(); if(lsGet(LS_KEY)) SAMPLE=makeApiSample(); }
   capsReady=true;
   if(DB){
     ["inventory","waste","reservations","sales","posts","reviews"].forEach(subscribe);
@@ -699,6 +797,7 @@ function toast(msg){ let el=document.getElementById("toast"); if(!el){el=documen
 
 function aiErr(e){ const c=e&&e.code;
   if(c==="not_granted"||c==="sampling_disabled"||c==="not_declared"||c==="capability_disabled"||c==="capability_removed") return tt("AI is not allowed in this view.","La IA no está permitida en esta vista.");
+  if(c==="bad_key") return tt("The API key was rejected. Check it in ⚙ Settings.","La clave de API fue rechazada. Revísala en ⚙ Ajustes.");
   if(c==="rate_limited") return tt("Too many AI requests — wait a moment and try again.","Demasiadas solicitudes de IA — espera un momento e inténtalo de nuevo.");
   if(c==="session_expired") return tt("Sign in again to use AI.","Vuelve a iniciar sesión para usar la IA.");
   if(c==="refused") return tt("The AI declined this request. Rephrase it.","La IA rechazó esta solicitud. Reformúlala.");
@@ -720,20 +819,22 @@ const MODS=[
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
   {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
-  {id:"m5",en:"5 · Reviews",es:"5 · Reseñas"}
+  {id:"m5",en:"5 · Reviews",es:"5 · Reseñas"},
+  {id:"settings",en:"⚙ Settings",es:"⚙ Ajustes"}
 ];
 function aiSys(){
   const v=state.aiView;
   const banner = !capsReady ? `<p class="capnote">${tt("Connecting to data and AI…","Conectando con datos e IA…")}</p>`
+    : MODE==="local" ? `<p class="capnote ${SAMPLE?"":"warnnote"}">${tt("Data is saved in this browser.","Los datos se guardan en este navegador.")} ${SAMPLE?tt("AI is on (your API key).","IA activa (tu clave de API)."):tt("AI is off — add your API key in","IA apagada — agrega tu clave de API en")+` <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("Settings","Ajustes")}</button>.`}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
-  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():aiOverview();
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():aiOverview();
   return nav+banner+body;
 }
 function wireAI(){
   main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
   const v=state.aiView;
-  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5();
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
 }
@@ -867,7 +968,8 @@ function listM1(){
   const st=r=>r.status==="confirmed"?tt("Confirmed","Confirmada"):r.status==="cancelled"?tt("Cancelled","Cancelada"):tt("Pending","Pendiente");
   const filt=[["upcoming",tt("Upcoming","Próximas")],["all",tt("All","Todas")],["past",tt("Past","Pasadas")],["cancelled",tt("Cancelled","Canceladas")]];
   const r=rows.find(x=>x.id===resSel);
-  el.innerHTML=`<div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
+  el.innerHTML=`<div class="acts" style="margin:0 0 10px"><button type="button" class="btn sm ghost" id="resCsv">⬇ ${tt("Bookings CSV","Reservas CSV")}</button><button type="button" class="btn sm ghost" id="resJson">⬇ ${tt("Bookings JSON","Reservas JSON")}</button></div>
+   <div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
    ${rows.length?`<label class="sr" for="resBox">${tt("Bookings","Reservas")}</label>
    <select id="resBox" class="listbox" size="${Math.min(8,Math.max(4,rows.length))}">${rows.map(x=>`<option value="${x.id}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)}) · ${st(x)}</option>`).join("")}</select>
    <p class="hint">${rows.length} ${tt("booking(s)","reserva(s)")}</p>`:`<p class="empty">${tt("No bookings in this view.","No hay reservas en esta vista.")}</p>`}
@@ -877,6 +979,9 @@ function listM1(){
     <div class="acts">${r.status!=="confirmed"?`<button class="btn sm" data-act="confirm" data-id="${r.id}">${tt("Confirm","Confirmar")}</button>`:""}<button class="btn sm ghost" data-act="msg" data-id="${r.id}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${r.id}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${r.id}">${tt("Delete","Borrar")}</button></div></div>`:""}`;
   const box=document.getElementById("resBox"); if(box) box.onchange=()=>{resSel=box.value;listM1();document.getElementById("resBox")?.focus();};
   document.getElementById("resFilt").onchange=e=>{resFilter=e.target.value;resSel=null;listM1();};
+  const RF=["date","time","name","contact","party","notes","status","created","id"];
+  document.getElementById("resCsv").onclick=()=>{ if(!all.length){toast(tt("No bookings to save yet.","Aún no hay reservas para guardar."));return;} saveFile("reservations-"+today()+".csv",toCSV(all,RF)); };
+  document.getElementById("resJson").onclick=()=>{ if(!all.length){toast(tt("No bookings to save yet.","Aún no hay reservas para guardar."));return;} saveFile("reservations-"+today()+".json",JSON.stringify(all.map(r=>Object.fromEntries(RF.map(f=>[f,r[f]??""]))),null,2)); };
 }
 
 /* ================= MODULE 2 — KITCHEN & INVENTORY ================= */
