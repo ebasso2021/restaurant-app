@@ -13,10 +13,10 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 ### Archivos en esta carpeta
 | Archivo | Contenido |
 |---|---|
-| `taste-of-peru.html` | La app completa (HTML, CSS y JavaScript en un solo archivo). |
+| `index.html` | La app completa (HTML, CSS y JavaScript en un solo archivo). |
 | `README.md` | Este documento. |
 
-> **Importante:** si abres `taste-of-peru.html` directamente desde tu computadora, las calculadoras, normas y textos funcionan, pero **no se guardan datos y la IA no funciona**. Esas funciones solo existen en la versión en línea en Claude (enlace arriba).
+> **Importante:** si abres `index.html` directamente desde tu computadora, las calculadoras, normas y textos funcionan, pero **no se guardan datos y la IA no funciona**. Esas funciones solo existen en la versión en línea en Claude (enlace arriba).
 
 ### Pestañas
 1. **Productos** — Jugo de quinua, Chicha morada, Jugo de maca, Mazamorra morada, Jugo de lúcuma, Jugo de chirimoya: calculadora de lotes, preparación, beneficios, verificación de afirmaciones y flujo con puntos críticos de control (PCC).
@@ -66,10 +66,10 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 ### Files in this folder
 | File | Contents |
 |---|---|
-| `taste-of-peru.html` | The full app (HTML, CSS and JavaScript in one file). |
+| `index.html` | The full app (HTML, CSS and JavaScript in one file). |
 | `README.md` | This document. |
 
-> **Important:** if you open `taste-of-peru.html` directly from your computer, the calculators, rules and text work, but **no data is saved and AI does not work**. Those features only exist in the online version in Claude (link above).
+> **Important:** if you open `index.html` directly from your computer, the calculators, rules and text work, but **no data is saved and AI does not work**. Those features only exist in the online version in Claude (link above).
 
 ### Tabs
 1. **Products** — Quinoa drink, Chicha morada, Maca shake, Mazamorra morada, Lúcuma juice, Chirimoya juice: batch calculator, method, benefits, claim check and flow with critical control points (CCP).
