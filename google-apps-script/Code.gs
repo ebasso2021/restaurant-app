@@ -16,7 +16,7 @@
  * Security: reading or changing data needs the PIN. Without the PIN the only thing allowed is
  * adding a NEW booking (so customers can book). Never share the PIN and never put it on GitHub.
  */
-const PIN = "CHANGE-ME-123456";
+const PIN = "232323";
 
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
@@ -36,7 +36,7 @@ const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
 
 /* ---------------- web app ---------------- */
-function doGet(e) { return handle_(e.parameter || {}); }
+function doGet(e) { return handle_((e && e.parameter) || {}); }
 function doPost(e) {
   let body = {};
   try { body = JSON.parse(e.postData && e.postData.contents || "{}"); } catch (err) { return out_({ ok: false, error: "bad_json" }); }
