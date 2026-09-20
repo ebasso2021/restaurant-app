@@ -181,6 +181,14 @@ table.dt td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middl
 .floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .tcard{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface);font-size:13px;display:flex;flex-direction:column;gap:4px}
 .tcard.occ{border-color:var(--warn);background:var(--warn-bg)}
+.tstat{display:inline-block;font:600 12px var(--body);padding:4px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap;cursor:pointer}
+span.tstat{cursor:default}
+.tcard .tstat{white-space:normal}
+.tstat.free{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.tstat.occ{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+.tstat.res{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.tstat.off{background:var(--sunk);color:var(--muted)}
+.kpi.okk{background:var(--ok-bg);border-color:transparent}.kpi.okk .big{color:var(--ok)}
 .tnum{font:600 15px var(--body)}
 .slots{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .oitem{display:grid;grid-template-columns:minmax(0,2fr) 60px minmax(0,1.3fr) minmax(0,2fr) auto;gap:6px;margin-bottom:6px;align-items:center}
@@ -1229,6 +1237,15 @@ function tableBooking(tnum,date,time,exceptId){
   const s=tmin(time);
   return D.reservations.find(r=>r.id!==exceptId&&r.status!=="cancelled"&&r.table!==""&&r.table!=null&&String(r.table)===String(tnum)&&r.date===date&&Math.abs(tmin(r.time)-s)<BOOK_MIN);
 }
+// a table marked "occupied" (guests seated now) can't take a booking that starts today before it is expected to be free
+function tableOccupiedFor(t,date,time){ return !!t.occupied&&date===today()&&tmin(time)<tmin(nowHM())+BOOK_MIN; }
+function tableStatus(t){
+  if(t.active===false) return ["off",tt("Out of service","Fuera de servicio")];
+  if(t.occupied) return ["occ",tt("Occupied","Ocupada")];
+  const b=tableBooking(t.num,today(),nowHM());
+  if(b) return ["res",tt(`Booked ${b.time}–${endTime(b.time)}`,`Reservada ${b.time}–${endTime(b.time)}`)];
+  return ["free",tt("Free · ready for bookings","Libre · lista para reservas")];
+}
 // returns {table} (number, or "" when no layout is defined) or {err}
 function pickTable(party,date,time,want){
   const tabs=activeTables();
@@ -1237,13 +1254,14 @@ function pickTable(party,date,time,want){
     const t=tabs.find(x=>String(x.num)===String(want));
     if(!t) return {err:tt("That table doesn't exist or is not active.","Esa mesa no existe o no está activa.")};
     if(num(t.seats)<party) return {err:tt(`Table ${t.num} has only ${t.seats} chairs.`,`La mesa ${t.num} tiene solo ${t.seats} sillas.`)};
+    if(tableOccupiedFor(t,date,time)) return {err:tt(`Table ${t.num} is occupied now. Mark it free in “Tables layout” or book after ${mtime(tmin(nowHM())+BOOK_MIN)}.`,`La mesa ${t.num} está ocupada ahora. Márcala libre en “Distribución de mesas” o reserva después de las ${mtime(tmin(nowHM())+BOOK_MIN)}.`)};
     const b=tableBooking(t.num,date,time);
     if(b) return {err:tt(`Table ${t.num} is booked from ${b.time} to ${endTime(b.time)} (${b.name}). Each booking holds the table 1 h 30 min.`,`La mesa ${t.num} está reservada de ${b.time} a ${endTime(b.time)} (${b.name}). Cada reserva ocupa la mesa 1 h 30 min.`)};
     return {table:num(t.num)};
   }
   const max=Math.max(...tabs.map(t=>num(t.seats)));
   if(party>max) return {err:tt(`No table has ${party} chairs (largest: ${max}). Add a bigger table or join tables in “Tables layout”.`,`Ninguna mesa tiene ${party} sillas (la más grande: ${max}). Agrega una mesa más grande o junta mesas en “Distribución de mesas”.`)};
-  const free=tabs.filter(t=>num(t.seats)>=party&&!tableBooking(t.num,date,time)).sort((a,b)=>num(a.seats)-num(b.seats)||num(a.num)-num(b.num));
+  const free=tabs.filter(t=>num(t.seats)>=party&&!tableOccupiedFor(t,date,time)&&!tableBooking(t.num,date,time)).sort((a,b)=>num(a.seats)-num(b.seats)||num(a.num)-num(b.num));
   if(!free.length) return {err:tt(`Full: no free table for ${party} between ${time} and ${endTime(time)}. Try another time.`,`Completo: no hay mesa libre para ${party} entre ${time} y ${endTime(time)}. Prueba otra hora.`)};
   return {table:num(free[0].num)};
 }
@@ -1289,24 +1307,25 @@ function wireTables(){
     if(el.dataset.f==="active") await dbUpd("tables",id,{active:el.checked});
   });
   tb.addEventListener("focusout",()=>setTimeout(()=>{if(!tb.contains(document.activeElement))refreshAI();},50));
-  tb.addEventListener("click",async e=>{ const b=e.target.closest("[data-tdel]"); if(!b) return; const t=D.tables.find(x=>x.id===b.dataset.tdel); if(t&&confirm(tt(`Delete table ${t.num}?`,`¿Borrar la mesa ${t.num}?`))) await dbDel("tables",t.id); });
+  tb.addEventListener("click",async e=>{ const o=e.target.closest("[data-tocc]"); if(o){ const t=D.tables.find(x=>x.id===o.dataset.tocc); if(t) await dbUpd("tables",t.id,t.occupied?{occupied:false,occSince:""}:{occupied:true,occSince:new Date().toISOString()}); return; }
+    const b=e.target.closest("[data-tdel]"); if(!b) return; const t=D.tables.find(x=>x.id===b.dataset.tdel); if(t&&confirm(tt(`Delete table ${t.num}?`,`¿Borrar la mesa ${t.num}?`))) await dbDel("tables",t.id); });
   document.getElementById("tblDay").onchange=e=>{tblDate=e.target.value||today();listTables();};
 }
 function listTables(){
   const k=document.getElementById("tblKpis"); if(!k) return;
   const tabs=activeTables(), all=[...D.tables].sort((a,b)=>num(a.num)-num(b.num)), t=today(), now=nowHM();
-  const busyNow=tabs.filter(x=>tableBooking(x.num,t,now)).length;
+  const busyNow=tabs.filter(x=>tableBooking(x.num,t,now)).length, occNow=tabs.filter(x=>x.occupied).length, freeNow=tabs.filter(x=>tableStatus(x)[0]==="free").length;
   const dayRes=D.reservations.filter(r=>r.date===tblDate&&r.status!=="cancelled");
-  k.innerHTML=[[tabs.length,tt("active tables","mesas activas")],[totalCap(),tt("total capacity (chairs)","capacidad total (sillas)")],[tabs.length?Math.max(...tabs.map(x=>num(x.seats))):0,tt("largest table","mesa más grande")],[busyNow+" / "+tabs.length,tt("tables booked now","mesas reservadas ahora")]]
-    .map(x=>`<div class="kpi"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join("");
+  k.innerHTML=[[tabs.length,tt("active tables","mesas activas")],[totalCap(),tt("total capacity (chairs)","capacidad total (sillas)")],[tabs.length?Math.max(...tabs.map(x=>num(x.seats))):0,tt("largest table","mesa más grande")],[busyNow+" / "+tabs.length,tt("tables booked now","mesas reservadas ahora")],[occNow+" / "+tabs.length,tt("occupied now","ocupadas ahora"),"bad"],[freeNow+" / "+tabs.length,tt("free · ready for bookings","libres · listas para reservas"),"okk"]]
+    .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join("");
   const tb=document.getElementById("tblTable");
-  if(!tb.contains(document.activeElement)) tb.innerHTML=all.length?`<table class="dt"><thead><tr><th>${tt("Table","Mesa")}</th><th>${tt("Chairs","Sillas")}</th><th>${tt("Zone","Zona")}</th><th>${tt("Active","Activa")}</th><th></th></tr></thead><tbody>${all.map(x=>`<tr data-id="${x.id}"><td class="nw"><b>${esc(x.num)}</b></td><td><input data-f="seats" type="number" min="1" value="${esc(x.seats)}" aria-label="${tt("Chairs","Sillas")}"></td><td><input class="txt" data-f="zone" value="${esc(x.zone||"")}" aria-label="${tt("Zone","Zona")}"></td><td><input data-f="active" type="checkbox" style="width:auto"${x.active!==false?" checked":""} aria-label="${tt("Active","Activa")}"></td><td><button type="button" class="btn sm ghost" data-tdel="${x.id}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
+  if(!(tb.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")) tb.innerHTML=all.length?`<table class="dt"><thead><tr><th>${tt("Table","Mesa")}</th><th>${tt("Chairs","Sillas")}</th><th>${tt("Zone","Zona")}</th><th>${tt("Active","Activa")}</th><th>${tt("Status now","Estado ahora")}</th><th></th></tr></thead><tbody>${all.map(x=>`<tr data-id="${x.id}"><td class="nw"><b>${esc(x.num)}</b></td><td><input data-f="seats" type="number" min="1" value="${esc(x.seats)}" aria-label="${tt("Chairs","Sillas")}"></td><td><input class="txt" data-f="zone" value="${esc(x.zone||"")}" aria-label="${tt("Zone","Zona")}"></td><td><input data-f="active" type="checkbox" style="width:auto"${x.active!==false?" checked":""} aria-label="${tt("Active","Activa")}"></td><td>${(()=>{const st=tableStatus(x);return st[0]==="off"?`<span class="tstat off">${st[1]}</span>`:`<button type="button" class="tstat ${st[0]}" data-tocc="${x.id}" aria-pressed="${!!x.occupied}" title="${x.occupied?tt("Tap when the guests leave","Toca cuando los clientes se vayan"):tt("Tap when guests sit down","Toca cuando los clientes se sienten")}">${x.occupied?"● ":"○ "}${st[1]}</button>`;})()}</td><td><button type="button" class="btn sm ghost" data-tdel="${x.id}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
     :`<p class="empty">${tt("No tables yet. Add each table with its number and chairs — until then bookings are saved without a table.","Aún no hay mesas. Agrega cada mesa con su número y sillas — mientras tanto las reservas se guardan sin mesa.")}</p>`;
   const noTbl=dayRes.filter(r=>r.table===""||r.table==null);
   document.getElementById("tblFloor").innerHTML=(tabs.length?tabs.map(x=>{
     const rs=dayRes.filter(r=>String(r.table)===String(x.num)).sort((a,b)=>a.time.localeCompare(b.time));
-    const occ=tblDate===t&&tableBooking(x.num,t,now);
-    return `<div class="tcard${occ?" occ":""}"><div class="tnum">${tt("Table","Mesa")} ${esc(x.num)}</div><div class="dimtxt">${"🪑".repeat(Math.min(num(x.seats),12))} ${esc(x.seats)}${x.zone?" · "+esc(x.zone):""}</div>
+    const occ=tblDate===t&&tableBooking(x.num,t,now), st=tableStatus(x);
+    return `<div class="tcard${occ||x.occupied?" occ":""}"><div class="tnum">${tt("Table","Mesa")} ${esc(x.num)}</div><div><span class="tstat ${st[0]}">${st[1]}</span></div><div class="dimtxt">${"🪑".repeat(Math.min(num(x.seats),12))} ${esc(x.seats)}${x.zone?" · "+esc(x.zone):""}</div>
       ${rs.length?`<ul class="slots">${rs.map(r=>`<li><b>${esc(r.time)}–${esc(endTime(r.time))}</b> ${esc(r.name)} (${esc(r.party)})${r.status==="confirmed"?"":` <span class="badge warn">${tt("pending","pendiente")}</span>`}</li>`).join("")}</ul>`:`<div class="dimtxt">${tt("Free all day","Libre todo el día")}</div>`}</div>`;}).join(""):`<p class="empty">${tt("Add tables to see the floor.","Agrega mesas para ver el salón.")}</p>`)
     +(noTbl.length?`<p class="hint" style="grid-column:1/-1">${noTbl.length} ${tt("booking(s) this day without a table (made before the layout existed).","reserva(s) este día sin mesa (hechas antes de definir las mesas).")}</p>`:"");
 }
