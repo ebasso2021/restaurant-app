@@ -109,16 +109,13 @@ In the app's database on claude.ai (not on your computer). Shared with anyone wh
 
 Sources: see the Spanish section above.
 
+
 ---
 
-## GitHub → Google Drive
+## Google Drive como base de datos / Google Drive as the database
 
-Every `git push` to `main` runs `.github/workflows/sync-to-drive.yml`, which copies the repository files into a Google Drive folder named `restaurant-app` (it never deletes files there). One-time setup:
+**ES:** La app en GitHub Pages puede guardar reservas, inventario, ventas, etc. en una **hoja de Google** de tu Drive, compartida entre tus dispositivos. Sigue los 5 pasos al inicio de `google-apps-script/Code.gs`, luego en la app: **Sistema IA → ⚙ Ajustes → Google Drive**, pega la URL `/exec` y tu PIN. Sin el PIN nadie puede leer los datos; solo se permite agregar reservas nuevas.
 
-1. Install rclone on Windows: `winget install Rclone.Rclone`
-2. Run `rclone config` → `n` (new remote) → name: `gdrive` → storage: `drive` → client_id/secret: leave empty → scope: `drive.file` → accept the defaults → log in with Google in the browser window → confirm.
-3. Run `rclone config show gdrive` and copy everything it prints (starts with `[gdrive]`).
-4. GitHub → repo **Settings → Secrets and variables → Actions → New repository secret** → Name: `RCLONE_CONF` → paste → **Add secret**.
-5. Push, or run it by hand from **Actions → Sync to Google Drive → Run workflow**.
+**EN:** The app on GitHub Pages can save bookings, inventory, sales, etc. to a **Google Sheet** in your Drive, shared across your devices. Follow the 5 steps at the top of `google-apps-script/Code.gs`, then in the app: **AI system → ⚙ Settings → Google Drive**, paste the `/exec` URL and your PIN. Without the PIN nobody can read the data; only new bookings can be added.
 
-The secret gives access only to files rclone creates in your Drive (`drive.file` scope). Never paste it into a file in the repository.
+⚠️ Never commit your real PIN to this public repository — change it only in the Apps Script editor.
