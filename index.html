@@ -211,6 +211,18 @@ fieldset.allerg legend{font:600 12px var(--body);color:var(--bad);padding:0 4px}
 .oitems small{display:block;color:var(--muted);font-size:12px}
 .don{font:600 11px var(--mono);background:var(--warn-bg);color:var(--warn);padding:1px 6px;border-radius:4px}
 .omsg{background:var(--sunk);padding:6px 8px;border-radius:6px;font-size:13px}
+.billbox{margin-top:12px;background:var(--sunk);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.brow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.brow>span:first-child{min-width:90px;color:var(--muted)}
+.brow>b{margin-left:auto;font:500 15px var(--mono);font-variant-numeric:tabular-nums}
+.brow.tot{border-top:1px solid var(--line);padding-top:8px;font-size:16px}
+.brow.tot>b{font-size:19px;color:var(--accent)}
+.bctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bctl input,.bctl select{font:14px var(--body);padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:88px}
+.bctl input.why{width:140px}
+#blBody table.dt input.txt{width:100%;min-width:130px}
+#blBody table.dt th:first-child,#blBody table.dt td:first-child{width:45%}
+.receipt{font:13px/1.45 var(--mono);white-space:pre-wrap;background:var(--sunk);padding:12px;border-radius:10px;margin:0;overflow-x:auto}
 body.locked .wrap{display:none}
 .loginwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 0}
 .loginCard{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px}
@@ -719,7 +731,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],costs:{}};
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],prices:[],bills:[],costs:{},bill:{}};
 if(!state.aiView) state.aiView="overview";
 
 function subscribe(name){
@@ -830,7 +842,7 @@ function wireSettings(){
 
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
-const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","settings"];
+const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","prices","bills","settings"];
 async function sheetCall(url,body){
   if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
   let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"}); }
@@ -880,9 +892,9 @@ function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
 const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
 // roles limited to some modules (others see every module)
 const ROLE_HOME={cocinero:"m2",mesero:"m1"};
-const ROLE_VIEWS={mesero:["m1","tables","orders","settings"]};
-const ROLE_READ={mesero:["reservations","tables","orders"]};
-const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders"],lectura:[]};
+const ROLE_VIEWS={mesero:["m1","tables","orders","bill","settings"]};
+const ROLE_READ={mesero:["reservations","tables","orders","prices","bills","settings"]};
+const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
 const canView=v=>{const r=myRole(); return !r||!ROLE_VIEWS[r]||ROLE_VIEWS[r].includes(v);};
 const canRead=c=>{const r=myRole(); return !r||!ROLE_READ[r]||ROLE_READ[r].includes(c);};
@@ -937,8 +949,9 @@ function showLogin(msg){
   };
 }
 function startData(){
-  ["inventory","waste","reservations","sales","posts","reviews","tables","orders"].filter(canRead).forEach(subscribe);
-  if(canRead("settings")) DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+  ["inventory","waste","reservations","sales","posts","reviews","tables","orders","prices","bills"].filter(canRead).forEach(subscribe);
+  if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+    DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
 function startSheet(url){
   MODE="sheet"; DB=makeSheetDB(url); if(lsGet(LS_KEY)) SAMPLE=makeApiSample();
@@ -957,7 +970,7 @@ async function startAuth(){
 }
 // ----- what each role may change -----
 function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||!!(ROLE_WRITE[r]&&ROLE_WRITE[r].includes(col)); }
-const READ_OK='[data-aiview],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+const READ_OK='[data-aiview],#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
@@ -1058,6 +1071,7 @@ const MODS=[
   {id:"m1",en:"1 · Customers",es:"1 · Clientes"},
   {id:"tables",en:"Tables layout",es:"Distribución de mesas"},
   {id:"orders",en:"Orders by table",es:"Órdenes por mesa"},
+  {id:"bill",en:"Billing by table",es:"Facturación por mesa"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
   {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
@@ -1071,13 +1085,13 @@ function aiSys(){
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
-  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():aiOverview();
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="bill"?billView():aiOverview();
   return nav+banner+body;
 }
 function wireAI(){
   main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
   const v=state.aiView;
-  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders();
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="bill") wireBill();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
   applyRoleUI();
@@ -1085,7 +1099,7 @@ function wireAI(){
 function refreshAI(){
   if(state.tab!=="ai") return;
   const v=state.aiView;
-  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders();
+  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill();
   applyRoleUI();
 }
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
@@ -1440,6 +1454,210 @@ function listOrders(){
     <div class="acts">${next[o.status]?`<button class="btn sm" data-ost="${next[o.status][0]}" data-id="${esc(o.id)}">${next[o.status][1]}</button>`:""}${["new","prep"].includes(o.status)?`<button class="btn sm ghost" data-ost="cancelled" data-id="${esc(o.id)}">${tt("Cancel","Cancelar")}</button>`:""}${o.status==="served"||o.status==="cancelled"?`<button class="btn sm ghost" data-ost="new" data-id="${esc(o.id)}">${tt("Reopen","Reabrir")}</button><button class="btn sm ghost" data-ost="del" data-id="${esc(o.id)}">${tt("Delete","Borrar")}</button>`:""}</div></article>`;
   el.innerHTML=`<div class="board">${cols.map(c=>{const rows=all.filter(o=>c.includes(o.status||"new")); return `<div class="bcol"><h4>${c.length>1?tt("Served / cancelled","Entregadas / canceladas"):ostat(c[0])} <span class="badge">${rows.length}</span></h4>${rows.map(card).join("")||`<p class="empty">—</p>`}</div>`;}).join("")}</div>`;
   applyRoleUI();
+}
+
+
+/* ================= BILLING BY TABLE (Facturación por mesa) ================= */
+const PAYMENTS=[["cash","Cash","Efectivo"],["card","Card","Tarjeta"],["transfer","Transfer","Transferencia"],["other","Other","Otro"]];
+const payName=k=>{const x=PAYMENTS.find(p=>p[0]===k);return x?tt(x[1],x[2]):k;};
+const GST_DEFAULT=5;
+const dishKey=d=>String(d||"").trim().toLowerCase();
+const priceOf=d=>{const k=dishKey(d),p=D.prices.find(x=>dishKey(x.dish)===k);return p?num(p.price):0;};
+const taxRate=()=>{const r=D.bill&&D.bill.taxRate!=null?num(D.bill.taxRate):GST_DEFAULT;return r>=0&&r<=100?r:GST_DEFAULT;};
+const r2=n=>Math.round(num(n)*100)/100;
+// orders of a table that are not cancelled and not billed yet
+const openOrders=t=>D.orders.filter(o=>String(o.table)===String(t)&&o.status!=="cancelled"&&!o.billId);
+const tablesToBill=()=>[...new Set(D.orders.filter(o=>o.status!=="cancelled"&&!o.billId).map(o=>String(o.table)))].sort((a,b)=>num(a)-num(b));
+// the menu product a bill line matches, so paid drinks can be added to module 3
+const matchProduct=d=>{const k=dishKey(d);const p=P.find(x=>dishKey(x.name.en)===k||dishKey(x.name.es)===k);return p?p.id:"";};
+let billMsg=""; let billTable="", billLines=null, billTip=0, billTipPct=null, billDisc={v:0,mode:"pct",why:""}, billSplit=1, billMethod="cash", lastBill=null;
+function billTotals(){
+  const lines=billLines||[];
+  const subtotal=r2(lines.reduce((s,l)=>s+num(l.qty)*num(l.price),0));
+  const discount=r2(billDisc.mode==="pct"?subtotal*Math.min(100,Math.max(0,num(billDisc.v)))/100:Math.min(subtotal,Math.max(0,num(billDisc.v))));
+  const base=r2(subtotal-discount), tax=r2(base*taxRate()/100);
+  const tip=r2(billTipPct!=null?base*billTipPct/100:billTip);
+  const total=r2(base+tax+tip), split=Math.max(1,Math.round(num(billSplit)||1));
+  return {subtotal,discount,base,tax,tip,total,split,per:r2(total/split)};
+}
+function billView(){
+  const t=billTotals(), pend=tablesToBill();
+  const tabs=activeTables(), opts=[...new Set(tabs.map(x=>String(x.num)).concat(pend))].sort((a,b)=>num(a)-num(b));
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Billing","Facturación"),tt("Billing by table","Facturación por mesa"),tt("Bring a table's orders into one bill, apply a discount, GST and tip, split it, charge it and print the receipt. Paying frees the table, closes its orders and adds the drinks to the day's sales.","Junta las órdenes de una mesa en una cuenta, aplica descuento, GST y propina, divídela, cóbrala e imprime el recibo. Al pagar se libera la mesa, se cierran sus órdenes y las bebidas se suman a las ventas del día."))}
+   <div class="kpis" id="blKpis"></div>
+   <div class="grid">
+    <div class="stack">
+     <div class="panel"><h3>${tt("Bill","Cuenta")}</h3>
+      <div class="f" style="max-width:260px"><label for="blTable">${tt("Table","Mesa")}</label>
+       <select id="blTable"><option value="">${tt("Choose a table…","Elige una mesa…")}</option>${opts.map(n=>`<option value="${esc(n)}"${String(n)===String(billTable)?" selected":""}>${tt("Table","Mesa")} ${esc(n)}${pend.includes(String(n))?" · "+tt("orders pending","órdenes pendientes"):""}</option>`).join("")}</select></div>
+      <div id="blBody"></div>
+     </div>
+     <div class="panel" id="blReceiptPanel"${lastBill?"":" hidden"}><h3>${tt("Receipt","Recibo")}</h3><pre class="receipt" id="blReceipt"></pre>
+      <div class="acts"><button type="button" class="btn sm" id="blPrint">🖨 ${tt("Print","Imprimir")}</button><button type="button" class="btn sm ghost" id="blCopy">${tt("Copy","Copiar")}</button></div></div>
+    </div>
+    <div class="stack">
+     <div class="panel"><h3>${tt("Menu prices","Lista de precios")}</h3>
+      <form id="prForm" class="fgrid">
+       ${field("prDish",tt("Dish or drink","Plato o bebida"),`<input id="prDish" list="dishList2" required>`)}
+       ${field("prPrice",tt("Price","Precio"),`<input id="prPrice" type="number" min="0" step="0.01" required>`)}
+       <button class="btn" type="submit">${tt("Save price","Guardar precio")}</button>
+      </form><datalist id="dishList2">${P.map(p=>`<option value="${esc(T(p.name))}">`).join("")}</datalist>
+      <div class="tablewrap" id="prTable"></div>
+      <p class="hint">${tt("Only an administrator can change this list. Prices include no tax; GST is added on the bill.","Solo un administrador puede cambiar esta lista. Los precios no incluyen impuesto; el GST se agrega en la cuenta.")}</p>
+      <div class="f" style="max-width:180px"><label for="blRate">${tt("GST %","GST %")}</label><input id="blRate" type="number" min="0" max="100" step="0.1" value="${taxRate()}"></div>
+     </div>
+     <div class="panel"><h3>${tt("Bills today","Cuentas de hoy")}</h3><div id="blList"></div></div>
+    </div>
+   </div></section>`;
+}
+function billBody(){
+  const el=document.getElementById("blBody"); if(!el) return;
+  if(!billTable){ el.innerHTML=(billMsg?`<p class="capnote">✅ ${esc(billMsg)}</p>`:"")+`<p class="empty">${tt("Choose a table to build its bill.","Elige una mesa para armar su cuenta.")}</p>`; return; }
+  const t=billTotals(), tip=[0,10,15,18];
+  el.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Ítem")}</th><th>${tt("Qty","Cant.")}</th><th>${tt("Price","Precio")}</th><th>${tt("Line","Línea")}</th><th></th></tr></thead>
+   <tbody>${(billLines||[]).map((l,i)=>`<tr data-i="${i}"><td><input class="txt" data-b="dish" value="${esc(l.dish)}" list="dishList2"></td>
+    <td><input data-b="qty" type="number" min="0" step="1" value="${esc(l.qty)}"></td>
+    <td><input data-b="price" type="number" min="0" step="0.01" value="${esc(l.price)}"></td>
+    <td class="nw">${money(num(l.qty)*num(l.price))}</td>
+    <td><button type="button" class="btn sm ghost" data-brm="${i}" aria-label="${tt("Remove line","Quitar línea")}">✕</button></td></tr>`).join("")}</tbody></table></div>
+   <div class="acts"><button type="button" class="btn sm ghost" id="blAdd">+ ${tt("Add line","Agregar línea")}</button><button type="button" class="btn sm ghost" id="blReload">↻ ${tt("Reload orders","Recargar órdenes")}</button></div>
+   ${(billLines||[]).some(l=>!num(l.price))?`<p class="hint warnnote">⚠ ${tt("Some lines have no price. Add them to the price list or type the price here.","Algunas líneas no tienen precio. Agrégalas a la lista de precios o escribe el precio aquí.")}</p>`:""}
+   <div class="billbox">
+    <div class="brow"><span>${tt("Subtotal","Subtotal")}</span><b>${money(t.subtotal)}</b></div>
+    <div class="brow"><span>${tt("Discount","Descuento")}</span><span class="bctl"><input id="blDisc" type="number" min="0" step="0.01" value="${esc(billDisc.v)}"><select id="blDiscMode"><option value="pct"${billDisc.mode==="pct"?" selected":""}>%</option><option value="amt"${billDisc.mode==="amt"?" selected":""}>$</option></select><input id="blDiscWhy" class="why" placeholder="${tt("Reason","Motivo")}" value="${esc(billDisc.why)}"></span><b>−${money(t.discount)}</b></div>
+    <div class="brow"><span>${tt("GST","GST")} ${taxRate()}%</span><b>${money(t.tax)}</b></div>
+    <div class="brow"><span>${tt("Tip","Propina")}</span><span class="bctl">${tip.map(p=>`<button type="button" class="btn sm ${billTipPct===p?"":"ghost"}" data-tip="${p}">${p}%</button>`).join("")}<input id="blTip" type="number" min="0" step="0.01" value="${esc(billTipPct!=null?t.tip:billTip)}"></span><b>${money(t.tip)}</b></div>
+    <div class="brow tot"><span>${tt("Total","Total")}</span><b>${money(t.total)}</b></div>
+    <div class="brow"><span>${tt("Split between","Dividir entre")}</span><span class="bctl"><input id="blSplit" type="number" min="1" step="1" value="${esc(t.split)}"> ${tt("people","personas")}</span><b>${t.split>1?money(t.per)+" "+tt("each","c/u"):"—"}</b></div>
+    <div class="brow"><span>${tt("Payment","Pago")}</span><span class="bctl"><select id="blMethod">${PAYMENTS.map(p=>`<option value="${p[0]}"${billMethod===p[0]?" selected":""}>${tt(p[1],p[2])}</option>`).join("")}</select></span>
+     <button class="btn" id="blPay"${t.total>0?"":" disabled"}>${tt("Charge","Cobrar")} ${money(t.total)}</button></div>
+   </div><p class="hint" id="blMsg" aria-live="polite"></p>`;
+  applyRoleUI();
+}
+function loadTableLines(){
+  const os=openOrders(billTable), lines=[];
+  os.forEach(o=>(o.items||[]).forEach(i=>{
+    const k=dishKey(i.dish), f=lines.find(l=>dishKey(l.dish)===k&&!l.note);
+    if(f) f.qty=num(f.qty)+num(i.qty); else lines.push({dish:i.dish,qty:num(i.qty)||1,price:priceOf(i.dish)});
+  }));
+  billLines=lines; billTip=0; billTipPct=null; billDisc={v:0,mode:"pct",why:""}; billSplit=Math.max(1,num(os[0]&&os[0].guests)||1);
+}
+function receiptText(b){
+  const L=[];
+  L.push("TASTE OF PERU"); L.push(tt("Table","Mesa")+" "+b.table+"  ·  "+b.date+" "+(b.paid||"").slice(11,16));
+  L.push("".padEnd(34,"-"));
+  (b.lines||[]).forEach(l=>{ const left=`${l.qty}x ${l.dish}`.slice(0,23); L.push(left.padEnd(24)+money(num(l.qty)*num(l.price)).padStart(10)); });
+  L.push("".padEnd(34,"-"));
+  const amt=v=>(num(v)<0?"-":"")+money(Math.abs(num(v)));
+  const row=(a,v)=>L.push(String(a).slice(0,23).padEnd(24)+amt(v).padStart(10));
+  row(tt("Subtotal","Subtotal"),b.subtotal);
+  if(num(b.discount)) row(tt("Discount","Descuento")+(b.discountReason?" ("+b.discountReason+")":""),-num(b.discount));
+  row("GST "+num(b.taxRate)+"%",b.tax);
+  if(num(b.tip)) row(tt("Tip","Propina"),b.tip);
+  row(tt("TOTAL","TOTAL"),b.total);
+  if(num(b.split)>1) row(tt("Each","Cada uno")+" ("+b.split+")",b.per);
+  L.push(tt("Payment","Pago")+": "+payName(b.method));
+  L.push(""); L.push(tt("Thank you!","¡Gracias!"));
+  return L.join("\n");
+}
+function wireBill(){
+  const sel=document.getElementById("blTable");
+  sel.onchange=()=>{ billMsg=""; billTable=sel.value; if(billTable) loadTableLines(); else billLines=null; billBody(); };
+  if(billTable&&!billLines) loadTableLines();
+  billBody();
+  document.getElementById("blBody").addEventListener("click",async e=>{
+    const rm=e.target.closest("[data-brm]"); if(rm){ billLines.splice(num(rm.dataset.brm),1); billBody(); return; }
+    const tp=e.target.closest("[data-tip]"); if(tp){ billTipPct=num(tp.dataset.tip); billTip=0; billBody(); return; }
+    if(e.target.id==="blAdd"){ (billLines=billLines||[]).push({dish:"",qty:1,price:0}); billBody(); return; }
+    if(e.target.id==="blReload"){ loadTableLines(); billBody(); return; }
+    if(e.target.id==="blPay"){ await payBill(); return; }
+  });
+  document.getElementById("blBody").addEventListener("change",e=>{
+    const el=e.target, tr=el.closest("tr");
+    if(tr&&el.dataset.b){ const l=billLines[num(tr.dataset.i)]; if(!l) return;
+      if(el.dataset.b==="dish"){ l.dish=el.value.trim(); if(!num(l.price)) l.price=priceOf(l.dish); }
+      if(el.dataset.b==="qty") l.qty=Math.max(0,num(el.value));
+      if(el.dataset.b==="price") l.price=Math.max(0,num(el.value));
+      billBody(); return; }
+    if(el.id==="blDisc"){ billDisc.v=num(el.value); billBody(); }
+    if(el.id==="blDiscMode"){ billDisc.mode=el.value; billBody(); }
+    if(el.id==="blDiscWhy"){ billDisc.why=el.value.trim(); }
+    if(el.id==="blTip"){ billTip=num(el.value); billTipPct=null; billBody(); }
+    if(el.id==="blSplit"){ billSplit=Math.max(1,Math.round(num(el.value))); billBody(); }
+    if(el.id==="blMethod"){ billMethod=el.value; }
+  });
+  document.getElementById("prForm").onsubmit=async e=>{
+    e.preventDefault(); const d=val("prDish"), p=num(val("prPrice")); if(!d) return;
+    const old=D.prices.find(x=>dishKey(x.dish)===dishKey(d));
+    if(old) await dbUpd("prices",old.id,{dish:d,price:p}); else await dbAdd("prices",{dish:d,price:p});
+    e.target.reset(); document.getElementById("prDish").focus();
+  };
+  const pt=document.getElementById("prTable");
+  pt.addEventListener("change",async e=>{ const id=e.target.closest("tr")?.dataset.id; if(id&&e.target.dataset.f==="price") await dbUpd("prices",id,{price:Math.max(0,num(e.target.value))}); });
+  pt.addEventListener("focusout",()=>setTimeout(()=>{if(!pt.contains(document.activeElement))refreshAI();},50));
+  pt.addEventListener("click",async e=>{ const b=e.target.closest("[data-prdel]"); if(b&&confirm(tt("Delete this price?","¿Borrar este precio?"))) await dbDel("prices",b.dataset.prdel); });
+  document.getElementById("blRate").onchange=async e=>{ const r=num(e.target.value); await dbSet("settings/bill",{...(D.bill||{}),taxRate:r>=0&&r<=100?r:GST_DEFAULT}); };
+  document.getElementById("blList").onclick=e=>{ const b=e.target.closest("[data-bill]"); if(!b) return; const bill=D.bills.find(x=>x.id===b.dataset.bill); if(bill) showReceipt(bill); };
+  document.getElementById("blPrint").onclick=()=>printReceipt();
+  document.getElementById("blCopy").onclick=()=>copyText(document.getElementById("blReceipt").textContent);
+  // the price list and the GST rate belong to the administrator
+  if(!canWrite("prices")){ document.querySelectorAll("#prForm input,#prForm button,#prTable input,#prTable button").forEach(el=>{el.disabled=true;el.classList.add("ro");el.title=tt("Only an administrator can change prices","Solo un administrador puede cambiar precios");}); }
+  if(!canWrite("settings")){ const r=document.getElementById("blRate"); r.disabled=true; r.classList.add("ro"); r.title=tt("Only an administrator can change the GST rate","Solo un administrador puede cambiar la tasa de GST"); }
+  if(lastBill) showReceipt(lastBill);
+}
+function showReceipt(b){
+  lastBill=b;
+  const p=document.getElementById("blReceiptPanel"); if(!p) return;
+  p.hidden=false; document.getElementById("blReceipt").textContent=receiptText(b);
+}
+function printReceipt(){
+  const txt=document.getElementById("blReceipt").textContent;
+  const w=window.open("","_blank","width=380,height=640");
+  if(!w){ toast(tt("Allow pop-ups to print the receipt.","Permite las ventanas emergentes para imprimir el recibo.")); return; }
+  w.document.write(`<pre style="font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap">${esc(txt)}</pre>`);
+  w.document.close(); w.focus(); w.print();
+}
+async function payBill(){
+  const msg=document.getElementById("blMsg"), t=billTotals();
+  const lines=(billLines||[]).filter(l=>l.dish&&num(l.qty)>0);
+  if(!lines.length||t.total<=0){ msg.textContent=tt("Add at least one line with a price.","Agrega al menos una línea con precio."); return; }
+  const stamp=new Date().toISOString(), os=openOrders(billTable);
+  const bill={date:today(),table:num(billTable),guests:num(os[0]&&os[0].guests)||t.split,lines,
+    linesText:lines.map(l=>`${l.qty}× ${l.dish} @ ${money(l.price)}`).join("; "),
+    subtotal:t.subtotal,discount:t.discount,discountReason:billDisc.why,taxRate:taxRate(),tax:t.tax,tip:t.tip,
+    total:t.total,split:t.split,per:t.per,method:billMethod,status:"paid",orderIds:os.map(o=>o.id).join(","),
+    by:SESSION?SESSION.name:"",created:stamp,paid:stamp};
+  const id="b"+today().replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7);
+  await dbSet("bills/"+id,bill);
+  // close the table's orders, free the table and add the menu drinks to the day's sales
+  for(const o of os) await dbUpd("orders",o.id,{status:"served",billId:id,updated:stamp});
+  const tb=D.tables.find(x=>String(x.num)===String(billTable));
+  if(tb&&tb.occupied) await dbUpd("tables",tb.id,{occupied:false,occSince:""});
+  let counted=0, skipped=0;
+  const cur=D.sales.find(s=>s.id===today())||{items:{},hours:{}};
+  const items={...(cur.items||{})}, hours={...(cur.hours||{})};
+  lines.forEach(l=>{ const pid=matchProduct(l.dish);
+    if(!pid){ skipped++; return; }
+    counted++; const it=items[pid]||{cups:0,revenue:0};
+    it.cups=num(it.cups)+num(l.qty); it.revenue=r2(num(it.revenue)+num(l.qty)*num(l.price)); items[pid]=it; });
+  if(counted){ const h=String(new Date().getHours()).padStart(2,"0"); hours[h]=num(hours[h])+lines.reduce((s,l)=>s+(matchProduct(l.dish)?num(l.qty):0),0); await dbSet("sales/"+today(),{items,hours}); }
+  showReceipt({...bill,id});
+  billMsg=tt(`Charged ${money(bill.total)} for table ${bill.table}. The table is free again and its orders are closed.`,`Cobrado ${money(bill.total)} de la mesa ${bill.table}. La mesa quedó libre y sus órdenes cerradas.`)+(skipped?" "+tt(`${skipped} line(s) are not menu drinks, so they are not counted in module 3 · Sales.`,`${skipped} línea(s) no son bebidas del menú, así que no se cuentan en el módulo 3 · Ventas.`):"");
+  billTable=""; billLines=null; billTip=0; billTipPct=null; billDisc={v:0,mode:"pct",why:""}; billSplit=1;
+  render();
+}
+function listBill(){
+  const k=document.getElementById("blKpis"); if(!k) return;
+  const t=today(), day=D.bills.filter(b=>b.date===t), sum=day.reduce((s,b)=>s+num(b.total),0), tips=day.reduce((s,b)=>s+num(b.tip),0);
+  k.innerHTML=[[day.length,tt("bills today","cuentas de hoy")],[money(sum),tt("charged today","cobrado hoy")],[day.length?money(sum/day.length):"—",tt("average bill","cuenta promedio")],[money(tips),tt("tips today","propinas de hoy")],[tablesToBill().length,tt("tables with orders to bill","mesas con órdenes por cobrar"),tablesToBill().length?"warn":""]]
+    .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join("");
+  const pt=document.getElementById("prTable"), rows=[...D.prices].sort((a,b)=>String(a.dish).localeCompare(String(b.dish)));
+  if(pt&&!(pt.contains(document.activeElement)&&document.activeElement.tagName==="INPUT"))
+    pt.innerHTML=rows.length?`<table class="dt"><thead><tr><th>${tt("Dish","Plato")}</th><th>${tt("Price","Precio")}</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr data-id="${esc(r.id)}"><td>${esc(r.dish)}</td><td><input data-f="price" type="number" min="0" step="0.01" value="${esc(r.price)}" aria-label="${tt("Price","Precio")}"></td><td><button type="button" class="btn sm ghost" data-prdel="${esc(r.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
+      :`<p class="empty">${tt("No prices yet. Add each dish and drink with its price.","Aún no hay precios. Agrega cada plato y bebida con su precio.")}</p>`;
+  const el=document.getElementById("blList");
+  if(el) el.innerHTML=day.length?`<ul class="rows">${[...day].sort((a,b)=>String(b.paid).localeCompare(String(a.paid))).map(b=>`<li><div><b>${tt("Table","Mesa")} ${esc(b.table)}</b> · ${money(b.total)} <small>${esc(String(b.paid||"").slice(11,16))} · ${esc(payName(b.method))}${num(b.tip)?" · "+tt("tip","propina")+" "+money(b.tip):""}</small></div><button type="button" class="btn sm ghost" data-bill="${esc(b.id)}">${tt("Receipt","Recibo")}</button></li>`).join("")}</ul>`
+    :`<p class="empty">${tt("No bills charged today.","Hoy no se ha cobrado ninguna cuenta.")}</p>`;
 }
 
 /* ================= MODULE 2 — KITCHEN & INVENTORY ================= */

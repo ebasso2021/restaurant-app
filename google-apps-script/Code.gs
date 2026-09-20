@@ -15,13 +15,13 @@
  *         chef    = reads everything; changes Inventario, Mermas, costs (Config) and Órdenes (kitchen board)
  *         lectura = reads everything, changes nothing
  *         cocinero = full Kitchen & inventory; everything else read only
- *         mesero   = only Customers (bookings), Tables layout + orders by table
+ *         mesero   = only Customers (bookings), Tables layout, orders and billing by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
  */
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
                  posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)",
-                 tables: "Mesas", orders: "Órdenes" };
+                 tables: "Mesas", orders: "Órdenes", prices: "Precios", bills: "Facturas" };
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
@@ -31,9 +31,11 @@ const FIELDS = {
   reviews: [["date","Fecha"],["source","Fuente"],["stars","Estrellas"],["name","Autor"],["text","Texto"],["reply","Respuesta"],["replied","Respondida"]],
   tables: [["num","Mesa"],["seats","Sillas"],["zone","Zona"],["active","Activa"],["occupied","Ocupada"],["occSince","Ocupada desde"]],
   orders: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["status","Estado"],["itemsText","Platos"],["allergies","Alergias"],["message","Mensaje a cocina"],["booking","Reserva"],["by","Tomada por"],["created","Creada"],["updated","Actualizada"],["resId","ID reserva"]],
+  prices: [["dish","Plato"],["price","Precio"]],
+  bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
   sales: [], settings: []
 };
-const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests"];
+const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per"];
 const BOOL = ["replied","active","occupied"];
 const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
@@ -46,8 +48,8 @@ const ROLES = {
               desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso y Órdenes. / Sees everything. Changes inventory, waste, cost per cup and orders." },
   cocinero: { label: "Cocinero", write: ["inventory", "waste"], read: "*",
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
-  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders"], read: ["reservations", "tables", "orders"],
-              desc: "Solo Clientes (reservas), Distribución de mesas y Órdenes por mesa: toma reservas, marca mesas ocupadas/libres y envía pedidos a cocina. / Only Customers (bookings), Tables layout and Orders by table." },
+  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "prices", "bills", "settings"],
+              desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa; no cambia la lista de precios. / Customers, Tables layout, Orders and Billing by table; cannot change the price list." },
   lectura:  { label: "Solo lectura", write: [], read: "*",
               desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
 };
