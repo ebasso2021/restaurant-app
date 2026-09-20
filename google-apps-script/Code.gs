@@ -12,33 +12,37 @@
  *  5. Open the app on GitHub, paste the Web app URL (ends in /exec) the first time, and log in.
  *
  * Roles:  admin   = everything, including users and settings
- *         chef    = reads everything; changes Inventario, Mermas and costs (Config) = kitchen parameters
+ *         chef    = reads everything; changes Inventario, Mermas, costs (Config) and Órdenes (kitchen board)
  *         lectura = reads everything, changes nothing
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
  */
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
-                 posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)" };
+                 posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)",
+                 tables: "Mesas", orders: "Órdenes" };
 // readable columns: [field, header]
 const FIELDS = {
-  reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"]],
+  reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
   inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"]],
   waste: [["date","Fecha"],["itemId","ID artículo"],["item","Artículo"],["qty","Cantidad"],["unit","Unidad"],["cost","Costo"],["reason","Motivo"]],
   posts: [["when","Fecha y hora"],["channel","Canal"],["status","Estado"],["text","Texto"],["image","Imagen"],["reach","Alcance"],["likes","Likes"],["comments","Comentarios"],["saves","Guardados"]],
   reviews: [["date","Fecha"],["source","Fuente"],["stars","Estrellas"],["name","Autor"],["text","Texto"],["reply","Respuesta"],["replied","Respondida"]],
+  tables: [["num","Mesa"],["seats","Sillas"],["zone","Zona"],["active","Activa"]],
+  orders: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["status","Estado"],["itemsText","Platos"],["allergies","Alergias"],["message","Mensaje a cocina"],["booking","Reserva"],["by","Tomada por"],["created","Creada"],["updated","Actualizada"],["resId","ID reserva"]],
   sales: [], settings: []
 };
-const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars"];
-const BOOL = ["replied"];
+const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests"];
+const BOOL = ["replied","active"];
 const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
 
 /* ---------------- users, roles and sessions ---------------- */
 const ROLES = {
   admin:   { label: "Administrador", write: "*" },
-  chef:    { label: "Chef", write: ["inventory", "waste", "settings"] },
+  chef:    { label: "Chef", write: ["inventory", "waste", "settings", "orders"] },
   lectura: { label: "Solo lectura", write: [] }
 };
+const CHEF_TXT = "Ve todo. Cambia parámetros de cocina: Inventario (stock, alerta, cantidad máxima, costo), Mermas, costo por vaso y Órdenes (tablero de cocina). / Sees everything. Changes kitchen parameters: inventory, waste, cost per cup and the kitchen order board.";
 const SESSION_SECONDS = 21600; // 6 h
 function usersSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -56,12 +60,14 @@ function usersSheet_() {
     r.getRange(1, 1, 4, 3).setValues([
       ["Rol", "Nombre", "Permisos / Permissions"],
       ["admin", "Administrador", "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings."],
-      ["chef", "Chef", "Ve todo. Cambia parámetros de cocina: Inventario (stock, alerta, cantidad máxima, costo), Mermas y costo por vaso. / Sees everything. Changes kitchen parameters: inventory, waste and cost per cup."],
+      ["chef", "Chef", CHEF_TXT],
       ["lectura", "Solo lectura", "Ve todo, no cambia nada. / Sees everything, changes nothing."]
     ]);
     r.getRange("A1:C1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
     r.setColumnWidth(3, 620);
   }
+  const rr = ss.getSheetByName("Roles");
+  if (rr && rr.getRange(3, 3).getDisplayValues()[0][0] !== CHEF_TXT) rr.getRange(3, 3).setValues([[CHEF_TXT]]);
   return sh;
 }
 function hash_(password, salt) {
@@ -249,7 +255,7 @@ function list_(col) {
     keys.forEach(function (k, j) {
       if (!k) return; const v = row[j];
       if (NUM.indexOf(k) >= 0) { if (v !== "" && !isNaN(Number(v))) data[k] = Number(v); }
-      else if (BOOL.indexOf(k) >= 0) data[k] = v === true || String(v).toLowerCase() === "true";
+      else if (BOOL.indexOf(k) >= 0) { if (v !== "") data[k] = v === true || /^(true|verdadero|s[ií]|yes|1)$/i.test(String(v)); }
       else data[k] = v === "" ? "" : toDateStr_(v);
     });
     docs.push({ id: id, data: data });

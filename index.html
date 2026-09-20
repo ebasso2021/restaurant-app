@@ -178,6 +178,31 @@ table.dt th{text-align:left;font:600 12px var(--body);color:var(--muted);padding
 table.dt td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}
 .addstock{margin:14px 0;padding:12px;background:var(--sunk);border-radius:10px}
 .addstock .minih{margin-top:0}
+.floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tcard{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface);font-size:13px;display:flex;flex-direction:column;gap:4px}
+.tcard.occ{border-color:var(--warn);background:var(--warn-bg)}
+.tnum{font:600 15px var(--body)}
+.slots{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.oitem{display:grid;grid-template-columns:minmax(0,2fr) 60px minmax(0,1.3fr) minmax(0,2fr) auto;gap:6px;margin-bottom:6px;align-items:center}
+.oitem input,.oitem select{font:14px var(--body);padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+@media (max-width:640px){.oitem{grid-template-columns:1fr 64px}.oitem .odone,.oitem .onote{grid-column:1/2}}
+fieldset.allerg{border:1px solid var(--bad);border-radius:10px;padding:8px 10px;margin:0}
+fieldset.allerg legend{font:600 12px var(--body);color:var(--bad);padding:0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.chip{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.chip:has(input:checked){background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.alltxt{color:var(--bad)}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.bcol{background:var(--sunk);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.bcol h4{margin:2px 4px;font:600 13px var(--body)}
+.ocard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+.ocard.hasal{border:2px solid var(--bad)}
+.ohead{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.alban{background:var(--bad-bg);color:var(--bad);font-weight:700;padding:6px 8px;border-radius:6px}
+.oitems{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.oitems small{display:block;color:var(--muted);font-size:12px}
+.don{font:600 11px var(--mono);background:var(--warn-bg);color:var(--warn);padding:1px 6px;border-radius:4px}
+.omsg{background:var(--sunk);padding:6px 8px;border-radius:6px;font-size:13px}
 body.locked .wrap{display:none}
 .loginwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 0}
 .loginCard{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px}
@@ -686,7 +711,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],costs:{}};
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],costs:{}};
 if(!state.aiView) state.aiView="overview";
 
 function subscribe(name){
@@ -797,7 +822,7 @@ function wireSettings(){
 
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
-const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","settings"];
+const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","settings"];
 async function sheetCall(url,body){
   if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
   let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"}); }
@@ -829,7 +854,7 @@ function makeSheetDB(url){
     onSnapshot(next){ const f=()=>{ const docs=Object.keys(cache[col]||{}).sort().map(id=>snap(col,id)); next({docs,size:docs.length,empty:!docs.length,metadata:{fromCache:false,hasPendingWrites:false}}); }; (subs[col] ||= new Set()).add(f); if(!loaded[col]) load(col); else setTimeout(f,0); return ()=>subs[col].delete(f); } }; }
   // refresh every 30 s while the page is visible, so other devices' changes show up
   setInterval(()=>{ if(document.visibilityState==="visible") Object.keys(subs).forEach(c=>{ if(subs[c].size) load(c); }); },30000);
-  return {collection:colRef,doc:docRef,
+  return {collection:colRef,doc:docRef,_refresh:c=>load(c),
     _dump:async()=>{ for(const c of SHEET_COLS) if(!loaded[c]) await load(c); const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
     _load:async obj=>{ for(const [k,d] of Object.entries(obj||{})){ const [c,id]=k.split("/"); if(SHEET_COLS.includes(c)&&id){ (cache[c] ||= {})[id]=d; await sheetCall(url,{action:"set",col:c,id,data:d}); } } SHEET_COLS.forEach(notify); },
     _empty:()=>false };
@@ -896,7 +921,7 @@ function showLogin(msg){
   };
 }
 function startData(){
-  ["inventory","waste","reservations","sales","posts","reviews"].forEach(subscribe);
+  ["inventory","waste","reservations","sales","posts","reviews","tables","orders"].forEach(subscribe);
   DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
 }
 function startSheet(url){
@@ -915,20 +940,20 @@ async function startAuth(){
   showLogin(expired?tt("Your session ended. Sign in again.","Tu sesión terminó. Vuelve a iniciar sesión."):"");
 }
 // ----- what each role may change -----
-function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||(r==="chef"&&["inventory","waste","settings"].includes(col)); }
-const READ_OK='[data-aiview],[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,#resCsv,#resJson,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||(r==="chef"&&["inventory","waste","settings","orders"].includes(col)); }
+const READ_OK='[data-aiview],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,#resCsv,#resJson,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
   if(v==="settings"||v==="overview") return;
-  if(chef&&v==="m2") return;
+  if(chef&&(v==="m2"||v==="orders")) return;
   main.querySelectorAll("section input,section select,section textarea,section button,section .linkbtn").forEach(el=>{
     if(el.matches(READ_OK)) return;
     if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin")) return;
     el.disabled=true; el.classList.add("ro"); el.title=tt("Your role can't change this","Tu rol no puede cambiar esto");
   });
   if(!main.querySelector(".roNote")){
-    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${chef?tt("Chef: you can view this module; you can change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Sales”.","Chef: puedes ver este módulo; puedes cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Ventas”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
+    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${chef?tt("Chef: you can view this module; you can work on “Orders by table”, change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Sales”.","Chef: puedes ver este módulo; puedes trabajar en “Órdenes por mesa”, cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Ventas”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
   }
 }
 // ----- admin: users -----
@@ -1012,6 +1037,8 @@ const MENU_TEXT=()=>P.map(p=>`- ${p.name.en} / ${p.name.es}: ${p.intro.en}${p.al
 const MODS=[
   {id:"overview",en:"Overview",es:"Resumen"},
   {id:"m1",en:"1 · Customers",es:"1 · Clientes"},
+  {id:"tables",en:"Tables layout",es:"Distribución de mesas"},
+  {id:"orders",en:"Orders by table",es:"Órdenes por mesa"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
   {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
@@ -1024,13 +1051,13 @@ function aiSys(){
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
-  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():aiOverview();
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():aiOverview();
   return nav+banner+body;
 }
 function wireAI(){
   main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
   const v=state.aiView;
-  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings();
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
   applyRoleUI();
@@ -1038,7 +1065,7 @@ function wireAI(){
 function refreshAI(){
   if(state.tab!=="ai") return;
   const v=state.aiView;
-  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5();
+  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders();
   applyRoleUI();
 }
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
@@ -1070,9 +1097,10 @@ function m1(){
       ${field("rDate",tt("Date","Fecha"),`<input id="rDate" type="date" required value="${today()}">`)}
       ${field("rTime",tt("Time","Hora"),`<input id="rTime" type="time" required>`)}
       ${field("rParty",tt("People","Personas"),`<input id="rParty" type="number" min="1" value="2">`)}
+      ${field("rTable",tt("Table","Mesa"),`<select id="rTable">${tableOptions("",true)}</select>`)}
       ${field("rNotes",tt("Notes (allergies…)","Notas (alergias…)"),`<input id="rNotes">`)}
       <button class="btn" type="submit">${tt("Save booking","Guardar reserva")}</button>
-     </form></div>
+     </form><p class="hint" id="rMsg" aria-live="polite"></p><p class="hint" id="rCap"></p></div>
     <div class="panel"><h3>${tt("Bookings","Reservas")}</h3><div id="resList"></div></div>
    </div>
   </div></section>`;
@@ -1140,7 +1168,11 @@ function wireM1(){
   };
   document.getElementById("resForm").onsubmit=async e=>{
     e.preventDefault(); if(!val("rName")||!val("rDate")||!val("rTime")) return;
-    await dbAdd("reservations",{name:val("rName"),contact:val("rContact"),date:val("rDate"),time:val("rTime"),party:Math.max(1,num(val("rParty"))),notes:val("rNotes"),status:"pending",created:new Date().toISOString()});
+    const party=Math.max(1,Math.round(num(val("rParty")))), rm=document.getElementById("rMsg");
+    const pick=pickTable(party,val("rDate"),val("rTime"),val("rTable"));
+    if(pick.err){ rm.innerHTML=`<span class="alltxt">✕ ${esc(pick.err)}</span>`; return; }
+    await dbAdd("reservations",{name:val("rName"),contact:val("rContact"),date:val("rDate"),time:val("rTime"),end:endTime(val("rTime")),party,table:pick.table,notes:val("rNotes"),status:"pending",created:new Date().toISOString()});
+    rm.textContent=pick.table!==""?tt(`Booking saved: table ${pick.table}, ${val("rTime")}–${endTime(val("rTime"))}.`,`Reserva guardada: mesa ${pick.table}, ${val("rTime")}–${endTime(val("rTime"))}.`):tt("Booking saved without a table — define your tables in “Tables layout”.","Reserva guardada sin mesa — define tus mesas en “Distribución de mesas”.");
     e.target.reset(); document.getElementById("rDate").value=today(); document.getElementById("rParty").value=2;
   };
   document.getElementById("resList").onclick=async e=>{
@@ -1159,6 +1191,8 @@ function confirmMsg(r){
 let resSel=null, resFilter="all";
 function listM1(){
   const el=document.getElementById("resList"); if(!el) return;
+  const rt=document.getElementById("rTable"); if(rt&&document.activeElement!==rt){ const v=rt.value; rt.innerHTML=tableOptions(v,true); }
+  const rc=document.getElementById("rCap"); if(rc) rc.textContent=activeTables().length?tt(`Capacity: ${activeTables().length} tables, ${totalCap()} chairs. Each booking holds its table 1 h 30 min.`,`Capacidad: ${activeTables().length} mesas, ${totalCap()} sillas. Cada reserva ocupa su mesa 1 h 30 min.`):tt("No tables defined yet — bookings are not checked against capacity.","Aún no hay mesas definidas — las reservas no se validan contra la capacidad.");
   const t=today();
   const all=[...D.reservations].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
   const rows=resFilter==="upcoming"?all.filter(r=>r.date>=t&&r.status!=="cancelled"):resFilter==="past"?all.filter(r=>r.date<t).reverse():resFilter==="cancelled"?all.filter(r=>r.status==="cancelled"):all;
@@ -1169,17 +1203,204 @@ function listM1(){
   el.innerHTML=`<div class="acts" style="margin:0 0 10px"><button type="button" class="btn sm ghost" id="resCsv">⬇ ${tt("Bookings CSV","Reservas CSV")}</button><button type="button" class="btn sm ghost" id="resJson">⬇ ${tt("Bookings JSON","Reservas JSON")}</button></div>
    <div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
    ${rows.length?`<label class="sr" for="resBox">${tt("Bookings","Reservas")}</label>
-   <select id="resBox" class="listbox" size="${Math.min(12,Math.max(5,rows.length))}">${rows.map(x=>`<option value="${x.id}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)}) · ${st(x)}</option>`).join("")}</select>
+   <select id="resBox" class="listbox" size="${Math.min(12,Math.max(5,rows.length))}">${rows.map(x=>`<option value="${x.id}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)})${x.table!==""&&x.table!=null?" · "+tt("T","M")+esc(x.table):""} · ${st(x)}</option>`).join("")}</select>
    <p class="hint">${rows.length} ${tt("booking(s)","reserva(s)")}</p>`:`<p class="empty">${tt("No bookings in this view.","No hay reservas en esta vista.")}</p>`}
    ${r?`<div class="resdetail"><div><b>${esc(r.name)}</b><span class="badge ${r.status==="confirmed"?"ok":r.status==="cancelled"?"bad":"warn"}">${st(r)}</span></div>
-    <div>${esc(r.date)} · ${esc(r.time)} · ${esc(r.party)} ${tt("people","personas")}</div>
+    <div>${esc(r.date)} · ${esc(r.time)}–${esc(r.end||endTime(r.time))} · ${esc(r.party)} ${tt("people","personas")}${r.table!==""&&r.table!=null?" · "+tt("Table","Mesa")+" "+esc(r.table):""}</div>
     ${r.contact?`<div>${esc(r.contact)}</div>`:""}${r.notes?`<div class="dimtxt">${esc(r.notes)}</div>`:""}
     <div class="acts">${r.status!=="confirmed"?`<button class="btn sm" data-act="confirm" data-id="${r.id}">${tt("Confirm","Confirmar")}</button>`:""}<button class="btn sm ghost" data-act="msg" data-id="${r.id}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${r.id}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${r.id}">${tt("Delete","Borrar")}</button></div></div>`:""}`;
   const box=document.getElementById("resBox"); if(box) box.onchange=()=>{resSel=box.value;listM1();document.getElementById("resBox")?.focus();};
   document.getElementById("resFilt").onchange=e=>{resFilter=e.target.value;resSel=null;listM1();};
-  const RF=["date","time","name","contact","party","notes","status","created","id"];
+  const RF=["date","time","end","table","name","contact","party","notes","status","created","id"];
   document.getElementById("resCsv").onclick=()=>{ if(!all.length){toast(tt("No bookings to save yet.","Aún no hay reservas para guardar."));return;} saveFile("reservations-"+today()+".csv",toCSV(all,RF)); };
   document.getElementById("resJson").onclick=()=>{ if(!all.length){toast(tt("No bookings to save yet.","Aún no hay reservas para guardar."));return;} saveFile("reservations-"+today()+".json",JSON.stringify(all.map(r=>Object.fromEntries(RF.map(f=>[f,r[f]??""]))),null,2)); };
+}
+
+
+/* ================= TABLES LAYOUT (Distribución de mesas) ================= */
+const BOOK_MIN=90; // each booking holds its table for 1 h 30 min
+const tmin=t=>{const p=String(t||"").split(":");return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0);};
+const mtime=n=>{n=((n%1440)+1440)%1440;return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");};
+const endTime=t=>mtime(tmin(t)+BOOK_MIN);
+const activeTables=()=>D.tables.filter(t=>t.active!==false&&num(t.seats)>0).sort((a,b)=>num(a.num)-num(b.num));
+const totalCap=()=>activeTables().reduce((s,t)=>s+num(t.seats),0);
+const nowHM=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+function tableBooking(tnum,date,time,exceptId){
+  const s=tmin(time);
+  return D.reservations.find(r=>r.id!==exceptId&&r.status!=="cancelled"&&r.table!==""&&r.table!=null&&String(r.table)===String(tnum)&&r.date===date&&Math.abs(tmin(r.time)-s)<BOOK_MIN);
+}
+// returns {table} (number, or "" when no layout is defined) or {err}
+function pickTable(party,date,time,want){
+  const tabs=activeTables();
+  if(!tabs.length) return {table:""};
+  if(want){
+    const t=tabs.find(x=>String(x.num)===String(want));
+    if(!t) return {err:tt("That table doesn't exist or is not active.","Esa mesa no existe o no está activa.")};
+    if(num(t.seats)<party) return {err:tt(`Table ${t.num} has only ${t.seats} chairs.`,`La mesa ${t.num} tiene solo ${t.seats} sillas.`)};
+    const b=tableBooking(t.num,date,time);
+    if(b) return {err:tt(`Table ${t.num} is booked from ${b.time} to ${endTime(b.time)} (${b.name}). Each booking holds the table 1 h 30 min.`,`La mesa ${t.num} está reservada de ${b.time} a ${endTime(b.time)} (${b.name}). Cada reserva ocupa la mesa 1 h 30 min.`)};
+    return {table:num(t.num)};
+  }
+  const max=Math.max(...tabs.map(t=>num(t.seats)));
+  if(party>max) return {err:tt(`No table has ${party} chairs (largest: ${max}). Add a bigger table or join tables in “Tables layout”.`,`Ninguna mesa tiene ${party} sillas (la más grande: ${max}). Agrega una mesa más grande o junta mesas en “Distribución de mesas”.`)};
+  const free=tabs.filter(t=>num(t.seats)>=party&&!tableBooking(t.num,date,time)).sort((a,b)=>num(a.seats)-num(b.seats)||num(a.num)-num(b.num));
+  if(!free.length) return {err:tt(`Full: no free table for ${party} between ${time} and ${endTime(time)}. Try another time.`,`Completo: no hay mesa libre para ${party} entre ${time} y ${endTime(time)}. Prueba otra hora.`)};
+  return {table:num(free[0].num)};
+}
+function tableOptions(sel,withAuto){
+  return (withAuto?`<option value="">${tt("Automatic (smallest free table)","Automática (mesa libre más pequeña)")}</option>`:"")+activeTables().map(t=>`<option value="${esc(t.num)}"${String(t.num)===String(sel)?" selected":""}>${tt("Table","Mesa")} ${esc(t.num)} · ${esc(t.seats)} ${tt("chairs","sillas")}${t.zone?" · "+esc(t.zone):""}</option>`).join("");
+}
+let tblDate=null;
+function tablesView(){
+  if(!tblDate) tblDate=today();
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Tables","Mesas"),tt("Tables layout","Distribución de mesas"),tt("Each table has a number and a number of chairs; together they give the total capacity. Bookings are accepted only if a table with enough chairs is free, and each booking holds its table for 1 h 30 min.","Cada mesa tiene un número y una cantidad de sillas; juntas dan la capacidad total del local. Las reservas se aceptan solo si hay una mesa libre con sillas suficientes, y cada reserva ocupa su mesa 1 h 30 min."))}
+   <div class="kpis" id="tblKpis"></div>
+   <div class="grid">
+    <div class="stack">
+     <div class="panel"><h3>${tt("Add table","Agregar mesa")}</h3>
+      <form id="tblForm" class="fgrid">
+       ${field("tNum",tt("Table number","Número de mesa"),`<input id="tNum" type="number" min="1" required>`)}
+       ${field("tSeats",tt("Chairs","Sillas"),`<input id="tSeats" type="number" min="1" max="30" value="4" required>`)}
+       ${field("tZone",tt("Zone (optional)","Zona (opcional)"),`<input id="tZone" placeholder="${tt("Window, terrace…","Ventana, terraza…")}">`)}
+       <button class="btn" type="submit">${tt("Add table","Agregar mesa")}</button>
+      </form><p class="hint" id="tblMsg" aria-live="polite"></p></div>
+     <div class="panel"><h3>${tt("Tables","Mesas")}</h3><div class="tablewrap" id="tblTable"></div></div>
+    </div>
+    <div class="stack">
+     <div class="panel"><h3>${tt("Occupancy","Ocupación")}</h3>
+      <div class="f" style="max-width:200px;margin-bottom:10px"><label for="tblDay">${tt("Day","Día")}</label><input id="tblDay" type="date" value="${tblDate}"></div>
+      <div id="tblFloor" class="floor"></div></div>
+    </div>
+   </div></section>`;
+}
+function wireTables(){
+  document.getElementById("tblForm").onsubmit=async e=>{
+    e.preventDefault(); const n=Math.round(num(val("tNum"))), s=Math.round(num(val("tSeats"))), msg=document.getElementById("tblMsg");
+    if(n<1||s<1){msg.textContent=tt("Enter a table number and chairs.","Ingresa número de mesa y sillas.");return;}
+    if(D.tables.some(t=>num(t.num)===n)){msg.textContent=tt(`Table ${n} already exists.`,`La mesa ${n} ya existe.`);return;}
+    await dbSet("tables/t"+n,{num:n,seats:s,zone:val("tZone"),active:true});
+    msg.textContent=""; e.target.reset(); document.getElementById("tSeats").value=4; document.getElementById("tNum").focus();
+  };
+  const tb=document.getElementById("tblTable");
+  tb.addEventListener("change",async e=>{
+    const el=e.target, id=el.closest("tr")?.dataset.id; if(!id) return;
+    if(el.dataset.f==="seats"){ const s=Math.round(num(el.value)); if(s<1){refreshAI();return;} await dbUpd("tables",id,{seats:s}); }
+    if(el.dataset.f==="zone") await dbUpd("tables",id,{zone:el.value.trim()});
+    if(el.dataset.f==="active") await dbUpd("tables",id,{active:el.checked});
+  });
+  tb.addEventListener("focusout",()=>setTimeout(()=>{if(!tb.contains(document.activeElement))refreshAI();},50));
+  tb.addEventListener("click",async e=>{ const b=e.target.closest("[data-tdel]"); if(!b) return; const t=D.tables.find(x=>x.id===b.dataset.tdel); if(t&&confirm(tt(`Delete table ${t.num}?`,`¿Borrar la mesa ${t.num}?`))) await dbDel("tables",t.id); });
+  document.getElementById("tblDay").onchange=e=>{tblDate=e.target.value||today();listTables();};
+}
+function listTables(){
+  const k=document.getElementById("tblKpis"); if(!k) return;
+  const tabs=activeTables(), all=[...D.tables].sort((a,b)=>num(a.num)-num(b.num)), t=today(), now=nowHM();
+  const busyNow=tabs.filter(x=>tableBooking(x.num,t,now)).length;
+  const dayRes=D.reservations.filter(r=>r.date===tblDate&&r.status!=="cancelled");
+  k.innerHTML=[[tabs.length,tt("active tables","mesas activas")],[totalCap(),tt("total capacity (chairs)","capacidad total (sillas)")],[tabs.length?Math.max(...tabs.map(x=>num(x.seats))):0,tt("largest table","mesa más grande")],[busyNow+" / "+tabs.length,tt("tables booked now","mesas reservadas ahora")]]
+    .map(x=>`<div class="kpi"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join("");
+  const tb=document.getElementById("tblTable");
+  if(!tb.contains(document.activeElement)) tb.innerHTML=all.length?`<table class="dt"><thead><tr><th>${tt("Table","Mesa")}</th><th>${tt("Chairs","Sillas")}</th><th>${tt("Zone","Zona")}</th><th>${tt("Active","Activa")}</th><th></th></tr></thead><tbody>${all.map(x=>`<tr data-id="${x.id}"><td class="nw"><b>${esc(x.num)}</b></td><td><input data-f="seats" type="number" min="1" value="${esc(x.seats)}" aria-label="${tt("Chairs","Sillas")}"></td><td><input class="txt" data-f="zone" value="${esc(x.zone||"")}" aria-label="${tt("Zone","Zona")}"></td><td><input data-f="active" type="checkbox" style="width:auto"${x.active!==false?" checked":""} aria-label="${tt("Active","Activa")}"></td><td><button type="button" class="btn sm ghost" data-tdel="${x.id}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
+    :`<p class="empty">${tt("No tables yet. Add each table with its number and chairs — until then bookings are saved without a table.","Aún no hay mesas. Agrega cada mesa con su número y sillas — mientras tanto las reservas se guardan sin mesa.")}</p>`;
+  const noTbl=dayRes.filter(r=>r.table===""||r.table==null);
+  document.getElementById("tblFloor").innerHTML=(tabs.length?tabs.map(x=>{
+    const rs=dayRes.filter(r=>String(r.table)===String(x.num)).sort((a,b)=>a.time.localeCompare(b.time));
+    const occ=tblDate===t&&tableBooking(x.num,t,now);
+    return `<div class="tcard${occ?" occ":""}"><div class="tnum">${tt("Table","Mesa")} ${esc(x.num)}</div><div class="dimtxt">${"🪑".repeat(Math.min(num(x.seats),12))} ${esc(x.seats)}${x.zone?" · "+esc(x.zone):""}</div>
+      ${rs.length?`<ul class="slots">${rs.map(r=>`<li><b>${esc(r.time)}–${esc(endTime(r.time))}</b> ${esc(r.name)} (${esc(r.party)})${r.status==="confirmed"?"":` <span class="badge warn">${tt("pending","pendiente")}</span>`}</li>`).join("")}</ul>`:`<div class="dimtxt">${tt("Free all day","Libre todo el día")}</div>`}</div>`;}).join(""):`<p class="empty">${tt("Add tables to see the floor.","Agrega mesas para ver el salón.")}</p>`)
+    +(noTbl.length?`<p class="hint" style="grid-column:1/-1">${noTbl.length} ${tt("booking(s) this day without a table (made before the layout existed).","reserva(s) este día sin mesa (hechas antes de definir las mesas).")}</p>`:"");
+}
+
+/* ================= ORDERS BY TABLE (Órdenes de pedido) — kitchen display ================= */
+const DONENESS=[["","—","—"],["rare","Rare","Rojo / inglés"],["mrare","Medium rare","Medio rojo"],["medium","Medium","Término medio"],["mwell","Medium well","Tres cuartos"],["well","Well done","Bien cocido"]];
+const ALLERGENS=[["gluten","Gluten","Gluten"],["dairy","Dairy","Lácteos"],["egg","Egg","Huevo"],["peanut","Peanut","Maní"],["nuts","Tree nuts","Frutos secos"],["shellfish","Shellfish","Mariscos"],["fish","Fish","Pescado"],["soy","Soy","Soya"],["sesame","Sesame","Ajonjolí"]];
+const OSTAT={new:["New","Nueva","warn"],prep:["Preparing","En preparación","warn"],ready:["Ready","Lista","ok"],served:["Served","Entregada","ok"],cancelled:["Cancelled","Cancelada","bad"]};
+const ostat=s=>tt((OSTAT[s]||OSTAT.new)[0],(OSTAT[s]||OSTAT.new)[1]);
+const donName=k=>{const d=DONENESS.find(x=>x[0]===k);return d&&k?tt(d[1],d[2]):"";};
+const allergenName=k=>{const a=ALLERGENS.find(x=>x[0]===k);return a?tt(a[1],a[2]):k;};
+function itemsText(items){ return items.map(i=>`${i.qty}× ${i.dish}${i.doneness?" ("+donName(i.doneness)+")":""}${i.note?" — "+i.note:""}`).join("; "); }
+function itemRow(){
+  return `<div class="oitem"><input class="odish" list="dishList" placeholder="${tt("Dish or drink","Plato o bebida")}" aria-label="${tt("Dish","Plato")}">
+   <input class="oqty" type="number" min="1" value="1" aria-label="${tt("Quantity","Cantidad")}">
+   <select class="odone" aria-label="${tt("Meat doneness","Término de la carne")}">${DONENESS.map(d=>`<option value="${d[0]}">${d[0]?tt(d[1],d[2]):tt("Doneness —","Término —")}</option>`).join("")}</select>
+   <input class="onote" placeholder="${tt("Note: no onion, extra sauce…","Nota: sin cebolla, salsa extra…")}" aria-label="${tt("Note","Nota")}">
+   <button type="button" class="btn sm ghost" data-orm aria-label="${tt("Remove dish","Quitar plato")}">✕</button></div>`;
+}
+let ordShowServed=false, ordTimer=null;
+function ordersView(){
+  const tabs=activeTables();
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Kitchen","Cocina"),tt("Orders by table","Órdenes de pedido por mesa"),tt("Take each table's order with allergies, meat doneness and messages for the cooks. The kitchen board below shows what to cook, oldest first.","Toma el pedido de cada mesa con alergias, término de la carne y mensajes para los cocineros. El tablero de cocina muestra qué preparar, del más antiguo al más nuevo."))}
+   <div class="grid">
+    <div class="stack"><div class="panel"><h3>${tt("New order","Nueva orden")}</h3>
+     <form id="ordForm" class="fgrid">
+      ${field("oTable",tt("Table","Mesa"),tabs.length?`<select id="oTable" required>${tableOptions("",false)}</select>`:`<input id="oTable" type="number" min="1" required>`)}
+      ${field("oGuests",tt("Diners","Comensales"),`<input id="oGuests" type="number" min="1" value="2">`)}
+      <p class="hint f full" id="oBook" aria-live="polite"></p>
+      <div class="f full"><span>${tt("Dishes","Platos")}</span><div id="oItems">${itemRow()}</div>
+       <datalist id="dishList">${P.map(p=>`<option value="${esc(T(p.name))}">`).join("")}</datalist>
+       <button type="button" class="btn sm ghost" id="oAdd" style="align-self:flex-start;margin-top:6px">+ ${tt("Add dish","Agregar plato")}</button></div>
+      <fieldset class="f full allerg"><legend>⚠ ${tt("Diners' allergies","Alergias de los comensales")}</legend>
+       <div class="chips">${ALLERGENS.map(a=>`<label class="chip"><input type="checkbox" value="${a[0]}"> ${tt(a[1],a[2])}</label>`).join("")}</div>
+       <input id="oAllergyTxt" placeholder="${tt("Other or detail: seat 2 celiac, severe peanut allergy…","Otra o detalle: asiento 2 celíaco, alergia grave al maní…")}" aria-label="${tt("Other allergies","Otras alergias")}"></fieldset>
+      <div class="f full"><label for="oMsg">💬 ${tt("Message to the cooks","Mensaje a los cocineros")}</label><textarea id="oMsg" rows="2" placeholder="${tt("Special requests, tastes, timing: birthday — bring dessert with a candle…","Pedidos especiales, gustos, tiempos: cumpleaños — sacar el postre con vela…")}"></textarea></div>
+      <button class="btn" type="submit">${tt("Send to kitchen","Enviar a cocina")}</button>
+     </form><p class="hint" id="ordMsg" aria-live="polite"></p></div></div>
+    <div class="stack"><div class="panel"><h3>${tt("Kitchen board","Tablero de cocina")}</h3>
+     <div class="acts" style="margin:0 0 10px"><button type="button" class="btn sm ghost" id="ordRefresh">↻ ${tt("Refresh","Actualizar")}</button><label class="chk"><input type="checkbox" id="ordServed"${ordShowServed?" checked":""}> ${tt("Show served / cancelled today","Mostrar entregadas / canceladas hoy")}</label></div>
+     <div id="ordBoard"></div></div></div>
+   </div></section>`;
+}
+function ordBookingHint(){
+  const el=document.getElementById("oBook"); if(!el) return;
+  const tv=val("oTable"), b=tv?tableBooking(tv,today(),nowHM()):null;
+  el.dataset.res=b?b.id:"";
+  el.innerHTML=b?`📅 ${tt("Booking now at this table","Reserva ahora en esta mesa")}: <b>${esc(b.name)}</b> (${esc(b.party)}) ${esc(b.time)}–${esc(endTime(b.time))}${b.notes?` · <span class="alltxt">${tt("Booking notes","Notas de la reserva")}: ${esc(b.notes)}</span>`:""}`:"";
+  if(b&&document.getElementById("oGuests").dataset.touched!=="1") document.getElementById("oGuests").value=b.party;
+}
+function wireOrders(){
+  const box=document.getElementById("oItems");
+  document.getElementById("oAdd").onclick=()=>{box.insertAdjacentHTML("beforeend",itemRow());box.lastElementChild.querySelector(".odish").focus();applyRoleUI();};
+  box.onclick=e=>{const b=e.target.closest("[data-orm]"); if(!b) return; if(box.children.length>1) b.closest(".oitem").remove(); else b.closest(".oitem").querySelectorAll("input").forEach(i=>{i.value=i.classList.contains("oqty")?1:"";});};
+  document.getElementById("oTable").onchange=ordBookingHint;
+  document.getElementById("oGuests").oninput=e=>{e.target.dataset.touched="1";};
+  ordBookingHint();
+  document.getElementById("ordForm").onsubmit=async e=>{
+    e.preventDefault(); const msg=document.getElementById("ordMsg");
+    const items=[...box.querySelectorAll(".oitem")].map(r=>({dish:r.querySelector(".odish").value.trim(),qty:Math.max(1,Math.round(num(r.querySelector(".oqty").value))),doneness:r.querySelector(".odone").value,note:r.querySelector(".onote").value.trim()})).filter(i=>i.dish);
+    const table=Math.round(num(val("oTable")));
+    if(!table){msg.textContent=tt("Choose the table.","Elige la mesa.");return;}
+    if(!items.length){msg.textContent=tt("Add at least one dish.","Agrega al menos un plato.");return;}
+    const al=[...document.querySelectorAll(".allerg input[type=checkbox]:checked")].map(c=>allergenName(c.value));
+    const alTxt=val("oAllergyTxt"); if(alTxt) al.push(alTxt);
+    const resId=document.getElementById("oBook").dataset.res||"", b=D.reservations.find(r=>r.id===resId);
+    const stamp=new Date().toISOString();
+    await dbAdd("orders",{date:today(),table,guests:Math.max(1,Math.round(num(val("oGuests")))),items,itemsText:itemsText(items),allergies:al.join(", "),message:val("oMsg"),status:"new",resId,booking:b?b.name:"",by:SESSION?SESSION.name:"",created:stamp,updated:stamp});
+    msg.textContent=tt(`Order for table ${table} sent to the kitchen.`,`Orden de la mesa ${table} enviada a cocina.`);
+    e.target.reset(); box.innerHTML=itemRow(); document.getElementById("oGuests").dataset.touched=""; ordBookingHint(); applyRoleUI();
+  };
+  document.getElementById("ordServed").onchange=e=>{ordShowServed=e.target.checked;listOrders();};
+  document.getElementById("ordRefresh").onclick=()=>{ if(DB&&DB._refresh) DB._refresh("orders"); else listOrders(); };
+  document.getElementById("ordBoard").onclick=async e=>{
+    const b=e.target.closest("[data-ost]"); if(!b) return; const id=b.dataset.id;
+    if(b.dataset.ost==="del"){ if(confirm(tt("Delete this order?","¿Borrar esta orden?"))) await dbDel("orders",id); return; }
+    await dbUpd("orders",id,{status:b.dataset.ost,updated:new Date().toISOString()});
+  };
+  clearInterval(ordTimer); ordTimer=setInterval(()=>{ if(state.tab!=="ai"||state.aiView!=="orders"){clearInterval(ordTimer);return;} if(DB&&DB._refresh&&document.visibilityState==="visible") DB._refresh("orders"); else listOrders(); },15000);
+}
+function listOrders(){
+  const el=document.getElementById("ordBoard"); if(!el) return;
+  const t=today(), mins=o=>Math.max(0,Math.round((Date.now()-Date.parse(o.created||0))/60000));
+  const all=D.orders.filter(o=>o.date===t||["new","prep","ready"].includes(o.status)).sort((a,b)=>String(a.created).localeCompare(String(b.created)));
+  const cols=[["new"],["prep"],["ready"]].concat(ordShowServed?[["served","cancelled"]]:[]);
+  const next={new:["prep",tt("Start","Empezar")],prep:["ready",tt("Ready","Lista")],ready:["served",tt("Served","Entregada")]};
+  const card=o=>`<article class="ocard${o.allergies?" hasal":""}"><div class="ohead"><b>${tt("Table","Mesa")} ${esc(o.table)}</b><span class="dimtxt">${esc(o.guests||"")} ${tt("diners","comensales")} · ${mins(o)} min</span><span class="badge ${(OSTAT[o.status]||OSTAT.new)[2]}">${ostat(o.status)}</span></div>
+    ${o.allergies?`<div class="alban">⚠ ${tt("ALLERGIES","ALERGIAS")}: ${esc(o.allergies)}</div>`:""}
+    <ul class="oitems">${(o.items||[]).map(i=>`<li><b>${esc(i.qty)}×</b> ${esc(i.dish)}${i.doneness?` <span class="don">${esc(donName(i.doneness))}</span>`:""}${i.note?`<small>${esc(i.note)}</small>`:""}</li>`).join("")||`<li>${esc(o.itemsText||"")}</li>`}</ul>
+    ${o.message?`<div class="omsg">💬 ${esc(o.message)}</div>`:""}
+    ${o.booking?`<div class="dimtxt">📅 ${esc(o.booking)}</div>`:""}
+    <div class="acts">${next[o.status]?`<button class="btn sm" data-ost="${next[o.status][0]}" data-id="${o.id}">${next[o.status][1]}</button>`:""}${["new","prep"].includes(o.status)?`<button class="btn sm ghost" data-ost="cancelled" data-id="${o.id}">${tt("Cancel","Cancelar")}</button>`:""}${o.status==="served"||o.status==="cancelled"?`<button class="btn sm ghost" data-ost="new" data-id="${o.id}">${tt("Reopen","Reabrir")}</button><button class="btn sm ghost" data-ost="del" data-id="${o.id}">${tt("Delete","Borrar")}</button>`:""}</div></article>`;
+  el.innerHTML=`<div class="board">${cols.map(c=>{const rows=all.filter(o=>c.includes(o.status||"new")); return `<div class="bcol"><h4>${c.length>1?tt("Served / cancelled","Entregadas / canceladas"):ostat(c[0])} <span class="badge">${rows.length}</span></h4>${rows.map(card).join("")||`<p class="empty">—</p>`}</div>`;}).join("")}</div>`;
+  applyRoleUI();
 }
 
 /* ================= MODULE 2 — KITCHEN & INVENTORY ================= */
