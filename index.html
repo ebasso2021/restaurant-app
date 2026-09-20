@@ -957,7 +957,7 @@ async function startAuth(){
 }
 // ----- what each role may change -----
 function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||!!(ROLE_WRITE[r]&&ROLE_WRITE[r].includes(col)); }
-const READ_OK='[data-aiview],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,#resCsv,#resJson,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+const READ_OK='[data-aiview],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
@@ -1222,8 +1222,7 @@ function listM1(){
   const st=r=>r.status==="confirmed"?tt("Confirmed","Confirmada"):r.status==="cancelled"?tt("Cancelled","Cancelada"):tt("Pending","Pendiente");
   const filt=[["all",tt("All bookings","Todas las reservas")],["upcoming",tt("Upcoming","Próximas")],["past",tt("Past","Pasadas")],["cancelled",tt("Cancelled","Canceladas")]];
   const r=rows.find(x=>x.id===resSel);
-  el.innerHTML=`<div class="acts" style="margin:0 0 10px"><button type="button" class="btn sm ghost" id="resCsv">⬇ ${tt("Bookings CSV","Reservas CSV")}</button><button type="button" class="btn sm ghost" id="resJson">⬇ ${tt("Bookings JSON","Reservas JSON")}</button></div>
-   <div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
+  el.innerHTML=`<div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
    ${rows.length?`<label class="sr" for="resBox">${tt("Bookings","Reservas")}</label>
    <select id="resBox" class="listbox" size="${Math.min(12,Math.max(5,rows.length))}">${rows.map(x=>`<option value="${esc(x.id)}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)})${x.table!==""&&x.table!=null?" · "+tt("T","M")+esc(x.table):""} · ${st(x)}</option>`).join("")}</select>
    <p class="hint">${rows.length} ${tt("booking(s)","reserva(s)")}</p>`:`<p class="empty">${tt("No bookings in this view.","No hay reservas en esta vista.")}</p>`}
@@ -1233,9 +1232,6 @@ function listM1(){
     <div class="acts">${r.status==="pending"?`<button class="btn sm" data-act="confirm" data-id="${esc(r.id)}">${tt("Confirm","Confirmar")}</button>`:""}<button class="btn sm ghost" data-act="msg" data-id="${esc(r.id)}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${esc(r.id)}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${esc(r.id)}">${tt("Delete","Borrar")}</button></div></div>`:""}`;
   const box=document.getElementById("resBox"); if(box) box.onchange=()=>{resSel=box.value;listM1();document.getElementById("resBox")?.focus();};
   document.getElementById("resFilt").onchange=e=>{resFilter=e.target.value;resSel=null;listM1();};
-  const RF=["date","time","end","table","name","contact","party","notes","status","created","id"];
-  document.getElementById("resCsv").onclick=()=>{ if(!all.length){toast(tt("No bookings to save yet.","Aún no hay reservas para guardar."));return;} saveFile("reservations-"+today()+".csv",toCSV(all,RF)); };
-  document.getElementById("resJson").onclick=()=>{ if(!all.length){toast(tt("No bookings to save yet.","Aún no hay reservas para guardar."));return;} saveFile("reservations-"+today()+".json",JSON.stringify(all.map(r=>Object.fromEntries(RF.map(f=>[f,r[f]??""]))),null,2)); };
 }
 
 
