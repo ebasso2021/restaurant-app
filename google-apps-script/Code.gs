@@ -14,7 +14,7 @@
  * Roles:  admin   = everything, including users and settings
  *         chef    = reads everything; changes Inventario, Mermas, costs (Config) and Órdenes (kitchen board)
  *         lectura = reads everything, changes nothing
- *         cocinero = only Kitchen & inventory + kitchen order board
+ *         cocinero = full Kitchen & inventory; everything else read only
  *         mesero   = only Customers (bookings), Tables layout + orders by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
  */
@@ -44,8 +44,8 @@ const ROLES = {
               desc: "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings." },
   chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders"], read: "*",
               desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso y Órdenes. / Sees everything. Changes inventory, waste, cost per cup and orders." },
-  cocinero: { label: "Cocinero", write: ["inventory", "waste", "orders"], read: ["inventory", "waste", "orders", "settings", "tables"],
-              desc: "Solo Cocina e inventario y el tablero de Órdenes: cambia stock, mermas y el estado de las órdenes. / Only Kitchen & inventory and the order board." },
+  cocinero: { label: "Cocinero", write: ["inventory", "waste"], read: "*",
+              desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
   mesero:   { label: "Mesero", write: ["reservations", "tables", "orders"], read: ["reservations", "tables", "orders"],
               desc: "Solo Clientes (reservas), Distribución de mesas y Órdenes por mesa: toma reservas, marca mesas ocupadas/libres y envía pedidos a cocina. / Only Customers (bookings), Tables layout and Orders by table." },
   lectura:  { label: "Solo lectura", write: [], read: "*",

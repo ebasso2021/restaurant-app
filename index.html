@@ -879,9 +879,10 @@ function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
 function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
 const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
 // roles limited to some modules (others see every module)
-const ROLE_VIEWS={cocinero:["m2","orders","settings"],mesero:["m1","tables","orders","settings"]};
-const ROLE_READ={cocinero:["inventory","waste","orders","settings","tables"],mesero:["reservations","tables","orders"]};
-const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste","orders"],mesero:["reservations","tables","orders"],lectura:[]};
+const ROLE_HOME={cocinero:"m2",mesero:"m1"};
+const ROLE_VIEWS={mesero:["m1","tables","orders","settings"]};
+const ROLE_READ={mesero:["reservations","tables","orders"]};
+const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders"],lectura:[]};
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
 const canView=v=>{const r=myRole(); return !r||!ROLE_VIEWS[r]||ROLE_VIEWS[r].includes(v);};
 const canRead=c=>{const r=myRole(); return !r||!ROLE_READ[r]||ROLE_READ[r].includes(c);};
@@ -925,7 +926,7 @@ function showLogin(msg){
     try{
       const j=await sheetCall(url,{action:"login",user:val("lgUser"),password:document.getElementById("lgPass").value});
       lsSet(LS_SURL,url); ssSet(SS_TOK,j.token);
-      SESSION={token:j.token,user:j.user,name:j.name,role:j.role};
+      SESSION={token:j.token,user:j.user,name:j.name,role:j.role}; if(ROLE_HOME[j.role]){ state.tab="ai"; state.aiView=ROLE_HOME[j.role]; }
       startSheet(url);
     }catch(err){
       btn.disabled=false; document.getElementById("lgPass").value="";
@@ -962,14 +963,16 @@ function applyRoleUI(){
   const v=state.aiView, chef=SESSION.role==="chef";
   if(v==="settings"||v==="overview") return;
   if(chef&&(v==="m2"||v==="orders")) return;
-  if(ROLE_VIEWS[SESSION.role]) return; // cook / waiter: full use of the modules they can open
+  if(ROLE_VIEWS[SESSION.role]) return; // waiter: full use of the modules they can open
+  const cook=SESSION.role==="cocinero";
+  if(cook&&v==="m2") return; // cook: full use of Kitchen & inventory only
   main.querySelectorAll("section input,section select,section textarea,section button,section .linkbtn").forEach(el=>{
     if(el.matches(READ_OK)) return;
     if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin")) return;
     el.disabled=true; el.classList.add("ro"); el.title=tt("Your role can't change this","Tu rol no puede cambiar esto");
   });
   if(!main.querySelector(".roNote")){
-    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${chef?tt("Chef: you can view this module; you can work on “Orders by table”, change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Sales”.","Chef: puedes ver este módulo; puedes trabajar en “Órdenes por mesa”, cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Ventas”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
+    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${cook?tt("Cook: read only here. You can change data only in “2 · Kitchen & inventory”.","Cocinero: solo lectura aquí. Solo puedes cambiar datos en “2 · Cocina e inventario”."):chef?tt("Chef: you can view this module; you can work on “Orders by table”, change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Sales”.","Chef: puedes ver este módulo; puedes trabajar en “Órdenes por mesa”, cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Ventas”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
   }
 }
 // ----- admin: users -----
@@ -985,7 +988,7 @@ function usersPanel(){
     <label class="chk"><input type="checkbox" id="uActive" checked> ${tt("Active","Activo")}</label>
     <button class="btn" type="submit">${tt("Save user","Guardar usuario")}</button>
    </form><p class="hint" id="usrMsg" aria-live="polite"></p>
-   <p class="hint">${tt("Administrator: everything. Chef: sees everything; changes inventory, waste and cost per cup. Cook: only Kitchen & inventory and the order board. Waiter: only Customers (bookings), Tables layout and Orders by table. Read only: sees everything, changes nothing.","Administrador: todo. Chef: ve todo; cambia inventario, merma y costo por vaso. Cocinero: solo Cocina e inventario y el tablero de órdenes. Mesero: solo Clientes (reservas), Distribución de mesas y Órdenes por mesa. Solo lectura: ve todo, no cambia nada.")}</p></div>`;
+   <p class="hint">${tt("Administrator: everything. Chef: sees everything; changes inventory, waste and cost per cup. Cook: full access to Kitchen & inventory; everything else read only. Waiter: only Customers (bookings), Tables layout and Orders by table. Read only: sees everything, changes nothing.","Administrador: todo. Chef: ve todo; cambia inventario, merma y costo por vaso. Cocinero: acceso total a Cocina e inventario; el resto solo lectura. Mesero: solo Clientes (reservas), Distribución de mesas y Órdenes por mesa. Solo lectura: ve todo, no cambia nada.")}</p></div>`;
 }
 async function loadUsers(){
   const el=document.getElementById("usrList"); if(!el) return;
