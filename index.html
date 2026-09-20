@@ -128,6 +128,9 @@ h3.sec{font-family:var(--display);font-weight:400;font-size:22px;margin:26px 0 1
 .subnav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
 .subnav button{border:1px solid var(--line);background:var(--surface);color:var(--muted);font:600 13px var(--body);padding:7px 12px;border-radius:999px;cursor:pointer}
 .subnav button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.recipenav button{display:inline-flex;align-items:center;gap:7px}
+.recipenav .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.recipenav button[aria-selected="true"]{background:var(--c);border-color:var(--c);color:#fff}
 .capnote{font-size:13px;color:var(--muted);margin:0 0 16px}
 .warnnote{background:var(--warn-bg);color:var(--ink);padding:10px 12px;border-radius:10px}
 .btn{border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 14px var(--body);padding:8px 14px;border-radius:9px;cursor:pointer;min-height:36px}
@@ -296,9 +299,9 @@ svg.bars .bar:hover .mark{opacity:.8}
 <script>
 if(!(window.claude&&window.claude.use)) document.body.classList.add("locked");
 const T = (o)=> typeof o==="string" ? o : (o[state.lang] ?? o.en);
-const state = {lang:"en", tab:"quinoa", variant:{}, factor:{}};
-try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(state,{lang:s.lang||"en",tab:s.tab||"quinoa",aiView:s.aiView||"overview"}); }catch(e){}
-function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:state.lang,tab:state.tab,aiView:state.aiView})); }catch(e){} }
+const state = {lang:"en", tab:"recipes", recipe:"quinoa", variant:{}, factor:{}};
+try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(state,{lang:s.lang||"en",tab:s.tab||"recipes",aiView:s.aiView||"overview",recipe:s.recipe||"quinoa"}); }catch(e){}
+function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:state.lang,tab:state.tab,aiView:state.aiView,recipe:state.recipe})); }catch(e){} }
 
 const UI = {
   sub:{en:"Batch calculators, benefits, Alberta food-safety rules and the path to sale for six Peruvian drinks and desserts — plus a working AI system to run the restaurant.",
@@ -585,12 +588,18 @@ function conv(q,u){
 /* ---------- RENDER ---------- */
 const tabsEl=document.getElementById("tabs"), main=document.getElementById("main");
 function renderTabs(){
-  const items=[...P.map(p=>({id:p.id,label:T(p.name),c:p.c})),{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"menu",label:state.lang==="es"?"Menú":"Menu",c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
+  const items=[{id:"recipes",label:state.lang==="es"?"Recetas":"Recipes",c:"var(--accent)"},{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"menu",label:state.lang==="es"?"Menú":"Menu",c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
   tabsEl.innerHTML=items.map(it=>it.sep?'<span class="sep" aria-hidden="true"></span>':
     `<button role="tab" id="tab-${it.id}" aria-selected="${state.tab===it.id}" data-tab="${it.id}" style="--c:${it.c}"><span class="dot"></span>${it.label}</button>`).join("");
 }
 tabsEl.addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return; state.tab=b.dataset.tab; save(); render(); window.scrollTo({top:0});});
 
+function recipesTab(p){
+  return `<div class="subnav recipenav" role="tablist" aria-label="${tt("Recipes","Recetas")}">${P.map(x=>`<button type="button" role="tab" data-recipe="${x.id}" aria-selected="${x.id===p.id}" style="--c:${x.c}"><span class="dot"></span>${esc(T(x.name))}</button>`).join("")}</div>`+product(p);
+}
+function wireRecipes(){
+  main.querySelectorAll("[data-recipe]").forEach(b=>b.onclick=()=>{ state.recipe=b.dataset.recipe; save(); render(); window.scrollTo({top:0}); });
+}
 function product(p){
   const vi=state.variant[p.id]||0, v=p.variants[vi], key=p.id+":"+vi, f=state.factor[key]??1;
   const pc2=`color-mix(in oklab, ${p.c} 80%, var(--ink))`;
@@ -2284,8 +2293,8 @@ function render(){
   document.getElementById("appSub").textContent=T(UI.sub);
   document.getElementById("disc").textContent=T(UI.disc);
   renderTabs();
-  const p=P.find(x=>x.id===state.tab);
-  if(p){ main.innerHTML=product(p); wireProduct(p); }
+  if(P.some(x=>x.id===state.tab)){ state.recipe=state.tab; state.tab="recipes"; save(); renderTabs(); } // old saved tab
+  if(state.tab==="recipes"){ const p=P.find(x=>x.id===state.recipe)||P[0]; main.innerHTML=recipesTab(p); wireRecipes(); wireProduct(p); }
   else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
   else if(state.tab==="menu"){ main.innerHTML=menuView(); wireMenu(); listMenu(); }
   else main.innerHTML= state.tab==="rules"? rules() : path();
