@@ -585,7 +585,7 @@ function conv(q,u){
 /* ---------- RENDER ---------- */
 const tabsEl=document.getElementById("tabs"), main=document.getElementById("main");
 function renderTabs(){
-  const items=[...P.map(p=>({id:p.id,label:T(p.name),c:p.c})),{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
+  const items=[...P.map(p=>({id:p.id,label:T(p.name),c:p.c})),{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"menu",label:state.lang==="es"?"Menú":"Menu",c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
   tabsEl.innerHTML=items.map(it=>it.sep?'<span class="sep" aria-hidden="true"></span>':
     `<button role="tab" id="tab-${it.id}" aria-selected="${state.tab===it.id}" data-tab="${it.id}" style="--c:${it.c}"><span class="dot"></span>${it.label}</button>`).join("");
 }
@@ -894,7 +894,7 @@ function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
 const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
 // roles limited to some modules (others see every module)
 const ROLE_HOME={cocinero:"m2",mesero:"m1"};
-const ROLE_VIEWS={mesero:["m1","tables","orders","bill","menu","settings"]};
+const ROLE_VIEWS={mesero:["m1","tables","orders","bill","settings"]};
 const ROLE_READ={mesero:["reservations","tables","orders","menu","bills","settings"]};
 const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
@@ -972,7 +972,7 @@ async function startAuth(){
 }
 // ----- what each role may change -----
 function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||!!(ROLE_WRITE[r]&&ROLE_WRITE[r].includes(col)); }
-const READ_OK='[data-aiview],[data-mncat],#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+const READ_OK='[data-aiview],[data-mncat],#goMenu,#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
@@ -1080,7 +1080,6 @@ const MODS=[
   {id:"tables",en:"Tables layout",es:"Distribución de mesas"},
   {id:"orders",en:"Orders by table",es:"Órdenes por mesa"},
   {id:"bill",en:"Billing by table",es:"Facturación por mesa"},
-  {id:"menu",en:"Menu",es:"Menú"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
   {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
@@ -1094,21 +1093,22 @@ function aiSys(){
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
-  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="bill"?billView():v==="menu"?menuView():aiOverview();
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="bill"?billView():aiOverview();
   return nav+banner+body;
 }
 function wireAI(){
   main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
   const v=state.aiView;
-  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="bill") wireBill(); else if(v==="menu") wireMenu();
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="bill") wireBill();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
   applyRoleUI();
 }
 function refreshAI(){
+  if(state.tab==="menu"){ listMenu(); return; }
   if(state.tab!=="ai") return;
   const v=state.aiView;
-  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill(); else if(v==="menu") listMenu();
+  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill();
   applyRoleUI();
 }
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
@@ -1506,7 +1506,7 @@ function billView(){
     </div>
     <div class="stack">
      <div class="panel"><h3>${tt("Menu prices","Precios del menú")}</h3>
-      <p class="hint">${tt("Prices come from the Menu module. Open “Menu” to add dishes and drinks or change their prices.","Los precios vienen del módulo Menú. Abre “Menú” para agregar platos y bebidas o cambiar sus precios.")} <button type="button" class="linkbtn" data-aiview="menu">${tt("Open the menu","Abrir el menú")}</button></p>
+      <p class="hint">${tt("Prices come from the Menu module. Open “Menu” to add dishes and drinks or change their prices.","Los precios vienen del módulo Menú. Abre “Menú” para agregar platos y bebidas o cambiar sus precios.")} <button type="button" class="linkbtn" id="goMenu">${tt("Open the menu","Abrir el menú")}</button></p>
       <div class="tablewrap" id="prTable"></div>
       <div class="f" style="max-width:180px"><label for="blRate">${tt("GST %","GST %")}</label><input id="blRate" type="number" min="0" max="100" step="0.1" value="${taxRate()}"></div>
      </div>
@@ -1590,6 +1590,7 @@ function wireBill(){
     if(el.id==="blSplit"){ billSplit=Math.max(1,Math.round(num(el.value))); billBody(); }
     if(el.id==="blMethod"){ billMethod=el.value; }
   });
+  document.getElementById("goMenu").onclick=()=>{ state.tab="menu"; save(); render(); window.scrollTo({top:0}); };
   document.getElementById("blRate").onchange=async e=>{ const r=num(e.target.value); await dbSet("settings/bill",{...(D.bill||{}),taxRate:r>=0&&r<=100?r:GST_DEFAULT}); };
   document.getElementById("blList").onclick=e=>{ const b=e.target.closest("[data-bill]"); if(!b) return; const bill=D.bills.find(x=>x.id===b.dataset.bill); if(bill) showReceipt(bill); };
   document.getElementById("blPrint").onclick=()=>printReceipt();
@@ -1696,7 +1697,7 @@ function menuView(){
    </div></section>`;
 }
 function wireMenu(){
-  main.querySelectorAll("[data-mncat]").forEach(b=>b.onclick=()=>{menuCat=b.dataset.mncat;render();});
+  main.querySelectorAll("[data-mncat]").forEach(b=>b.onclick=()=>{menuCat=b.dataset.mncat;render();window.scrollTo({top:0});});
   const kindSel=()=>{const c=document.getElementById("mnCat").value;
     document.getElementById("mnKind").innerHTML=(MENU_KINDS[c]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join("");};
   document.getElementById("mnCat").onchange=kindSel;
@@ -2286,6 +2287,7 @@ function render(){
   const p=P.find(x=>x.id===state.tab);
   if(p){ main.innerHTML=product(p); wireProduct(p); }
   else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
+  else if(state.tab==="menu"){ main.innerHTML=menuView(); wireMenu(); listMenu(); }
   else main.innerHTML= state.tab==="rules"? rules() : path();
   renderUserBox();
 }
