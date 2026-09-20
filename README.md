@@ -119,3 +119,12 @@ Sources: see the Spanish section above.
 **EN:** The app on GitHub Pages can save bookings, inventory, sales, etc. to a **Google Sheet** in your Drive, shared across your devices. Follow the 5 steps at the top of `google-apps-script/Code.gs`, then in the app: **AI system → ⚙ Settings → Google Drive**, paste the `/exec` URL and your PIN. Without the PIN nobody can read the data; only new bookings can be added.
 
 ⚠️ Never commit your real PIN to this public repository — change it only in the Apps Script editor.
+
+
+---
+
+## Acceso con usuario y contraseña / Sign-in and roles
+
+**ES:** En GitHub la app pide usuario y contraseña antes de mostrar nada. Los usuarios están en la pestaña **Usuarios** de la hoja “Taste of Peru – datos” (contraseñas guardadas solo como hash). Roles: **admin** (todo, incluidos usuarios y ajustes), **chef** (ve todo; cambia inventario, merma y costo por vaso), **lectura** (ve todo, no cambia nada). El primer administrador se crea desde el menú **Taste of Peru → Crear o cambiar usuario…** de la hoja; los demás, desde la app en **Sistema IA → ⚙ Ajustes → Usuarios**. Los permisos los aplica el servidor (Apps Script), no solo la pantalla.
+
+**EN:** On GitHub the app asks for a username and password before showing anything. Users live in the **Usuarios** tab of the “Taste of Peru – datos” sheet (passwords stored only as hashes). Roles: **admin** (everything, including users and settings), **chef** (sees everything; changes inventory, waste and cost per cup), **lectura** (read only). Create the first administrator from the sheet menu **Taste of Peru → Crear o cambiar usuario…**; the rest from the app under **AI system → ⚙ Settings → Users**. Permissions are enforced by the server (Apps Script), not only by the screen.

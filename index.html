@@ -178,6 +178,16 @@ table.dt th{text-align:left;font:600 12px var(--body);color:var(--muted);padding
 table.dt td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}
 .addstock{margin:14px 0;padding:12px;background:var(--sunk);border-radius:10px}
 .addstock .minih{margin-top:0}
+body.locked .wrap{display:none}
+.loginwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 0}
+.loginCard{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px}
+.loginCard h1{font-family:var(--display);font-weight:400;font-size:30px;margin:0 0 4px}
+.loginCard form{display:flex;flex-direction:column;gap:12px;margin-top:16px;clear:both}
+.loginCard .btn{width:100%;min-height:42px}
+.lgmsg{color:var(--bad);font-size:14px;min-height:1.2em;margin:0}
+.userbox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.userbox b{color:var(--ink)}
+.ro{opacity:.5;cursor:not-allowed}
 .listbox{width:100%;font:14px var(--body);border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:4px}
 .listbox option{padding:6px 8px;border-radius:5px}
 .listbox option:checked{background:var(--accent);color:var(--accent-ink)}
@@ -218,12 +228,14 @@ svg.bars .bar:hover .mark{opacity:.8}
 @keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}
 </style>
 
+<div id="login" class="loginwrap" hidden></div>
 <div class="wrap">
   <header class="top">
     <div class="brand">
       <h1 id="appTitle">Taste of Peru</h1>
       <p id="appSub"></p>
     </div>
+    <div id="userBox" class="userbox" hidden></div>
     <div class="lang" role="group" aria-label="Language">
       <button id="btnEn" type="button" aria-pressed="true">EN</button>
       <button id="btnEs" type="button" aria-pressed="false">ES</button>
@@ -235,6 +247,7 @@ svg.bars .bar:hover .mark{opacity:.8}
 </div>
 
 <script>
+if(!(window.claude&&window.claude.use)) document.body.classList.add("locked");
 const T = (o)=> typeof o==="string" ? o : (o[state.lang] ?? o.en);
 const state = {lang:"en", tab:"quinoa", variant:{}, factor:{}};
 try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(state,{lang:s.lang||"en",tab:s.tab||"quinoa",aiView:s.aiView||"overview"}); }catch(e){}
@@ -742,80 +755,73 @@ async function seedFromRepo(){
   }catch(e){}
 }
 function settingsView(){
-  const hasKey=!!lsGet(LS_KEY);
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Data and AI on this website","Datos e IA en este sitio web"),
-   MODE==="sheet"?tt("Data is saved in your Google Sheet in Google Drive, shared by every device that has the link and PIN.","Los datos se guardan en tu hoja de Google en Google Drive, compartida por todos los dispositivos que tengan el enlace y el PIN."):MODE==="claude"?tt("You're using the app inside Claude: data is saved in Claude and AI uses your Claude account. Nothing to set up here.","Estás usando la app dentro de Claude: los datos se guardan en Claude y la IA usa tu cuenta de Claude. No hay nada que configurar aquí.")
-   :tt("On this website, data is saved in this browser only, on this device. Export a backup often.","En este sitio web los datos se guardan solo en este navegador, en este dispositivo. Exporta un respaldo seguido."))}
-   ${MODE!=="claude"?`<div class="panel" style="margin-bottom:20px"><h3>${tt("Google Drive (Google Sheets database)","Google Drive (base de datos en Google Sheets)")}</h3>
-     <p>${MODE==="sheet"?`<span class="badge ok">${tt("Connected","Conectado")}</span>`:`<span class="badge warn">${tt("Not connected — data stays in this browser","No conectado — los datos quedan en este navegador")}</span>`}</p>
-     <form id="sheetForm" class="fgrid">
-      ${field("sUrl",tt("Apps Script web app URL (ends in /exec)","URL de la app web de Apps Script (termina en /exec)"),`<input id="sUrl" type="url" value="${esc(lsGet(LS_SURL)||"")}" placeholder="https://script.google.com/macros/s/.../exec">`)}
-      ${field("sPin",tt("PIN","PIN"),`<input id="sPin" type="password" autocomplete="off" value="${esc(lsGet(LS_SPIN)||"")}">`)}
-      <button class="btn" type="submit">${tt("Connect","Conectar")}</button>
-      ${MODE==="sheet"?`<button class="btn ghost" type="button" id="sOff">${tt("Disconnect","Desconectar")}</button>`:""}
-     </form>
-     ${MODE==="sheet"&&lsGet(LS_DB)?`<p><button type="button" class="btn ghost" id="sMigrate">${tt("Copy the data saved in this browser to the Google Sheet","Copiar a la hoja de Google los datos guardados en este navegador")}</button></p>`:""}
-     <p class="hint" id="sMsg" aria-live="polite"></p>
-     <p class="hint">${tt("How to create it: see google-apps-script/Code.gs in the GitHub repository (5 steps at the top of the file). The PIN is stored only in this browser.","Cómo crearla: mira google-apps-script/Code.gs en el repositorio de GitHub (5 pasos al inicio del archivo). El PIN se guarda solo en este navegador.")}</p></div>
+  const hasKey=!!lsGet(LS_KEY), admin=MODE!=="sheet"||(SESSION&&SESSION.role==="admin");
+  if(MODE==="claude") return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Data and AI","Datos e IA"),tt("You're using the app inside Claude: data is saved in Claude and AI uses your Claude account. Nothing to set up here.","Estás usando la app dentro de Claude: los datos se guardan en Claude y la IA usa tu cuenta de Claude. No hay nada que configurar aquí."))}</section>`;
+  const me=`<div class="panel" style="margin-bottom:20px"><h3>${tt("My session","Mi sesión")}</h3><p>👤 <b>${esc(SESSION?SESSION.name||SESSION.user:"")}</b> (${esc(SESSION?SESSION.user:"")}) · ${esc(SESSION?roleName(SESSION.role):"")}</p><p class="hint">${tt("Sessions end after 6 hours or when you close this browser tab.","La sesión termina a las 6 horas o al cerrar esta pestaña del navegador.")}</p></div>`;
+  if(!admin) return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Your account","Tu cuenta"),tt("Only administrators can change settings and users.","Solo los administradores pueden cambiar ajustes y usuarios."))}${me}</section>`;
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Users, data and AI","Usuarios, datos e IA"),tt("Data is saved in the Google Sheet “Taste of Peru – datos” in Google Drive. Every user signs in with their own username and password.","Los datos se guardan en la hoja “Taste of Peru – datos” de Google Drive. Cada usuario entra con su propio usuario y contraseña."))}
+   ${me}${usersPanel()}
+   <div class="panel" style="margin-bottom:20px"><h3>${tt("Server","Servidor")}</h3><p class="hint" style="word-break:break-all">${esc(serverUrl())}</p>
+    <form id="sheetForm" class="fgrid">${field("sUrl",tt("New Apps Script web app URL (ends in /exec)","Nueva URL de la app web de Apps Script (termina en /exec)"),`<input id="sUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec">`)}<button class="btn ghost" type="submit">${tt("Change server","Cambiar servidor")}</button></form><p class="hint" id="sMsg" aria-live="polite"></p></div>
    <div class="grid">
     <div class="panel"><h3>${tt("AI (Anthropic API key)","IA (clave de API de Anthropic)")}</h3>
      <p>${hasKey?`<span class="badge ok">${tt("Key saved in this browser","Clave guardada en este navegador")}</span>`:`<span class="badge warn">${tt("No key — AI buttons are off","Sin clave — los botones de IA están apagados")}</span>`}</p>
      <form id="keyForm" class="fgrid">${field("apiKey",tt("API key (starts with sk-ant-)","Clave de API (empieza con sk-ant-)"),`<input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-...">`)}
       <button class="btn" type="submit">${tt("Save key","Guardar clave")}</button>${hasKey?`<button class="btn ghost" type="button" id="keyDel">${tt("Remove key","Quitar clave")}</button><button class="btn ghost" type="button" id="keyTest">${tt("Test","Probar")}</button>`:""}</form>
      <p class="hint" id="keyMsg" aria-live="polite"></p>
-     <p class="hint">${tt("Get a key at console.anthropic.com (paid per use). It is stored only in this browser and sent only to api.anthropic.com — never put it in the GitHub files. Use it only on your own devices; anyone using this browser can use it.","Consigue una clave en console.anthropic.com (se paga por uso). Se guarda solo en este navegador y se envía solo a api.anthropic.com — nunca la pongas en los archivos de GitHub. Úsala solo en tus propios dispositivos; cualquiera que use este navegador puede usarla.")}</p></div>
+     <p class="hint">${tt("Optional and paid per use (console.anthropic.com). Stored only in this browser; never put it in the GitHub files.","Opcional y se paga por uso (console.anthropic.com). Se guarda solo en este navegador; nunca la pongas en los archivos de GitHub.")}</p></div>
     <div class="panel"><h3>${tt("Backup","Respaldo")}</h3>
-     <p>${tt("Download all app data (inventory, bookings, sales, waste, posts, reviews, costs) as one file, or restore it on another device.","Descarga todos los datos de la app (inventario, reservas, ventas, merma, publicaciones, reseñas, costos) en un archivo, o restáuralos en otro dispositivo.")}</p>
+     <p>${tt("Download all app data as one file, or restore it.","Descarga todos los datos de la app en un archivo, o restáuralos.")}</p>
      <div class="acts"><button class="btn" id="expBtn">${tt("Export data","Exportar datos")}</button><label class="btn ghost" for="impFile" style="display:inline-flex;align-items:center">${tt("Import data","Importar datos")}</label><input id="impFile" type="file" accept="application/json,.json" hidden></div>
      <p class="hint" id="bkMsg" aria-live="polite"></p>
      <p class="hint">${tt("Don't upload the backup to a public GitHub repository: it contains customers' names and phone numbers.","No subas el respaldo a un repositorio público de GitHub: contiene nombres y teléfonos de clientes.")}</p></div>
-   </div>`:""}</section>`;
+   </div></section>`;
 }
 function wireSettings(){
-  if(MODE==="claude") return;
+  if(MODE==="claude"||!(SESSION&&SESSION.role==="admin")) return;
+  wireUsers();
   const sm=t=>{document.getElementById("sMsg").textContent=t;};
-  document.getElementById("sheetForm").onsubmit=async e=>{ e.preventDefault(); const u=val("sUrl"), pn=val("sPin");
+  document.getElementById("sheetForm").onsubmit=async e=>{ e.preventDefault(); const u=val("sUrl");
     if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)){ sm(tt("Paste the web app URL from Apps Script (script.google.com/.../exec).","Pega la URL de la app web de Apps Script (script.google.com/.../exec).")); return; }
     sm(tt("Checking…","Comprobando…"));
-    try{ const j=await sheetCall(u,{action:"ping",pin:pn}); if(!j.authed){ sm(tt("The Sheet answered, but the PIN doesn't match (or the PIN in Code.gs was not changed).","La hoja respondió, pero el PIN no coincide (o no cambiaste el PIN en Code.gs).")); return; }
-      lsSet(LS_SURL,u); lsSet(LS_SPIN,pn); location.reload(); }
+    try{ await sheetCall(u,{action:"ping"}); if(!confirm(tt("Switch to this server? You'll need to sign in again.","¿Cambiar a este servidor? Tendrás que volver a iniciar sesión."))) return; lsSet(LS_SURL,u); ssDel(SS_TOK); location.reload(); }
     catch(err){ sm(tt("Could not reach that URL. Check that it was deployed as a Web app with access “Anyone”.","No se pudo conectar con esa URL. Revisa que esté implementada como app web con acceso “Cualquier persona”.")); } };
-  const off=document.getElementById("sOff"); if(off) off.onclick=()=>{ lsDel(LS_SURL); lsDel(LS_SPIN); location.reload(); };
-  const mig=document.getElementById("sMigrate"); if(mig) mig.onclick=async()=>{ let o={}; try{o=JSON.parse(lsGet(LS_DB)||"{}");}catch(e){} const n=Object.keys(o).length; if(!n){sm(tt("Nothing to copy.","Nada que copiar."));return;} if(!confirm(tt(`Copy ${n} records to the Google Sheet?`,`¿Copiar ${n} registros a la hoja de Google?`))) return; sm(tt("Copying…","Copiando…")); try{ await DB._load(o); sm(tt(`${n} records copied.`,`${n} registros copiados.`)); }catch(e){ sm(tt("Copy stopped with an error. Try again.","La copia se detuvo con un error. Inténtalo de nuevo.")); } };
   const msg=t=>{document.getElementById("keyMsg").textContent=t;};
   document.getElementById("keyForm").onsubmit=e=>{e.preventDefault(); const k=val("apiKey"); if(!/^sk-ant-/.test(k)){msg(tt("That doesn't look like an Anthropic key.","Eso no parece una clave de Anthropic."));return;} lsSet(LS_KEY,k); MODELS=null; SAMPLE=makeApiSample(); render();};
   const del=document.getElementById("keyDel"); if(del) del.onclick=()=>{lsDel(LS_KEY); SAMPLE=null; MODELS=null; render();};
   const test=document.getElementById("keyTest"); if(test) test.onclick=async()=>{msg(tt("Testing…","Probando…")); try{await SAMPLE("Reply with the single word OK.",{modelTier:"quick"}); msg(tt("The key works.","La clave funciona."));}catch(e){msg(aiErr(e));}};
   document.getElementById("expBtn").onclick=async()=>{ if(await saveFile("taste-of-peru-backup-"+today()+".json",JSON.stringify({app:"taste-of-peru",exported:new Date().toISOString(),data:await DB._dump()},null,2))) document.getElementById("bkMsg").textContent=tt("Backup downloaded.","Respaldo descargado."); };
-  document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object") throw 0; if(!confirm(tt("Replace all data in this browser with this backup?","¿Reemplazar todos los datos de este navegador con este respaldo?"))) return; await DB._load(j.data); document.getElementById("bkMsg").textContent=tt("Data restored.","Datos restaurados."); }catch(err){ document.getElementById("bkMsg").textContent=tt("That file is not a valid backup.","Ese archivo no es un respaldo válido."); } };
+  document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object") throw 0; if(!confirm(tt("Copy all records from this backup into the Google Sheet?","¿Copiar todos los registros de este respaldo a la hoja de Google?"))) return; await DB._load(j.data); document.getElementById("bkMsg").textContent=tt("Data restored.","Datos restaurados."); }catch(err){ document.getElementById("bkMsg").textContent=tt("That file is not a valid backup.","Ese archivo no es un respaldo válido."); } };
 }
+
 
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
 const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","settings"];
 async function sheetCall(url,body){
+  if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
   let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"}); }
   catch(e){ throw {code:"unavailable",message:String(e)}; }
   if(!r.ok) throw {code:"unavailable",message:"HTTP "+r.status};
   let j; try{ j=await r.json(); }catch(e){ throw {code:"unavailable",message:"not json"}; }
-  if(!j.ok) throw {code:j.error==="pin"?"pin":"invalid_argument",message:j.error};
+  if(!j.ok){ if(j.error==="auth") onAuthLost(); throw {code:j.error==="bad_request"?"invalid_argument":j.error,message:j.message||j.error}; }
   return j;
 }
-function makeSheetDB(url,pin){
+function makeSheetDB(url){
   const cache={}, loaded={}, subs={}, rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   const notify=col=>setTimeout(()=>(subs[col]||new Set()).forEach(f=>f()),0);
   const snap=(col,id)=>({id,exists:!!(cache[col]&&cache[col][id]),data:()=>cache[col]&&cache[col][id]?JSON.parse(JSON.stringify(cache[col][id])):undefined,metadata:{fromCache:false,hasPendingWrites:false}});
-  let pinWarned=false;
   async function load(col){
-    try{ const j=await sheetCall(url,{action:"list",col,pin}); const m={}; j.docs.forEach(d=>{m[d.id]=d.data;}); cache[col]=m; loaded[col]=true; notify(col); }
-    catch(e){ if(e.code==="pin"&&!pinWarned){pinWarned=true;toast(tt("Wrong PIN for the Google Sheet. Check ⚙ Settings.","PIN incorrecto para la hoja de Google. Revisa ⚙ Ajustes."));} else if(e.code!=="pin") toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora.")); }
+    try{ const j=await sheetCall(url,{action:"list",col}); const m={}; j.docs.forEach(d=>{m[d.id]=d.data;}); cache[col]=m; loaded[col]=true; notify(col); }
+    catch(e){ if(e.code!=="auth") toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora.")); }
   }
-  async function write(col,id,data){ try{ await sheetCall(url,{action:"set",col,id,data,pin}); }catch(e){ toast(e.code==="pin"?tt("Wrong PIN — not saved to the Google Sheet.","PIN incorrecto — no se guardó en la hoja de Google."):tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo.")); await load(col); throw e; } }
+  const denied=()=>toast(tt("Your role can't make this change.","Tu rol no permite este cambio."));
+  async function write(col,id,data){ if(!canWrite(col)){ denied(); await load(col); throw {code:"forbidden"}; } try{ await sheetCall(url,{action:"set",col,id,data}); }catch(e){ if(e.code==="forbidden") denied(); else if(e.code!=="auth") toast(tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo.")); await load(col); throw e; } }
   function docRef(path){ const [col,id]=path.split("/"); return {id,path,
     async get(){ if(!loaded[col]) await load(col); return snap(col,id); },
     async set(d){ (cache[col] ||= {})[id]=JSON.parse(JSON.stringify(d)); notify(col); await write(col,id,cache[col][id]); },
     async update(d){ if(!(cache[col]&&cache[col][id])) throw {code:"invalid_argument"}; Object.assign(cache[col][id],JSON.parse(JSON.stringify(d))); notify(col); await write(col,id,cache[col][id]); },
-    async delete(){ if(cache[col]) delete cache[col][id]; notify(col); try{ await sheetCall(url,{action:"delete",col,id,pin}); }catch(e){ toast(tt("Not deleted in the Google Sheet.","No se borró en la hoja de Google.")); await load(col); } },
+    async delete(){ if(!canWrite(col)){ denied(); return; } if(cache[col]) delete cache[col][id]; notify(col); try{ await sheetCall(url,{action:"delete",col,id}); }catch(e){ if(e.code==="forbidden") denied(); else if(e.code!=="auth") toast(tt("Not deleted in the Google Sheet.","No se borró en la hoja de Google.")); await load(col); } },
     onSnapshot(next){ const f=()=>next(snap(col,id)); (subs[col] ||= new Set()).add(f); if(!loaded[col]) load(col); else setTimeout(f,0); return ()=>subs[col].delete(f); } }; }
   function colRef(col){ return {path:col,
     doc(id){ return docRef(col+"/"+(id||rid())); },
@@ -825,8 +831,141 @@ function makeSheetDB(url,pin){
   setInterval(()=>{ if(document.visibilityState==="visible") Object.keys(subs).forEach(c=>{ if(subs[c].size) load(c); }); },30000);
   return {collection:colRef,doc:docRef,
     _dump:async()=>{ for(const c of SHEET_COLS) if(!loaded[c]) await load(c); const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
-    _load:async obj=>{ for(const [k,d] of Object.entries(obj||{})){ const [c,id]=k.split("/"); if(SHEET_COLS.includes(c)&&id){ (cache[c] ||= {})[id]=d; await sheetCall(url,{action:"set",col:c,id,data:d,pin}); } } SHEET_COLS.forEach(notify); },
+    _load:async obj=>{ for(const [k,d] of Object.entries(obj||{})){ const [c,id]=k.split("/"); if(SHEET_COLS.includes(c)&&id){ (cache[c] ||= {})[id]=d; await sheetCall(url,{action:"set",col:c,id,data:d}); } } SHEET_COLS.forEach(notify); },
     _empty:()=>false };
+}
+
+
+/* ===== Login + roles (website mode, backed by the Apps Script in google-apps-script/Code.gs) ===== */
+const DEFAULT_SERVER_URL = ""; // optional: paste the /exec URL here so new devices don't have to type it
+const SS_TOK = "top-token";
+let SESSION = null;
+function ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
+function ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
+function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
+function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
+const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],lectura:["Read only","Solo lectura"]};
+const roleName=r=>ROLE_LABEL[r]?tt(ROLE_LABEL[r][0],ROLE_LABEL[r][1]):r;
+function onAuthLost(){
+  if(!SESSION) return;
+  SESSION=null; ssDel(SS_TOK); ssSet("top-expired","1"); location.reload();
+}
+function renderUserBox(){
+  const el=document.getElementById("userBox"); if(!el) return;
+  if(MODE!=="sheet"||!SESSION){ el.hidden=true; return; }
+  el.hidden=false;
+  el.innerHTML=`<span class="who">👤 ${esc(SESSION.name||SESSION.user)} · <b>${esc(roleName(SESSION.role))}</b></span><button type="button" class="btn sm ghost" id="logoutBtn">${tt("Sign out","Cerrar sesión")}</button>`;
+  document.getElementById("logoutBtn").onclick=async()=>{ const t=SESSION&&SESSION.token; SESSION=null; ssDel(SS_TOK); try{ await sheetCall(serverUrl(),{action:"logout",token:t}); }catch(e){} location.reload(); };
+}
+function showLogin(msg){
+  document.body.classList.add("locked");
+  const box=document.getElementById("login"); box.hidden=false;
+  const needUrl=!serverUrl();
+  box.innerHTML=`<div class="loginCard" role="dialog" aria-labelledby="loginTitle">
+    <div class="lang" role="group" aria-label="Language" style="float:right"><button type="button" data-lang="en" aria-pressed="${state.lang==="en"}">EN</button><button type="button" data-lang="es" aria-pressed="${state.lang==="es"}">ES</button></div>
+    <h1 id="loginTitle">Taste of Peru</h1>
+    <p class="dimtxt">${tt("Sign in to continue","Inicia sesión para continuar")}</p>
+    <form id="loginForm">
+      <div class="f" ${needUrl?"":"hidden"} id="urlRow"><label for="lgUrl">${tt("Server URL (Apps Script, ends in /exec) — only the first time","URL del servidor (Apps Script, termina en /exec) — solo la primera vez")}</label><input id="lgUrl" type="url" value="${esc(serverUrl())}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <div class="f"><label for="lgUser">${tt("Username","Usuario")}</label><input id="lgUser" autocomplete="username" autocapitalize="none" required></div>
+      <div class="f"><label for="lgPass">${tt("Password","Contraseña")}</label><input id="lgPass" type="password" autocomplete="current-password" required></div>
+      <button class="btn" type="submit" id="lgBtn">${tt("Sign in","Entrar")}</button>
+      <p class="lgmsg" id="lgMsg" role="alert">${msg?esc(msg):""}</p>
+      ${needUrl?"":`<p class="hint"><button type="button" class="linkbtn" id="lgChangeUrl">${tt("Change server","Cambiar servidor")}</button></p>`}
+    </form></div>`;
+  box.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;save();showLogin(msg);});
+  const cu=document.getElementById("lgChangeUrl"); if(cu) cu.onclick=()=>{document.getElementById("urlRow").hidden=false;cu.parentElement.hidden=true;};
+  document.getElementById(needUrl?"lgUrl":"lgUser").focus();
+  document.getElementById("loginForm").onsubmit=async e=>{
+    e.preventDefault();
+    const m=t=>{document.getElementById("lgMsg").textContent=t;}, btn=document.getElementById("lgBtn");
+    const url=(document.getElementById("lgUrl").value||"").trim();
+    if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){ m(tt("Paste the Apps Script web app URL (script.google.com/.../exec).","Pega la URL de la app web de Apps Script (script.google.com/.../exec).")); document.getElementById("urlRow").hidden=false; return; }
+    btn.disabled=true; m(tt("Checking…","Comprobando…"));
+    try{
+      const j=await sheetCall(url,{action:"login",user:val("lgUser"),password:document.getElementById("lgPass").value});
+      lsSet(LS_SURL,url); ssSet(SS_TOK,j.token);
+      SESSION={token:j.token,user:j.user,name:j.name,role:j.role};
+      startSheet(url);
+    }catch(err){
+      btn.disabled=false; document.getElementById("lgPass").value="";
+      if(err.code==="bad_login") m(tt("Wrong username or password.","Usuario o contraseña incorrectos."));
+      else if(err.code==="locked") m(tt("Too many attempts. Wait 15 minutes and try again.","Demasiados intentos. Espera 15 minutos e inténtalo de nuevo."));
+      else { m(tt("Can't reach the server. Check the URL and that the script is deployed as a Web app with access “Anyone”.","No se puede conectar con el servidor. Revisa la URL y que el script esté implementado como app web con acceso “Cualquier persona”.")); document.getElementById("urlRow").hidden=false; }
+    }
+  };
+}
+function startData(){
+  ["inventory","waste","reservations","sales","posts","reviews"].forEach(subscribe);
+  DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+}
+function startSheet(url){
+  MODE="sheet"; DB=makeSheetDB(url); if(lsGet(LS_KEY)) SAMPLE=makeApiSample();
+  capsReady=true; startData();
+  document.getElementById("login").hidden=true; document.body.classList.remove("locked");
+  renderUserBox(); render();
+}
+async function startAuth(){
+  const url=serverUrl(), tok=ssGet(SS_TOK);
+  if(url&&tok){
+    try{ const j=await sheetCall(url,{action:"me",token:tok}); SESSION={token:tok,user:j.user,name:j.name,role:j.role}; startSheet(url); return; }
+    catch(e){ ssDel(SS_TOK); }
+  }
+  const expired=ssGet("top-expired"); ssDel("top-expired");
+  showLogin(expired?tt("Your session ended. Sign in again.","Tu sesión terminó. Vuelve a iniciar sesión."):"");
+}
+// ----- what each role may change -----
+function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||(r==="chef"&&["inventory","waste","settings"].includes(col)); }
+const READ_OK='[data-aiview],[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,#resCsv,#resJson,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+function applyRoleUI(){
+  if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
+  const v=state.aiView, chef=SESSION.role==="chef";
+  if(v==="settings"||v==="overview") return;
+  if(chef&&v==="m2") return;
+  main.querySelectorAll("section input,section select,section textarea,section button,section .linkbtn").forEach(el=>{
+    if(el.matches(READ_OK)) return;
+    if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin")) return;
+    el.disabled=true; el.classList.add("ro"); el.title=tt("Your role can't change this","Tu rol no puede cambiar esto");
+  });
+  if(!main.querySelector(".roNote")){
+    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${chef?tt("Chef: you can view this module; you can change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Sales”.","Chef: puedes ver este módulo; puedes cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Ventas”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
+  }
+}
+// ----- admin: users -----
+function usersPanel(){
+  return `<div class="panel" style="margin-bottom:20px"><h3>${tt("Users","Usuarios")}</h3>
+   <div id="usrList"><p class="empty">${tt("Loading…","Cargando…")}</p></div>
+   <h4 class="minih">${tt("Create or update a user","Crear o actualizar usuario")}</h4>
+   <form id="usrForm" class="fgrid">
+    ${field("uUser",tt("Username","Usuario"),`<input id="uUser" required autocapitalize="none" pattern="[A-Za-z0-9._-]{3,40}">`)}
+    ${field("uName",tt("Full name","Nombre"),`<input id="uName">`)}
+    ${field("uRole",tt("Role","Rol"),`<select id="uRole"><option value="lectura">${roleName("lectura")}</option><option value="chef">${roleName("chef")}</option><option value="admin">${roleName("admin")}</option></select>`)}
+    ${field("uPass",tt("Password (min. 8; blank = keep)","Contraseña (mín. 8; vacía = no cambiar)"),`<input id="uPass" type="password" autocomplete="new-password" minlength="8">`)}
+    <label class="chk"><input type="checkbox" id="uActive" checked> ${tt("Active","Activo")}</label>
+    <button class="btn" type="submit">${tt("Save user","Guardar usuario")}</button>
+   </form><p class="hint" id="usrMsg" aria-live="polite"></p>
+   <p class="hint">${tt("Administrator: everything. Chef: sees everything; changes inventory, waste and cost per cup. Read only: sees everything, changes nothing.","Administrador: todo. Chef: ve todo; cambia inventario, merma y costo por vaso. Solo lectura: ve todo, no cambia nada.")}</p></div>`;
+}
+async function loadUsers(){
+  const el=document.getElementById("usrList"); if(!el) return;
+  try{ const j=await sheetCall(serverUrl(),{action:"users_list"});
+    el.innerHTML=j.users.length?`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Username","Usuario")}</th><th>${tt("Name","Nombre")}</th><th>${tt("Role","Rol")}</th><th>${tt("Status","Estado")}</th><th>${tt("Last sign-in","Último acceso")}</th><th></th></tr></thead><tbody>${j.users.map(u=>`<tr><td>${esc(u.user)}</td><td>${esc(u.name)}</td><td>${esc(roleName(u.role))}</td><td><span class="badge ${u.active?"ok":"bad"}">${u.active?tt("Active","Activo"):tt("Inactive","Inactivo")}</span></td><td>${esc(u.last)}</td><td class="nw"><button class="btn sm ghost" data-uedit="${esc(u.user)}">${tt("Edit","Editar")}</button> <button class="btn sm ghost" data-udel="${esc(u.user)}" aria-label="${tt("Delete","Borrar")} ${esc(u.user)}">✕</button></td></tr>`).join("")}</tbody></table></div>`:`<p class="empty">${tt("No users.","No hay usuarios.")}</p>`;
+    el.onclick=async e=>{ const ed=e.target.closest("[data-uedit]"), dl=e.target.closest("[data-udel]");
+      if(ed){ const u=j.users.find(x=>x.user===ed.dataset.uedit); document.getElementById("uUser").value=u.user; document.getElementById("uName").value=u.name; document.getElementById("uRole").value=u.role; document.getElementById("uActive").checked=u.active; document.getElementById("uPass").value=""; document.getElementById("uPass").focus(); }
+      if(dl){ if(!confirm(tt(`Delete user ${dl.dataset.udel}?`,`¿Borrar el usuario ${dl.dataset.udel}?`))) return; try{ await sheetCall(serverUrl(),{action:"users_delete",user:dl.dataset.udel}); loadUsers(); }catch(err){ document.getElementById("usrMsg").textContent=userErr(err); } } };
+  }catch(err){ el.innerHTML=`<p class="empty">${esc(userErr(err))}</p>`; }
+}
+function userErr(e){ const c=e&&e.code;
+  return c==="last_admin"?tt("There must always be at least one active administrator.","Siempre debe haber al menos un administrador activo."):c==="self"?tt("You can't delete your own user.","No puedes borrar tu propio usuario."):c==="forbidden"?tt("Only administrators can manage users.","Solo los administradores pueden gestionar usuarios."):(e&&e.message&&c==="invalid_argument"?e.message:tt("Could not save. Try again.","No se pudo guardar. Inténtalo de nuevo.")); }
+function wireUsers(){
+  const f=document.getElementById("usrForm"); if(!f) return;
+  loadUsers();
+  f.onsubmit=async e=>{ e.preventDefault(); const msg=t=>{document.getElementById("usrMsg").textContent=t;};
+    const pw=document.getElementById("uPass").value;
+    if(pw&&pw.length<8){ msg(tt("Password: at least 8 characters.","Contraseña: al menos 8 caracteres.")); return; }
+    try{ await sheetCall(serverUrl(),{action:"users_save",user:val("uUser"),name:val("uName"),role:val("uRole"),active:document.getElementById("uActive").checked,password:pw});
+      msg(tt("User saved.","Usuario guardado.")); f.reset(); document.getElementById("uActive").checked=true; loadUsers();
+    }catch(err){ msg(userErr(err)); } };
 }
 
 (async()=>{
@@ -837,14 +976,10 @@ function makeSheetDB(url,pin){
     try{DB=await use("db");}catch(e){DB=null;}
     try{DL=await use("downloads");}catch(e){DL=null;}
   }
-  if(!DB){ const su=lsGet(LS_SURL), sp=lsGet(LS_SPIN);
-    if(su&&sp){ MODE="sheet"; DB=makeSheetDB(su,sp); } else { MODE="local"; DB=makeLocalDB(); if(DB._empty()) await seedFromRepo(); }
-    if(lsGet(LS_KEY)) SAMPLE=makeApiSample(); }
+  if(!DB){ MODE="sheet"; await startAuth(); return; } // website: login required
+  document.body.classList.remove("locked");
   capsReady=true;
-  if(DB){
-    ["inventory","waste","reservations","sales","posts","reviews"].forEach(subscribe);
-    DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
-  }
+  startData();
   if(state.tab==="ai") render(); else refreshAI();
 })();
 
@@ -886,7 +1021,7 @@ const MODS=[
 function aiSys(){
   const v=state.aiView;
   const banner = !capsReady ? `<p class="capnote">${tt("Connecting to data and AI…","Conectando con datos e IA…")}</p>`
-    : MODE!=="claude" ? `<p class="capnote ${SAMPLE?"":"warnnote"}">${MODE==="sheet"?tt("Data is saved in your Google Sheet (Google Drive).","Los datos se guardan en tu hoja de Google (Google Drive)."):tt("Data is saved in this browser only —","Los datos se guardan solo en este navegador —")+` <button type="button" class="linkbtn" data-aiview="settings">${tt("connect Google Drive","conectar Google Drive")}</button>.`} ${SAMPLE?tt("AI is on (your API key).","IA activa (tu clave de API)."):tt("AI is off — add your API key in","IA apagada — agrega tu clave de API en")+` <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("Settings","Ajustes")}</button>.`}</p>`
+    : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
   let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():aiOverview();
@@ -898,11 +1033,13 @@ function wireAI(){
   if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
+  applyRoleUI();
 }
 function refreshAI(){
   if(state.tab!=="ai") return;
   const v=state.aiView;
   if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5();
+  applyRoleUI();
 }
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
 const field=(id,label,input)=>`<div class="f"><label for="${id}">${label}</label>${input}</div>`;
@@ -1584,6 +1721,7 @@ function render(){
   if(p){ main.innerHTML=product(p); wireProduct(p); }
   else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
   else main.innerHTML= state.tab==="rules"? rules() : path();
+  renderUserBox();
 }
 document.getElementById("btnEn").onclick=()=>{state.lang="en";save();render();};
 document.getElementById("btnEs").onclick=()=>{state.lang="es";save();render();};

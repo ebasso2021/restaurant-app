@@ -1,23 +1,21 @@
 /**
- * Taste of Peru — Google Sheets database for the app on GitHub Pages.
- * Works with the spreadsheet "Taste of Peru – datos" (tabs: Resumen, Reservas, Clientes,
- * Inventario, Stock, Compras, Proveedores, Recetas, Productos, Ventas detalle, Mermas, …).
+ * Taste of Peru — Google Sheets database + user login for the app on GitHub Pages.
+ * Works with the spreadsheet "Taste of Peru – datos".
  *
  * Setup (one time):
- *  1. Open the spreadsheet "Taste of Peru – datos" → Extensions → Apps Script.
- *  2. Delete the sample code, paste this whole file, Save.
- *  3. Change PIN below to your own secret PIN (at least 6 characters). Save.
- *  4. In the toolbar choose the function  instalarFormulas  → Run → authorize with your Google
- *     account. This writes the formulas of Resumen, Clientes, Stock, Compras and Recetas.
- *  5. Deploy → New deployment → type "Web app".  Execute as: Me   Who has access: Anyone
- *     Deploy → copy the "Web app URL" (ends in /exec).
- *  6. In the app on GitHub: AI system → ⚙ Settings → Google Drive → paste the URL and the PIN.
+ *  1. Open "Taste of Peru – datos" → Extensions → Apps Script. Paste this whole file, Save.
+ *  2. Choose the function  instalarFormulas  → Run → authorize (writes the sheet formulas).
+ *  3. Reload the spreadsheet. A new menu "Taste of Peru" appears → "Crear o cambiar usuario…"
+ *     → create your first user with role  admin.  (This also creates the tabs Usuarios and Roles.)
+ *  4. Deploy → New deployment → Web app.  Execute as: Me   Who has access: Anyone → Deploy.
+ *     After changing this code later: Deploy → Manage deployments → ✏ → Version: New version → Deploy.
+ *  5. Open the app on GitHub, paste the Web app URL (ends in /exec) the first time, and log in.
  *
- * Security: reading or changing data needs the PIN. Without the PIN the only thing allowed is
- * adding a NEW booking (so customers can book). Never share the PIN and never put it on GitHub.
+ * Roles:  admin   = everything, including users and settings
+ *         chef    = reads everything; changes Inventario, Mermas and costs (Config) = kitchen parameters
+ *         lectura = reads everything, changes nothing
+ * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
  */
-const PIN = "232323";
-
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
                  posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)" };
@@ -35,6 +33,94 @@ const BOOL = ["replied"];
 const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
 
+/* ---------------- users, roles and sessions ---------------- */
+const ROLES = {
+  admin:   { label: "Administrador", write: "*" },
+  chef:    { label: "Chef", write: ["inventory", "waste", "settings"] },
+  lectura: { label: "Solo lectura", write: [] }
+};
+const SESSION_SECONDS = 21600; // 6 h
+function usersSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName("Usuarios");
+  if (!sh) {
+    sh = ss.insertSheet("Usuarios");
+    sh.getRange(1, 1, 1, 7).setValues([["Usuario", "Nombre", "Rol", "Activo", "Último acceso", "hash", "sal"]]);
+    sh.setFrozenRows(1); sh.hideColumns(6, 2);
+    sh.getRange("A1:G1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
+    const rule = SpreadsheetApp.newDataValidation().requireValueInList(Object.keys(ROLES), true).build();
+    sh.getRange("C2:C200").setDataValidation(rule);
+  }
+  if (!ss.getSheetByName("Roles")) {
+    const r = ss.insertSheet("Roles");
+    r.getRange(1, 1, 4, 3).setValues([
+      ["Rol", "Nombre", "Permisos / Permissions"],
+      ["admin", "Administrador", "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings."],
+      ["chef", "Chef", "Ve todo. Cambia parámetros de cocina: Inventario (stock, alerta, cantidad máxima, costo), Mermas y costo por vaso. / Sees everything. Changes kitchen parameters: inventory, waste and cost per cup."],
+      ["lectura", "Solo lectura", "Ve todo, no cambia nada. / Sees everything, changes nothing."]
+    ]);
+    r.getRange("A1:C1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
+    r.setColumnWidth(3, 620);
+  }
+  return sh;
+}
+function hash_(password, salt) {
+  let h = salt + "|" + password;
+  for (let i = 0; i < 300; i++) h = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h, Utilities.Charset.UTF_8));
+  return h;
+}
+function findUser_(sh, user) {
+  const n = sh.getLastRow(); if (n < 2) return -1;
+  const u = String(user || "").trim().toLowerCase(); if (!u) return -1;
+  const vals = sh.getRange(2, 1, n - 1, 1).getDisplayValues();
+  for (let i = 0; i < vals.length; i++) if (String(vals[i][0]).trim().toLowerCase() === u) return i + 2;
+  return -1;
+}
+function saveUser_(user, name, role, active, password) {
+  user = String(user || "").trim().toLowerCase();
+  if (!/^[a-z0-9._-]{3,40}$/.test(user)) throw new Error("usuario inválido (3-40: letras, números, . _ -)");
+  if (!ROLES[role]) throw new Error("rol inválido");
+  const sh = usersSheet_(); let r = findUser_(sh, user);
+  if (r < 0 && !password) throw new Error("falta la contraseña");
+  if (password && String(password).length < 8) throw new Error("la contraseña debe tener al menos 8 caracteres");
+  if (r < 0) r = sh.getLastRow() + 1;
+  const row = sh.getRange(r, 1, 1, 7).getValues()[0];
+  row[0] = user; row[1] = String(name || user).slice(0, 80); row[2] = role; row[3] = active !== false;
+  if (password) { row[6] = Utilities.getUuid(); row[5] = hash_(String(password), row[6]); }
+  sh.getRange(r, 1, 1, 7).setValues([row]);
+}
+function adminCount_(sh, exceptRow) {
+  const n = sh.getLastRow(); if (n < 2) return 0;
+  return sh.getRange(2, 1, n - 1, 4).getValues().filter(function (v, i) { return i + 2 !== exceptRow && v[2] === "admin" && v[3] !== false; }).length;
+}
+function session_(token) {
+  if (!token) return null;
+  const v = CacheService.getScriptCache().get("s_" + token);
+  return v ? JSON.parse(v) : null;
+}
+function canWrite_(s, col) {
+  if (!s || !ROLES[s.role]) return false;
+  const w = ROLES[s.role].write;
+  return w === "*" || w.indexOf(col) >= 0;
+}
+function login_(user, password) {
+  const cache = CacheService.getScriptCache(), key = "f_" + String(user || "").toLowerCase();
+  const fails = Number(cache.get(key) || 0);
+  if (fails >= 5) return { ok: false, error: "locked" };
+  const sh = usersSheet_(), r = findUser_(sh, user);
+  const row = r > 0 ? sh.getRange(r, 1, 1, 7).getValues()[0] : null;
+  if (!row || row[3] === false || !row[5] || hash_(String(password || ""), String(row[6])) !== row[5]) {
+    cache.put(key, String(fails + 1), 900);
+    return { ok: false, error: "bad_login" };
+  }
+  cache.remove(key);
+  const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, "");
+  const s = { user: row[0], name: row[1], role: row[2] };
+  cache.put("s_" + token, JSON.stringify(s), SESSION_SECONDS);
+  sh.getRange(r, 5).setValue(new Date());
+  return { ok: true, token: token, user: s.user, name: s.name, role: s.role, roleLabel: ROLES[s.role].label };
+}
+
 /* ---------------- web app ---------------- */
 function doGet(e) { return handle_((e && e.parameter) || {}); }
 function doPost(e) {
@@ -47,30 +133,54 @@ function handle_(req) {
   lock.waitLock(20000);
   try {
     const action = String(req.action || ""), col = String(req.col || "");
-    const authed = PIN !== "CHANGE-ME-123456" && String(req.pin || "") === PIN;
-    if (action === "ping") return out_({ ok: true, authed: authed });
+    if (action === "ping") return out_({ ok: true, hasUsers: usersSheet_().getLastRow() >= 2 });
+    if (action === "login") return out_(login_(req.user, req.password));
+    const s = session_(req.token);
+    if (action === "logout") { if (req.token) CacheService.getScriptCache().remove("s_" + req.token); return out_({ ok: true }); }
+    if (action === "me") return s ? out_({ ok: true, user: s.user, name: s.name, role: s.role, roleLabel: ROLES[s.role].label }) : out_({ ok: false, error: "auth" });
+
+    // user management (admin only)
+    if (action.indexOf("users_") === 0) {
+      if (!s) return out_({ ok: false, error: "auth" });
+      if (s.role !== "admin") return out_({ ok: false, error: "forbidden" });
+      const sh = usersSheet_();
+      if (action === "users_list") {
+        const n = sh.getLastRow(); if (n < 2) return out_({ ok: true, users: [] });
+        return out_({ ok: true, users: sh.getRange(2, 1, n - 1, 5).getValues().filter(function (v) { return v[0]; }).map(function (v) {
+          return { user: String(v[0]), name: String(v[1]), role: String(v[2]), active: v[3] !== false, last: v[4] ? toDateStr_(v[4]) : "" }; }) });
+      }
+      if (action === "users_save") {
+        const r = findUser_(sh, req.user);
+        if (r > 0 && (req.role !== "admin" || req.active === false) && sh.getRange(r, 3).getValue() === "admin" && adminCount_(sh, r) === 0)
+          return out_({ ok: false, error: "last_admin" });
+        try { saveUser_(req.user, req.name, req.role, req.active, req.password); } catch (err) { return out_({ ok: false, error: "bad_request", message: err.message }); }
+        return out_({ ok: true });
+      }
+      if (action === "users_delete") {
+        const r = findUser_(sh, req.user); if (r < 0) return out_({ ok: true });
+        if (String(req.user).toLowerCase() === s.user) return out_({ ok: false, error: "self" });
+        if (sh.getRange(r, 3).getValue() === "admin" && adminCount_(sh, r) === 0) return out_({ ok: false, error: "last_admin" });
+        sh.deleteRow(r); return out_({ ok: true });
+      }
+      return out_({ ok: false, error: "bad_action" });
+    }
+
     if (!SHEETS[col]) return out_({ ok: false, error: "bad_collection" });
     if (action === "list") {
-      if (!authed) return out_({ ok: false, error: "pin" });
+      if (!s) return out_({ ok: false, error: "auth" });
       return out_({ ok: true, docs: list_(col) });
     }
     if (action === "set") {
       const id = String(req.id || "");
       if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null) return out_({ ok: false, error: "bad_request" });
-      if (!authed) {
-        if (col !== "reservations" || rowOf_(sheet_(col), id) > 0) return out_({ ok: false, error: "pin" });
-        const d = req.data, clean = {};
-        ["name", "contact", "date", "time", "notes"].forEach(function (k) { if (d[k] != null) clean[k] = String(d[k]).slice(0, 300); });
-        clean.party = Math.max(1, Math.min(50, Number(d.party) || 1));
-        clean.status = "pending"; clean.created = new Date().toISOString();
-        write_(col, id, clean);
-        return out_({ ok: true });
-      }
+      if (!s) return out_({ ok: false, error: "auth" });
+      if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
       write_(col, id, req.data);
       return out_({ ok: true });
     }
     if (action === "delete") {
-      if (!authed) return out_({ ok: false, error: "pin" });
+      if (!s) return out_({ ok: false, error: "auth" });
+      if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
       const sh = sheet_(col), id = String(req.id || ""), r = rowOf_(sh, id);
       if (r > 0) sh.deleteRow(r);
       if (col === "sales") salesDetail_(id, null);
@@ -80,6 +190,26 @@ function handle_(req) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ---------------- spreadsheet menu: create the first admin and manage users ---------------- */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu("Taste of Peru")
+    .addItem("Crear o cambiar usuario…", "menuUsuario")
+    .addItem("Instalar fórmulas", "instalarFormulas")
+    .addToUi();
+}
+function menuUsuario() {
+  const ui = SpreadsheetApp.getUi(); usersSheet_();
+  const ask = function (q) { const r = ui.prompt("Taste of Peru", q, ui.ButtonSet.OK_CANCEL); if (r.getSelectedButton() !== ui.Button.OK) throw new Error("cancel"); return r.getResponseText().trim(); };
+  try {
+    const user = ask("Usuario (3-40 letras/números, sin espacios) / Username:");
+    const name = ask("Nombre completo / Full name:");
+    const role = ask("Rol / Role:  admin, chef  o  lectura").toLowerCase();
+    const pw = ask("Contraseña (mínimo 8 caracteres). Déjala vacía para no cambiarla. / Password (min 8), blank = keep:");
+    saveUser_(user, name, role, true, pw);
+    ui.alert("Usuario guardado / User saved: " + user.toLowerCase() + " (" + role + ")");
+  } catch (err) { if (err.message !== "cancel") ui.alert("Error: " + err.message); }
 }
 
 /* ---------------- storage ---------------- */
