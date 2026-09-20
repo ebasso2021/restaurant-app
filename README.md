@@ -108,3 +108,17 @@ In the app's database on claude.ai (not on your computer). Shared with anyone wh
 | Up to 40% lower cost per lead | **Unverified.** |
 
 Sources: see the Spanish section above.
+
+---
+
+## GitHub → Google Drive
+
+Every `git push` to `main` runs `.github/workflows/sync-to-drive.yml`, which copies the repository files into a Google Drive folder named `restaurant-app` (it never deletes files there). One-time setup:
+
+1. Install rclone on Windows: `winget install Rclone.Rclone`
+2. Run `rclone config` → `n` (new remote) → name: `gdrive` → storage: `drive` → client_id/secret: leave empty → scope: `drive.file` → accept the defaults → log in with Google in the browser window → confirm.
+3. Run `rclone config show gdrive` and copy everything it prints (starts with `[gdrive]`).
+4. GitHub → repo **Settings → Secrets and variables → Actions → New repository secret** → Name: `RCLONE_CONF` → paste → **Add secret**.
+5. Push, or run it by hand from **Actions → Sync to Google Drive → Run workflow**.
+
+The secret gives access only to files rclone creates in your Drive (`drive.file` scope). Never paste it into a file in the repository.
