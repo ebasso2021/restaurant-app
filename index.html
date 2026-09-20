@@ -27,6 +27,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15p
 header.top{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px;padding-block:28px 16px}
 .brand h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,4vw,38px);line-height:1.1;margin:0;text-wrap:balance}
 .brand p{margin:6px 0 0;color:var(--muted);max-width:60ch}
+.curbox{display:inline-flex;align-items:center;gap:4px}
+.curbox select{font:600 13px var(--body);padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink)}
 .lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
 .lang button{border:0;background:transparent;color:var(--muted);font:600 13px var(--body);padding:6px 14px;border-radius:999px;cursor:pointer;letter-spacing:.04em}
 .lang button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -131,6 +133,8 @@ h3.sec{font-family:var(--display);font-weight:400;font-size:22px;margin:26px 0 1
 .recipenav button{display:inline-flex;align-items:center;gap:7px}
 .recipenav .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
 .recipenav button[aria-selected="true"]{background:var(--c);border-color:var(--c);color:#fff}
+ol.steps{margin:6px 0 0 18px;padding:0;font-size:14px}
+ol.steps li{margin-bottom:6px}
 .capnote{font-size:13px;color:var(--muted);margin:0 0 16px}
 .warnnote{background:var(--warn-bg);color:var(--ink);padding:10px 12px;border-radius:10px}
 .btn{border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 14px var(--body);padding:8px 14px;border-radius:9px;cursor:pointer;min-height:36px}
@@ -290,6 +294,7 @@ svg.bars .bar:hover .mark{opacity:.8}
       <button id="btnEn" type="button" aria-pressed="true">EN</button>
       <button id="btnEs" type="button" aria-pressed="false">ES</button>
     </div>
+    <div class="curbox"><label class="sr" for="curSel">Currency</label><select id="curSel"></select><span id="curWarn" class="badge warn" hidden>!</span></div>
   </header>
   <nav class="tabs" aria-label="Sections"><div class="row" id="tabs" role="tablist"></div></nav>
   <main id="main"></main>
@@ -299,9 +304,9 @@ svg.bars .bar:hover .mark{opacity:.8}
 <script>
 if(!(window.claude&&window.claude.use)) document.body.classList.add("locked");
 const T = (o)=> typeof o==="string" ? o : (o[state.lang] ?? o.en);
-const state = {lang:"en", tab:"recipes", recipe:"quinoa", variant:{}, factor:{}};
-try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(state,{lang:s.lang||"en",tab:s.tab||"recipes",aiView:s.aiView||"overview",recipe:s.recipe||"quinoa"}); }catch(e){}
-function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:state.lang,tab:state.tab,aiView:state.aiView,recipe:state.recipe})); }catch(e){} }
+const state = {lang:"en", tab:"recipes", recipe:"quinoa", cur:"CAD", variant:{}, factor:{}};
+try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(state,{lang:s.lang||"en",tab:s.tab||"recipes",aiView:s.aiView||"overview",recipe:s.recipe||"quinoa",cur:s.cur||"CAD"}); }catch(e){}
+function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:state.lang,tab:state.tab,aiView:state.aiView,recipe:state.recipe,cur:state.cur})); }catch(e){} }
 
 const UI = {
   sub:{en:"Batch calculators, benefits, Alberta food-safety rules and the path to sale for six Peruvian drinks and desserts — plus a working AI system to run the restaurant.",
@@ -594,11 +599,88 @@ function renderTabs(){
 }
 tabsEl.addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return; state.tab=b.dataset.tab; save(); render(); window.scrollTo({top:0});});
 
-function recipesTab(p){
-  return `<div class="subnav recipenav" role="tablist" aria-label="${tt("Recipes","Recetas")}">${P.map(x=>`<button type="button" role="tab" data-recipe="${x.id}" aria-selected="${x.id===p.id}" style="--c:${x.c}"><span class="dot"></span>${esc(T(x.name))}</button>`).join("")}</div>`+product(p);
+/* ===== Recipes tab: one sub-tab per menu item (deleting it from the menu removes it here) ===== */
+const RUNITS=["g","kg","mL","L","pc","tbsp","tsp"];
+let curRecipe=null, recScale=1;
+function recipeList(){
+  if(!D.menu.length) return P.map(p=>({id:p.id,name:T(p.name),prod:p,c:p.c,item:null}));
+  return D.menu.slice().sort((a,b)=>String(b.cat).localeCompare(String(a.cat))||String(a.name).localeCompare(String(b.name)))
+    .map(m=>{ const prod=m.prodId?P.find(x=>x.id===m.prodId):null;
+      return {id:m.id,name:m.name,prod,c:prod?prod.c:(m.cat==="comida"?"#9A4A00":"#2F6B3A"),item:m}; });
+}
+function recipeOf(itemId){ return D.recipes.find(r=>r.itemId===itemId)||null; }
+function recipesTab(){
+  const list=recipeList();
+  if(!list.length) return `<section>${head(tt("Recipes","Recetas"),tt("Recipes","Recetas"),tt("The menu is empty. Add dishes and drinks in the Menu tab and each one gets its own recipe here.","El menú está vacío. Agrega platos y bebidas en el tab Menú y cada uno tendrá su receta aquí."))}</section>`;
+  curRecipe=list.find(x=>x.id===state.recipe)||list.find(x=>x.prod&&x.prod.id===state.recipe)||list[0];
+  state.recipe=curRecipe.id;
+  const nav=`<div class="subnav recipenav" role="tablist" aria-label="${tt("Recipes","Recetas")}">${list.map(x=>`<button type="button" role="tab" data-recipe="${esc(x.id)}" aria-selected="${x.id===curRecipe.id}" style="--c:${x.c}"><span class="dot"></span>${esc(x.name)}</button>`).join("")}</div>`;
+  return nav+(curRecipe.prod?product(curRecipe.prod):customRecipe(curRecipe.item));
 }
 function wireRecipes(){
-  main.querySelectorAll("[data-recipe]").forEach(b=>b.onclick=()=>{ state.recipe=b.dataset.recipe; save(); render(); window.scrollTo({top:0}); });
+  main.querySelectorAll("[data-recipe]").forEach(b=>b.onclick=()=>{ state.recipe=b.dataset.recipe; recScale=1; save(); render(); window.scrollTo({top:0}); });
+  if(!curRecipe) return;
+  if(curRecipe.prod) wireProduct(curRecipe.prod); else wireCustomRecipe(curRecipe.item);
+}
+function customRecipe(item){
+  const r=recipeOf(item.id)||{}, ing=Array.isArray(r.ingredients)?r.ingredients:[];
+  const sc=[0.5,1,2,5,10];
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(item.cat==="comida"?tt("Food","Comida"):tt("Drink","Bebida"),esc(item.name),
+    tt(`${kindName(item.cat,item.kind)}${num(item.price)?" · "+money(item.price):""}. Write the recipe once and the kitchen can scale it for any number of portions.`,
+       `${kindName(item.cat,item.kind)}${num(item.price)?" · "+money(item.price):""}. Escribe la receta una vez y la cocina la puede escalar para cualquier cantidad de porciones.`))}
+   <div class="grid">
+    <div class="stack"><div class="panel"><h3>${tt("Recipe","Receta")}</h3>
+     <div class="fgrid">
+      ${field("rcPort",tt("Portions this recipe makes","Porciones que rinde"),`<input id="rcPort" type="number" min="1" step="1" value="${esc(num(r.portions)||1)}">`)}
+      <div class="f"><span>${tt("Show for","Mostrar para")}</span><div class="acts" style="margin-top:0">${sc.map(x=>`<button type="button" class="btn sm ${recScale===x?"":"ghost"}" data-rsc="${x}">×${x}</button>`).join("")}</div></div>
+     </div>
+     <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit","Unidad")}</th><th>× ${recScale}</th><th></th></tr></thead>
+      <tbody>${ing.map((g,i)=>`<tr data-i="${i}"><td><input class="txt" data-r="n" value="${esc(g.n||"")}" aria-label="${tt("Ingredient","Ingrediente")}"></td>
+       <td><input data-r="q" type="number" min="0" step="any" value="${esc(g.q||0)}" aria-label="${tt("Quantity","Cantidad")}"></td>
+       <td><select data-r="u" aria-label="${tt("Unit","Unidad")}">${RUNITS.map(u=>`<option value="${u}"${u===(g.u||"g")?" selected":""}>${u}</option>`).join("")}</select></td>
+       <td class="nw"><b>${nice(num(g.q)*recScale)}</b> ${esc(g.u||"g")}</td>
+       <td><button type="button" class="btn sm ghost" data-rrm="${i}" aria-label="${tt("Remove","Quitar")}">✕</button></td></tr>`).join("")||`<tr><td colspan="5" class="dimtxt">${tt("No ingredients yet.","Aún no hay ingredientes.")}</td></tr>`}</tbody></table></div>
+     <div class="acts"><button type="button" class="btn sm ghost" id="rcAdd">+ ${tt("Add ingredient","Agregar ingrediente")}</button></div>
+     <div class="f full" style="margin-top:12px"><label for="rcSteps">${tt("Preparation (one step per line)","Preparación (un paso por línea)")}</label><textarea id="rcSteps" rows="7">${esc(r.steps||"")}</textarea></div>
+     <div class="f full"><label for="rcNotes">${tt("Notes, allergens, plating","Notas, alérgenos, emplatado")}</label><input id="rcNotes" value="${esc(r.notes||"")}"></div>
+     <div class="acts"><button class="btn" id="rcSave">${tt("Save recipe","Guardar receta")}</button><span class="hint" id="rcMsg" aria-live="polite">${r.updated?tt("Last saved","Última vez guardada")+": "+esc(String(r.updated).slice(0,16).replace("T"," ")):""}</span></div>
+    </div></div>
+    <div class="stack"><div class="panel"><h3>${tt("Kitchen card","Ficha de cocina")}</h3>
+     <div id="rcCard"></div></div></div>
+   </div></section>`;
+}
+function recipeCard(item){
+  const r=recipeOf(item.id)||{}, ing=Array.isArray(r.ingredients)?r.ingredients:[];
+  const steps=String(r.steps||"").split("\n").map(x=>x.trim()).filter(Boolean);
+  const port=num(r.portions)||1;
+  return `<p class="dimtxt">${esc(item.name)} · ${tt("for","para")} <b>${nice(port*recScale)}</b> ${tt("portions","porciones")}</p>
+   ${ing.length?`<ul class="rows">${ing.map(g=>`<li><div>${esc(g.n||"")}</div><b>${nice(num(g.q)*recScale)} ${esc(g.u||"g")}</b></li>`).join("")}</ul>`:`<p class="empty">${tt("Add the ingredients on the left.","Agrega los ingredientes a la izquierda.")}</p>`}
+   ${steps.length?`<h4 class="minih">${tt("Preparation","Preparación")}</h4><ol class="steps">${steps.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`:""}
+   ${r.notes?`<p class="note"><b>${tt("Notes","Notas")}:</b> ${esc(r.notes)}</p>`:""}`;
+}
+function wireCustomRecipe(item){
+  const draft=()=>{
+    const rows=[...main.querySelectorAll("#main .dt tbody tr[data-i]")].map(tr=>({n:tr.querySelector('[data-r="n"]').value.trim(),q:num(tr.querySelector('[data-r="q"]').value),u:tr.querySelector('[data-r="u"]').value}));
+    return {itemId:item.id,item:item.name,portions:Math.max(1,Math.round(num(val("rcPort")))||1),ingredients:rows.filter(x=>x.n),
+      ingText:rows.filter(x=>x.n).map(x=>`${x.n} ${nice(x.q)} ${x.u}`).join("; "),steps:document.getElementById("rcSteps").value.trim(),notes:val("rcNotes"),updated:new Date().toISOString()};
+  };
+  const paint=()=>{ const el=document.getElementById("rcCard"); if(el) el.innerHTML=recipeCard(item); };
+  paint();
+  main.querySelectorAll("[data-rsc]").forEach(b=>b.onclick=()=>{ recScale=num(b.dataset.rsc)||1; render(); });
+  document.getElementById("rcAdd").onclick=async()=>{
+    const d=draft(); d.ingredients.push({n:"",q:0,u:"g"}); await dbSet("recipes/r"+item.id,d); render();
+  };
+  main.querySelectorAll("[data-rrm]").forEach(b=>b.onclick=async()=>{
+    const d=draft(); d.ingredients.splice(num(b.dataset.rrm),1); d.ingText=d.ingredients.map(x=>`${x.n} ${nice(x.q)} ${x.u}`).join("; ");
+    await dbSet("recipes/r"+item.id,d); render();
+  });
+  main.querySelectorAll('[data-r],#rcPort,#rcSteps,#rcNotes').forEach(el=>el.addEventListener("input",paint));
+  document.getElementById("rcSave").onclick=async()=>{
+    await dbSet("recipes/r"+item.id,draft());
+    const m=document.getElementById("rcMsg"); if(m) m.textContent=tt("Recipe saved.","Receta guardada.");
+    paint();
+  };
+  if(!canWrite("recipes")) main.querySelectorAll("#main input,#main select,#main textarea,#main button:not([data-recipe]):not([data-rsc])").forEach(el=>{el.disabled=true;el.classList.add("ro");el.title=tt("Your role can't change recipes","Tu rol no puede cambiar recetas");});
 }
 function product(p){
   const vi=state.variant[p.id]||0, v=p.variants[vi], key=p.id+":"+vi, f=state.factor[key]??1;
@@ -729,7 +811,23 @@ function aiOverview(){
 const tt=(en,es)=>state.lang==="es"?es:en;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=v=>{const x=parseFloat(v);return isFinite(x)?x:0;};
-const money=v=>"$"+(Math.round(v*100)/100).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+/* ===== currencies: prices are kept in CAD (base) and shown in the chosen currency ===== */
+const CURS=[["CAD","CA$","Canadian dollar","Dólar canadiense"],["USD","US$","US dollar","Dólar americano"],["PEN","S/","Peruvian sol","Soles"]];
+const curInfo=c=>CURS.find(x=>x[0]===c)||CURS[0];
+const curRate=c=>c==="CAD"?1:num((D.bill||{})[c==="USD"?"rateUSD":"ratePEN"]);
+const curOk=c=>c==="CAD"||curRate(c)>0;
+function fmtCur(v,cur,rate){
+  const c=curInfo(cur||"CAD"), r=rate==null?curRate(c[0]):num(rate);
+  return c[1]+(Math.round(num(v)*(r||1)*100)/100).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+// every amount in the app is stored in CAD and displayed in the currency chosen in the header
+const money=v=>fmtCur(v,curOk(state.cur)?state.cur:"CAD");
+function renderCurBox(){
+  const el=document.getElementById("curSel"); if(!el) return;
+  el.innerHTML=CURS.map(c=>`<option value="${c[0]}"${state.cur===c[0]?" selected":""}>${c[1]} ${c[0]}</option>`).join("");
+  const warn=document.getElementById("curWarn");
+  if(warn) warn.hidden=curOk(state.cur);
+}
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
 const dow=iso=>new Date(iso+"T12:00:00").getDay();
@@ -742,7 +840,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],costs:{},bill:{}};
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{}};
 if(!state.aiView) state.aiView="overview";
 
 function subscribe(name){
@@ -853,7 +951,7 @@ function wireSettings(){
 
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
-const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","menu","bills","settings"];
+const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","menu","bills","recipes","settings"];
 async function sheetCall(url,body){
   if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
   let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"}); }
@@ -904,8 +1002,8 @@ const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],c
 // roles limited to some modules (others see every module)
 const ROLE_HOME={cocinero:"m2",mesero:"m1"};
 const ROLE_VIEWS={mesero:["m1","tables","orders","bill","settings"]};
-const ROLE_READ={mesero:["reservations","tables","orders","menu","bills","settings"]};
-const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
+const ROLE_READ={mesero:["reservations","tables","orders","menu","bills","recipes","settings"]};
+const ROLE_WRITE={chef:["inventory","waste","settings","orders","recipes"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
 const canView=v=>{const r=myRole(); return !r||!ROLE_VIEWS[r]||ROLE_VIEWS[r].includes(v);};
 const canRead=c=>{const r=myRole(); return !r||!ROLE_READ[r]||ROLE_READ[r].includes(c);};
@@ -960,7 +1058,7 @@ function showLogin(msg){
   };
 }
 function startData(){
-  ["inventory","waste","reservations","sales","posts","reviews","tables","orders","menu","bills"].filter(canRead).forEach(subscribe);
+  ["inventory","waste","reservations","sales","posts","reviews","tables","orders","menu","bills","recipes"].filter(canRead).forEach(subscribe);
   if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
@@ -1114,6 +1212,7 @@ function wireAI(){
   applyRoleUI();
 }
 function refreshAI(){
+  if(state.tab==="recipes"){ const ae=document.activeElement; if(!(main.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) render(); return; }
   if(state.tab==="menu"){ listMenu(); return; }
   if(state.tab!=="ai") return;
   const v=state.aiView;
@@ -1517,7 +1616,12 @@ function billView(){
      <div class="panel"><h3>${tt("Menu prices","Precios del menú")}</h3>
       <p class="hint">${tt("Prices come from the Menu module. Open “Menu” to add dishes and drinks or change their prices.","Los precios vienen del módulo Menú. Abre “Menú” para agregar platos y bebidas o cambiar sus precios.")} <button type="button" class="linkbtn" id="goMenu">${tt("Open the menu","Abrir el menú")}</button></p>
       <div class="tablewrap" id="prTable"></div>
-      <div class="f" style="max-width:180px"><label for="blRate">${tt("GST %","GST %")}</label><input id="blRate" type="number" min="0" max="100" step="0.1" value="${taxRate()}"></div>
+      <div class="fgrid" style="margin-top:10px">
+       ${field("blRate",tt("GST %","GST %"),`<input id="blRate" type="number" min="0" max="100" step="0.1" value="${taxRate()}">`)}
+       ${field("blUsd",tt("1 CAD = USD","1 CAD = USD"),`<input id="blUsd" type="number" min="0" step="0.0001" value="${esc(num((D.bill||{}).rateUSD)||"")}" placeholder="0.00">`)}
+       ${field("blPen",tt("1 CAD = PEN (soles)","1 CAD = PEN (soles)"),`<input id="blPen" type="number" min="0" step="0.0001" value="${esc(num((D.bill||{}).ratePEN)||"")}" placeholder="0.00">`)}
+      </div>
+      <p class="hint">${tt("Prices and reports are kept in Canadian dollars. Type today's rate to show and charge in US dollars or soles — the app does not look rates up on its own.","Los precios y reportes se guardan en dólares canadienses. Escribe el tipo de cambio del día para mostrar y cobrar en dólares americanos o soles — la app no consulta tipos de cambio por su cuenta.")}</p>
      </div>
      <div class="panel"><h3>${tt("Bills today","Cuentas de hoy")}</h3><div id="blList"></div></div>
     </div>
@@ -1556,12 +1660,12 @@ function loadTableLines(){
   billLines=lines; billTip=0; billTipPct=null; billDisc={v:0,mode:"pct",why:""}; billSplit=Math.max(1,num(os[0]&&os[0].guests)||1);
 }
 function receiptText(b){
-  const L=[];
+  const L=[], cur=b.currency||"CAD", rt=b.rate==null?1:num(b.rate);
   L.push("TASTE OF PERU"); L.push(tt("Table","Mesa")+" "+b.table+"  ·  "+b.date+" "+(b.paid||"").slice(11,16));
   L.push("".padEnd(34,"-"));
-  (b.lines||[]).forEach(l=>{ const left=`${l.qty}x ${l.dish}`.slice(0,23); L.push(left.padEnd(24)+money(num(l.qty)*num(l.price)).padStart(10)); });
+  (b.lines||[]).forEach(l=>{ const left=`${l.qty}x ${l.dish}`.slice(0,23); L.push(left.padEnd(24)+fmtCur(num(l.qty)*num(l.price),cur,rt).padStart(10)); });
   L.push("".padEnd(34,"-"));
-  const amt=v=>(num(v)<0?"-":"")+money(Math.abs(num(v)));
+  const amt=v=>(num(v)<0?"-":"")+fmtCur(Math.abs(num(v)),cur,rt);
   const row=(a,v)=>L.push(String(a).slice(0,23).padEnd(24)+amt(v).padStart(10));
   row(tt("Subtotal","Subtotal"),b.subtotal);
   if(num(b.discount)) row(tt("Discount","Descuento")+(b.discountReason?" ("+b.discountReason+")":""),-num(b.discount));
@@ -1569,7 +1673,8 @@ function receiptText(b){
   if(num(b.tip)) row(tt("Tip","Propina"),b.tip);
   row(tt("TOTAL","TOTAL"),b.total);
   if(num(b.split)>1) row(tt("Each","Cada uno")+" ("+b.split+")",b.per);
-  L.push(tt("Payment","Pago")+": "+payName(b.method));
+  L.push(tt("Payment","Pago")+": "+payName(b.method)+" · "+cur);
+  if(cur!=="CAD") L.push(tt("Rate","Cambio")+": 1 CAD = "+rt+" "+cur+"  ·  "+fmtCur(b.total,"CAD",1)+" CAD");
   L.push(""); L.push(tt("Thank you!","¡Gracias!"));
   return L.join("\n");
 }
@@ -1601,6 +1706,9 @@ function wireBill(){
   });
   document.getElementById("goMenu").onclick=()=>{ state.tab="menu"; save(); render(); window.scrollTo({top:0}); };
   document.getElementById("blRate").onchange=async e=>{ const r=num(e.target.value); await dbSet("settings/bill",{...(D.bill||{}),taxRate:r>=0&&r<=100?r:GST_DEFAULT}); };
+  document.getElementById("blUsd").onchange=async e=>{ await dbSet("settings/bill",{...(D.bill||{}),rateUSD:Math.max(0,num(e.target.value))}); };
+  document.getElementById("blPen").onchange=async e=>{ await dbSet("settings/bill",{...(D.bill||{}),ratePEN:Math.max(0,num(e.target.value))}); };
+  if(!canWrite("settings")) ["blUsd","blPen"].forEach(id=>{const el=document.getElementById(id); if(el){el.disabled=true;el.classList.add("ro");}});
   document.getElementById("blList").onclick=e=>{ const b=e.target.closest("[data-bill]"); if(!b) return; const bill=D.bills.find(x=>x.id===b.dataset.bill); if(bill) showReceipt(bill); };
   document.getElementById("blPrint").onclick=()=>printReceipt();
   document.getElementById("blCopy").onclick=()=>copyText(document.getElementById("blReceipt").textContent);
@@ -1629,6 +1737,7 @@ async function payBill(){
     linesText:lines.map(l=>`${l.qty}× ${l.dish} @ ${money(l.price)}`).join("; "),
     subtotal:t.subtotal,discount:t.discount,discountReason:billDisc.why,taxRate:taxRate(),tax:t.tax,tip:t.tip,
     total:t.total,split:t.split,per:t.per,method:billMethod,status:"paid",orderIds:os.map(o=>o.id).join(","),
+    currency:curOk(state.cur)?state.cur:"CAD",rate:curOk(state.cur)?curRate(state.cur):1,totalCur:r2(t.total*(curOk(state.cur)?curRate(state.cur):1)),
     by:SESSION?SESSION.name:"",created:stamp,paid:stamp};
   const id="b"+today().replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7);
   await dbSet("bills/"+id,bill);
@@ -2294,12 +2403,17 @@ function render(){
   document.getElementById("disc").textContent=T(UI.disc);
   renderTabs();
   if(P.some(x=>x.id===state.tab)){ state.recipe=state.tab; state.tab="recipes"; save(); renderTabs(); } // old saved tab
-  if(state.tab==="recipes"){ const p=P.find(x=>x.id===state.recipe)||P[0]; main.innerHTML=recipesTab(p); wireRecipes(); wireProduct(p); }
+  if(state.tab==="recipes"){ main.innerHTML=recipesTab(); wireRecipes(); }
   else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
   else if(state.tab==="menu"){ main.innerHTML=menuView(); wireMenu(); listMenu(); }
   else main.innerHTML= state.tab==="rules"? rules() : path();
-  renderUserBox();
+  renderUserBox(); renderCurBox();
 }
+document.getElementById("curSel").onchange=e=>{
+  const c=e.target.value;
+  if(!curOk(c)){ toast(tt(`Set the CAD → ${c} rate in Billing by table first.`,`Primero pon el tipo de cambio CAD → ${c} en Facturación por mesa.`)); e.target.value=state.cur; return; }
+  state.cur=c; save(); render();
+};
 document.getElementById("btnEn").onclick=()=>{state.lang="en";save();render();};
 document.getElementById("btnEs").onclick=()=>{state.lang="es";save();render();};
 render();

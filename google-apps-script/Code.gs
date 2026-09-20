@@ -21,7 +21,7 @@
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
                  posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)",
-                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas" };
+                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas" };
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
@@ -32,10 +32,11 @@ const FIELDS = {
   tables: [["num","Mesa"],["seats","Sillas"],["zone","Zona"],["active","Activa"],["occupied","Ocupada"],["occSince","Ocupada desde"]],
   orders: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["status","Estado"],["itemsText","Platos"],["allergies","Alergias"],["message","Mensaje a cocina"],["booking","Reserva"],["by","Tomada por"],["created","Creada"],["updated","Actualizada"],["resId","ID reserva"]],
   menu: [["name","Nombre"],["cat","Grupo"],["kind","Tipo"],["price","Precio"],["notes","Nota"],["prodId","ID bebida app"],["active","Activo"]],
-  bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
+  bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
+  recipes: [["item","Plato"],["portions","Porciones"],["ingText","Ingredientes"],["steps","Preparación"],["notes","Notas"],["itemId","ID del menú"],["updated","Actualizada"]],
   sales: [], settings: []
 };
-const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per"];
+const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
 const BOOL = ["replied","active","occupied"];
 const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
@@ -44,11 +45,11 @@ const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jug
 const ROLES = {
   admin:    { label: "Administrador", write: "*", read: "*",
               desc: "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings." },
-  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders"], read: "*",
+  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders", "recipes"], read: "*",
               desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso y Órdenes. / Sees everything. Changes inventory, waste, cost per cup and orders." },
   cocinero: { label: "Cocinero", write: ["inventory", "waste"], read: "*",
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
-  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "settings"],
+  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings"],
               desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa; no cambia la lista de precios. / Customers, Tables layout, Orders and Billing by table; cannot change the price list." },
   lectura:  { label: "Solo lectura", write: [], read: "*",
               desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
