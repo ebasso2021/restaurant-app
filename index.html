@@ -222,6 +222,8 @@ fieldset.allerg legend{font:600 12px var(--body);color:var(--bad);padding:0 4px}
 .bctl input.why{width:140px}
 #blBody table.dt input.txt{width:100%;min-width:130px}
 #blBody table.dt th:first-child,#blBody table.dt td:first-child{width:45%}
+table.dt.menutbl td:first-child{width:40%}
+table.dt tr.grp th{padding-top:14px;color:var(--accent);font:600 12px var(--body);letter-spacing:.04em;text-transform:uppercase}
 .receipt{font:13px/1.45 var(--mono);white-space:pre-wrap;background:var(--sunk);padding:12px;border-radius:10px;margin:0;overflow-x:auto}
 body.locked .wrap{display:none}
 .loginwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 0}
@@ -731,7 +733,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],prices:[],bills:[],costs:{},bill:{}};
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],costs:{},bill:{}};
 if(!state.aiView) state.aiView="overview";
 
 function subscribe(name){
@@ -842,7 +844,7 @@ function wireSettings(){
 
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
-const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","prices","bills","settings"];
+const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","menu","bills","settings"];
 async function sheetCall(url,body){
   if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
   let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"}); }
@@ -892,8 +894,8 @@ function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
 const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
 // roles limited to some modules (others see every module)
 const ROLE_HOME={cocinero:"m2",mesero:"m1"};
-const ROLE_VIEWS={mesero:["m1","tables","orders","bill","settings"]};
-const ROLE_READ={mesero:["reservations","tables","orders","prices","bills","settings"]};
+const ROLE_VIEWS={mesero:["m1","tables","orders","bill","menu","settings"]};
+const ROLE_READ={mesero:["reservations","tables","orders","menu","bills","settings"]};
 const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
 const canView=v=>{const r=myRole(); return !r||!ROLE_VIEWS[r]||ROLE_VIEWS[r].includes(v);};
@@ -949,7 +951,7 @@ function showLogin(msg){
   };
 }
 function startData(){
-  ["inventory","waste","reservations","sales","posts","reviews","tables","orders","prices","bills"].filter(canRead).forEach(subscribe);
+  ["inventory","waste","reservations","sales","posts","reviews","tables","orders","menu","bills"].filter(canRead).forEach(subscribe);
   if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
@@ -970,7 +972,7 @@ async function startAuth(){
 }
 // ----- what each role may change -----
 function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||!!(ROLE_WRITE[r]&&ROLE_WRITE[r].includes(col)); }
-const READ_OK='[data-aiview],#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+const READ_OK='[data-aiview],[data-mncat],#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
@@ -1063,7 +1065,13 @@ const CLAIM_RULES=()=>{
   const bad=[];P.forEach(p=>p.claims.forEach(c=>{if(c.v!=="ok")bad.push(c.q.en);}));
   return "Never make health or disease claims. Never use these unverified or false claims: "+bad.join("; ")+". Do not call any product medicine or a cure.";
 };
-const MENU_TEXT=()=>P.map(p=>`- ${p.name.en} / ${p.name.es}: ${p.intro.en}${p.allergen?" Allergens: "+p.allergen.en:""}`).join("\n");
+const MENU_TEXT=()=>{
+  const base=P.map(p=>`- ${p.name.en} / ${p.name.es}: ${p.intro.en}${p.allergen?" Allergens: "+p.allergen.en:""}`).join("\n");
+  const extra=(typeof D!=="undefined"&&D.menu?D.menu:[]).filter(m=>m.active!==false&&!m.prodId);
+  if(!extra.length) return base;
+  const byCat=c=>extra.filter(m=>m.cat===c).map(m=>`- ${m.name}${m.notes?" ("+m.notes+")":""}`).join("\n");
+  return base+(byCat("comida")?"\nFood / Comidas:\n"+byCat("comida"):"")+(byCat("bebida")?"\nOther drinks / Otras bebidas:\n"+byCat("bebida"):"");
+};
 
 /* ---------- shell ---------- */
 const MODS=[
@@ -1072,6 +1080,7 @@ const MODS=[
   {id:"tables",en:"Tables layout",es:"Distribución de mesas"},
   {id:"orders",en:"Orders by table",es:"Órdenes por mesa"},
   {id:"bill",en:"Billing by table",es:"Facturación por mesa"},
+  {id:"menu",en:"Menu",es:"Menú"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
   {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
@@ -1085,13 +1094,13 @@ function aiSys(){
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
-  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="bill"?billView():aiOverview();
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="bill"?billView():v==="menu"?menuView():aiOverview();
   return nav+banner+body;
 }
 function wireAI(){
   main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
   const v=state.aiView;
-  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="bill") wireBill();
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="bill") wireBill(); else if(v==="menu") wireMenu();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
   applyRoleUI();
@@ -1099,7 +1108,7 @@ function wireAI(){
 function refreshAI(){
   if(state.tab!=="ai") return;
   const v=state.aiView;
-  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill();
+  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill(); else if(v==="menu") listMenu();
   applyRoleUI();
 }
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
@@ -1390,7 +1399,7 @@ function ordersView(){
       ${field("oGuests",tt("Diners","Comensales"),`<input id="oGuests" type="number" min="1" value="2">`)}
       <p class="hint f full" id="oBook" aria-live="polite"></p>
       <div class="f full"><span>${tt("Dishes","Platos")}</span><div id="oItems">${itemRow()}</div>
-       <datalist id="dishList">${P.map(p=>`<option value="${esc(T(p.name))}">`).join("")}</datalist>
+       ${dishDatalist("dishList")}
        <button type="button" class="btn sm ghost" id="oAdd" style="align-self:flex-start;margin-top:6px">+ ${tt("Add dish","Agregar plato")}</button></div>
       <fieldset class="f full allerg"><legend>⚠ ${tt("Diners' allergies","Alergias de los comensales")}</legend>
        <div class="chips">${ALLERGENS.map(a=>`<label class="chip"><input type="checkbox" value="${a[0]}"> ${tt(a[1],a[2])}</label>`).join("")}</div>
@@ -1462,14 +1471,14 @@ const PAYMENTS=[["cash","Cash","Efectivo"],["card","Card","Tarjeta"],["transfer"
 const payName=k=>{const x=PAYMENTS.find(p=>p[0]===k);return x?tt(x[1],x[2]):k;};
 const GST_DEFAULT=5;
 const dishKey=d=>String(d||"").trim().toLowerCase();
-const priceOf=d=>{const k=dishKey(d),p=D.prices.find(x=>dishKey(x.dish)===k);return p?num(p.price):0;};
+const priceOf=d=>{const k=dishKey(d),m=D.menu.find(x=>dishKey(x.name)===k);return m?num(m.price):0;};
 const taxRate=()=>{const r=D.bill&&D.bill.taxRate!=null?num(D.bill.taxRate):GST_DEFAULT;return r>=0&&r<=100?r:GST_DEFAULT;};
 const r2=n=>Math.round(num(n)*100)/100;
 // orders of a table that are not cancelled and not billed yet
 const openOrders=t=>D.orders.filter(o=>String(o.table)===String(t)&&o.status!=="cancelled"&&!o.billId);
 const tablesToBill=()=>[...new Set(D.orders.filter(o=>o.status!=="cancelled"&&!o.billId).map(o=>String(o.table)))].sort((a,b)=>num(a)-num(b));
 // the menu product a bill line matches, so paid drinks can be added to module 3
-const matchProduct=d=>{const k=dishKey(d);const p=P.find(x=>dishKey(x.name.en)===k||dishKey(x.name.es)===k);return p?p.id:"";};
+const matchProduct=d=>{const k=dishKey(d);const m=D.menu.find(x=>dishKey(x.name)===k&&x.prodId);if(m) return m.prodId;const p=P.find(x=>dishKey(x.name.en)===k||dishKey(x.name.es)===k);return p?p.id:"";};
 let billMsg=""; let billTable="", billLines=null, billTip=0, billTipPct=null, billDisc={v:0,mode:"pct",why:""}, billSplit=1, billMethod="cash", lastBill=null;
 function billTotals(){
   const lines=billLines||[];
@@ -1490,20 +1499,15 @@ function billView(){
      <div class="panel"><h3>${tt("Bill","Cuenta")}</h3>
       <div class="f" style="max-width:260px"><label for="blTable">${tt("Table","Mesa")}</label>
        <select id="blTable"><option value="">${tt("Choose a table…","Elige una mesa…")}</option>${opts.map(n=>`<option value="${esc(n)}"${String(n)===String(billTable)?" selected":""}>${tt("Table","Mesa")} ${esc(n)}${pend.includes(String(n))?" · "+tt("orders pending","órdenes pendientes"):""}</option>`).join("")}</select></div>
-      <div id="blBody"></div>
+      <div id="blBody"></div>${dishDatalist("dishList2")}
      </div>
      <div class="panel" id="blReceiptPanel"${lastBill?"":" hidden"}><h3>${tt("Receipt","Recibo")}</h3><pre class="receipt" id="blReceipt"></pre>
       <div class="acts"><button type="button" class="btn sm" id="blPrint">🖨 ${tt("Print","Imprimir")}</button><button type="button" class="btn sm ghost" id="blCopy">${tt("Copy","Copiar")}</button></div></div>
     </div>
     <div class="stack">
-     <div class="panel"><h3>${tt("Menu prices","Lista de precios")}</h3>
-      <form id="prForm" class="fgrid">
-       ${field("prDish",tt("Dish or drink","Plato o bebida"),`<input id="prDish" list="dishList2" required>`)}
-       ${field("prPrice",tt("Price","Precio"),`<input id="prPrice" type="number" min="0" step="0.01" required>`)}
-       <button class="btn" type="submit">${tt("Save price","Guardar precio")}</button>
-      </form><datalist id="dishList2">${P.map(p=>`<option value="${esc(T(p.name))}">`).join("")}</datalist>
+     <div class="panel"><h3>${tt("Menu prices","Precios del menú")}</h3>
+      <p class="hint">${tt("Prices come from the Menu module. Open “Menu” to add dishes and drinks or change their prices.","Los precios vienen del módulo Menú. Abre “Menú” para agregar platos y bebidas o cambiar sus precios.")} <button type="button" class="linkbtn" data-aiview="menu">${tt("Open the menu","Abrir el menú")}</button></p>
       <div class="tablewrap" id="prTable"></div>
-      <p class="hint">${tt("Only an administrator can change this list. Prices include no tax; GST is added on the bill.","Solo un administrador puede cambiar esta lista. Los precios no incluyen impuesto; el GST se agrega en la cuenta.")}</p>
       <div class="f" style="max-width:180px"><label for="blRate">${tt("GST %","GST %")}</label><input id="blRate" type="number" min="0" max="100" step="0.1" value="${taxRate()}"></div>
      </div>
      <div class="panel"><h3>${tt("Bills today","Cuentas de hoy")}</h3><div id="blList"></div></div>
@@ -1586,22 +1590,11 @@ function wireBill(){
     if(el.id==="blSplit"){ billSplit=Math.max(1,Math.round(num(el.value))); billBody(); }
     if(el.id==="blMethod"){ billMethod=el.value; }
   });
-  document.getElementById("prForm").onsubmit=async e=>{
-    e.preventDefault(); const d=val("prDish"), p=num(val("prPrice")); if(!d) return;
-    const old=D.prices.find(x=>dishKey(x.dish)===dishKey(d));
-    if(old) await dbUpd("prices",old.id,{dish:d,price:p}); else await dbAdd("prices",{dish:d,price:p});
-    e.target.reset(); document.getElementById("prDish").focus();
-  };
-  const pt=document.getElementById("prTable");
-  pt.addEventListener("change",async e=>{ const id=e.target.closest("tr")?.dataset.id; if(id&&e.target.dataset.f==="price") await dbUpd("prices",id,{price:Math.max(0,num(e.target.value))}); });
-  pt.addEventListener("focusout",()=>setTimeout(()=>{if(!pt.contains(document.activeElement))refreshAI();},50));
-  pt.addEventListener("click",async e=>{ const b=e.target.closest("[data-prdel]"); if(b&&confirm(tt("Delete this price?","¿Borrar este precio?"))) await dbDel("prices",b.dataset.prdel); });
   document.getElementById("blRate").onchange=async e=>{ const r=num(e.target.value); await dbSet("settings/bill",{...(D.bill||{}),taxRate:r>=0&&r<=100?r:GST_DEFAULT}); };
   document.getElementById("blList").onclick=e=>{ const b=e.target.closest("[data-bill]"); if(!b) return; const bill=D.bills.find(x=>x.id===b.dataset.bill); if(bill) showReceipt(bill); };
   document.getElementById("blPrint").onclick=()=>printReceipt();
   document.getElementById("blCopy").onclick=()=>copyText(document.getElementById("blReceipt").textContent);
   // the price list and the GST rate belong to the administrator
-  if(!canWrite("prices")){ document.querySelectorAll("#prForm input,#prForm button,#prTable input,#prTable button").forEach(el=>{el.disabled=true;el.classList.add("ro");el.title=tt("Only an administrator can change prices","Solo un administrador puede cambiar precios");}); }
   if(!canWrite("settings")){ const r=document.getElementById("blRate"); r.disabled=true; r.classList.add("ro"); r.title=tt("Only an administrator can change the GST rate","Solo un administrador puede cambiar la tasa de GST"); }
   if(lastBill) showReceipt(lastBill);
 }
@@ -1651,13 +1644,108 @@ function listBill(){
   const t=today(), day=D.bills.filter(b=>b.date===t), sum=day.reduce((s,b)=>s+num(b.total),0), tips=day.reduce((s,b)=>s+num(b.tip),0);
   k.innerHTML=[[day.length,tt("bills today","cuentas de hoy")],[money(sum),tt("charged today","cobrado hoy")],[day.length?money(sum/day.length):"—",tt("average bill","cuenta promedio")],[money(tips),tt("tips today","propinas de hoy")],[tablesToBill().length,tt("tables with orders to bill","mesas con órdenes por cobrar"),tablesToBill().length?"warn":""]]
     .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join("");
-  const pt=document.getElementById("prTable"), rows=[...D.prices].sort((a,b)=>String(a.dish).localeCompare(String(b.dish)));
-  if(pt&&!(pt.contains(document.activeElement)&&document.activeElement.tagName==="INPUT"))
-    pt.innerHTML=rows.length?`<table class="dt"><thead><tr><th>${tt("Dish","Plato")}</th><th>${tt("Price","Precio")}</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr data-id="${esc(r.id)}"><td>${esc(r.dish)}</td><td><input data-f="price" type="number" min="0" step="0.01" value="${esc(r.price)}" aria-label="${tt("Price","Precio")}"></td><td><button type="button" class="btn sm ghost" data-prdel="${esc(r.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
-      :`<p class="empty">${tt("No prices yet. Add each dish and drink with its price.","Aún no hay precios. Agrega cada plato y bebida con su precio.")}</p>`;
+  const pt=document.getElementById("prTable"), rows=menuActive().slice().sort((a,b)=>String(a.cat).localeCompare(String(b.cat))||String(a.name).localeCompare(String(b.name)));
+  if(pt) pt.innerHTML=rows.length?`<table class="dt"><thead><tr><th>${tt("Item","Ítem")}</th><th>${tt("Group","Grupo")}</th><th>${tt("Price","Precio")}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="nw">${esc(catName(r.cat))} · ${esc(kindName(r.cat,r.kind))}</td><td class="nw">${num(r.price)?money(r.price):`<span class="badge warn">${tt("no price","sin precio")}</span>`}</td></tr>`).join("")}</tbody></table>`
+    :`<p class="empty">${tt("The menu is empty. Add dishes and drinks in the Menu module.","El menú está vacío. Agrega platos y bebidas en el módulo Menú.")}</p>`;
   const el=document.getElementById("blList");
   if(el) el.innerHTML=day.length?`<ul class="rows">${[...day].sort((a,b)=>String(b.paid).localeCompare(String(a.paid))).map(b=>`<li><div><b>${tt("Table","Mesa")} ${esc(b.table)}</b> · ${money(b.total)} <small>${esc(String(b.paid||"").slice(11,16))} · ${esc(payName(b.method))}${num(b.tip)?" · "+tt("tip","propina")+" "+money(b.tip):""}</small></div><button type="button" class="btn sm ghost" data-bill="${esc(b.id)}">${tt("Receipt","Recibo")}</button></li>`).join("")}</ul>`
     :`<p class="empty">${tt("No bills charged today.","Hoy no se ha cobrado ninguna cuenta.")}</p>`;
+}
+
+
+/* ================= MENU (Menú: comidas y bebidas) ================= */
+const MENU_CATS=[["comida","Food","Comidas"],["bebida","Drinks","Bebidas"]];
+const MENU_KINDS={
+  comida:[["entrada","Starter","Entrada"],["fondo","Main dish","Plato de fondo"],["postre","Dessert","Postre"],["otro","Other","Otro"]],
+  bebida:[["jugo","Juice","Jugo"],["gaseosa","Soda","Gaseosa"],["alcohol","Alcohol","Alcohol"],["caliente","Hot drink","Bebida caliente"],["otro","Other","Otra"]]
+};
+const catName=c=>{const x=MENU_CATS.find(m=>m[0]===c);return x?tt(x[1],x[2]):c;};
+const kindName=(c,k)=>{const x=(MENU_KINDS[c]||[]).find(m=>m[0]===k);return x?tt(x[1],x[2]):(k||"");};
+const menuItems=cat=>D.menu.filter(m=>!cat||m.cat===cat).sort((a,b)=>String(a.kind).localeCompare(String(b.kind))||String(a.name).localeCompare(String(b.name)));
+const menuActive=()=>D.menu.filter(m=>m.active!==false);
+const menuNames=()=>{const n=menuActive().map(m=>m.name).filter(Boolean);return n.length?n:P.map(p=>T(p.name));};
+const dishDatalist=id=>`<datalist id="${id}">${menuNames().map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`;
+// the six drinks of this app, so they can be loaded into Drinks → Juices in one click
+const SEED_DRINKS=()=>P.map(p=>({name:T(p.name),cat:"bebida",kind:"jugo",prodId:p.id,price:0,active:true}));
+async function seedMenuDrinks(){
+  let added=0;
+  for(const d of SEED_DRINKS()){
+    if(D.menu.some(m=>m.prodId===d.prodId||dishKey(m.name)===dishKey(d.name))) continue;
+    await dbAdd("menu",d); added++;
+  }
+  return added;
+}
+let menuCat="comida", menuSeeded=false;
+function menuView(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Menu","Menú"),tt("Menu","Menú"),tt("The restaurant's menu in two groups: Food and Drinks. Prices here are the ones the billing module uses, and the names are the ones the order form suggests.","La carta del restaurante en dos grupos: Comidas y Bebidas. Los precios de aquí son los que usa el módulo de facturación, y los nombres son los que sugiere el formulario de órdenes."))}
+   <div class="kpis" id="mnKpis"></div>
+   <div class="subnav" role="tablist" aria-label="${tt("Menu groups","Grupos del menú")}">${MENU_CATS.map(c=>`<button type="button" role="tab" data-mncat="${c[0]}" aria-selected="${menuCat===c[0]}">${c[0]==="comida"?"🍽":"🥤"} ${tt(c[1],c[2])}</button>`).join("")}</div>
+   <div class="stack">
+    <div class="panel"><h3>${tt("Add to the menu","Agregar al menú")}</h3>
+     <form id="mnForm" class="fgrid">
+      ${field("mnName",tt("Name","Nombre"),`<input id="mnName" required maxlength="60">`)}
+      ${field("mnCat",tt("Group","Grupo"),`<select id="mnCat">${MENU_CATS.map(c=>`<option value="${c[0]}"${menuCat===c[0]?" selected":""}>${tt(c[1],c[2])}</option>`).join("")}</select>`)}
+      ${field("mnKind",tt("Type","Tipo"),`<select id="mnKind">${(MENU_KINDS[menuCat]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join("")}</select>`)}
+      ${field("mnPrice",tt("Price","Precio"),`<input id="mnPrice" type="number" min="0" step="0.01" value="0">`)}
+      ${field("mnNotes",tt("Note (allergens, size…)","Nota (alérgenos, tamaño…)"),`<input id="mnNotes" maxlength="120">`)}
+      <button class="btn" type="submit">${tt("Add","Agregar")}</button>
+     </form><p class="hint" id="mnMsg" aria-live="polite"></p>
+     <div class="acts"><button type="button" class="btn sm ghost" id="mnSeed">${tt("Load this app's 6 juices into Drinks","Cargar los 6 jugos de esta app en Bebidas")}</button></div>
+     <p class="hint">${tt("Only an administrator can change the menu. An item that is off stays in the list but is not suggested in orders or bills.","Solo un administrador puede cambiar el menú. Un ítem apagado queda en la lista pero no se sugiere en órdenes ni cuentas.")}</p></div>
+    <div class="panel"><h3 id="mnTitle"></h3><div id="mnList"></div></div>
+   </div></section>`;
+}
+function wireMenu(){
+  main.querySelectorAll("[data-mncat]").forEach(b=>b.onclick=()=>{menuCat=b.dataset.mncat;render();});
+  const kindSel=()=>{const c=document.getElementById("mnCat").value;
+    document.getElementById("mnKind").innerHTML=(MENU_KINDS[c]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join("");};
+  document.getElementById("mnCat").onchange=kindSel;
+  document.getElementById("mnForm").onsubmit=async e=>{
+    e.preventDefault(); const name=val("mnName"), msg=document.getElementById("mnMsg");
+    if(!name) return;
+    if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ msg.textContent=tt(`“${name}” is already on the menu.`,`“${name}” ya está en el menú.`); return; }
+    const cat=val("mnCat"), kind=val("mnKind");
+    const prod=cat==="bebida"?matchProduct(name):"";
+    await dbAdd("menu",{name,cat,kind,price:num(val("mnPrice")),prodId:prod,notes:val("mnNotes"),active:true});
+    msg.textContent=""; e.target.reset(); document.getElementById("mnCat").value=cat; kindSel(); document.getElementById("mnPrice").value=0; document.getElementById("mnName").focus();
+  };
+  document.getElementById("mnSeed").onclick=async()=>{
+    const n=await seedMenuDrinks();
+    document.getElementById("mnMsg").textContent=n?tt(`${n} juice(s) added to Drinks. Set their prices.`,`${n} jugo(s) agregado(s) a Bebidas. Ponles precio.`):tt("They are already on the menu.","Ya están en el menú.");
+  };
+  const list=document.getElementById("mnList");
+  list.addEventListener("change",async e=>{
+    const id=e.target.closest("tr")?.dataset.id; if(!id) return; const f=e.target.dataset.f;
+    if(f==="price") await dbUpd("menu",id,{price:Math.max(0,num(e.target.value))});
+    if(f==="active") await dbUpd("menu",id,{active:e.target.checked});
+    if(f==="kind") await dbUpd("menu",id,{kind:e.target.value});
+    if(f==="notes") await dbUpd("menu",id,{notes:e.target.value.trim()});
+  });
+  list.addEventListener("focusout",()=>setTimeout(()=>{if(!list.contains(document.activeElement))refreshAI();},50));
+  list.addEventListener("click",async e=>{ const b=e.target.closest("[data-mndel]"); if(!b) return;
+    const it=D.menu.find(x=>x.id===b.dataset.mndel);
+    if(it&&confirm(tt(`Delete “${it.name}” from the menu?`,`¿Borrar “${it.name}” del menú?`))) await dbDel("menu",it.id); });
+  if(!canWrite("menu")) main.querySelectorAll("#mnForm input,#mnForm select,#mnForm button,#mnSeed").forEach(el=>{el.disabled=true;el.classList.add("ro");el.title=tt("Only an administrator can change the menu","Solo un administrador puede cambiar el menú");});
+}
+function listMenu(){
+  const k=document.getElementById("mnKpis"); if(!k) return;
+  if(!menuSeeded&&!D.menu.length&&canWrite("menu")){ menuSeeded=true; seedMenuDrinks().then(n=>{ if(n) toast(tt(`${n} juices added to Drinks — set their prices.`,`${n} jugos agregados a Bebidas — ponles precio.`)); }); }
+  const food=menuItems("comida"), drinks=menuItems("bebida"), priced=D.menu.filter(m=>num(m.price)>0);
+  k.innerHTML=[[D.menu.length,tt("menu items","ítems del menú")],[food.length,tt("food","comidas")],[drinks.length,tt("drinks","bebidas")],[D.menu.length-priced.length,tt("without a price","sin precio"),D.menu.length>priced.length?"warn":""]]
+    .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join("");
+  document.getElementById("mnTitle").textContent=(menuCat==="comida"?"🍽 ":"🥤 ")+catName(menuCat);
+  const rows=menuItems(menuCat), el=document.getElementById("mnList");
+  if(el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT") return;
+  const groups=(MENU_KINDS[menuCat]||[]).map(kd=>[kd[0],rows.filter(r=>(r.kind||"otro")===kd[0])]).filter(g=>g[1].length);
+  el.innerHTML=rows.length?`<div class="tablewrap"><table class="dt menutbl"><thead><tr><th>${tt("Name","Nombre")}</th><th>${tt("Price","Precio")}</th><th>${tt("Note","Nota")}</th><th>${tt("On","Activo")}</th><th></th></tr></thead><tbody>
+   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(m.name)}${m.prodId?` <span class="badge ok">${tt("app drink","bebida de la app")}</span>`:""}</td>
+     <td><input data-f="price" type="number" min="0" step="0.01" value="${esc(m.price)}" aria-label="${tt("Price","Precio")}"></td>
+     <td><input class="txt" data-f="notes" value="${esc(m.notes||"")}" aria-label="${tt("Note","Nota")}"></td>
+     <td><input data-f="active" type="checkbox" style="width:auto"${m.active!==false?" checked":""} aria-label="${tt("On","Activo")}"></td>
+     <td class="nw"><button type="button" class="btn sm ghost" data-mndel="${esc(m.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")).join("")}
+   </tbody></table></div>`
+   :`<p class="empty">${tt("Nothing in this group yet. Add dishes above, or load this app's 6 juices into Drinks.","Aún no hay nada en este grupo. Agrega platos arriba, o carga los 6 jugos de esta app en Bebidas.")}</p>`;
+  if(!canWrite("menu")) el.querySelectorAll("input,button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
 }
 
 /* ================= MODULE 2 — KITCHEN & INVENTORY ================= */
