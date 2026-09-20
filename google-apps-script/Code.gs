@@ -14,6 +14,8 @@
  * Roles:  admin   = everything, including users and settings
  *         chef    = reads everything; changes Inventario, Mermas, costs (Config) and Órdenes (kitchen board)
  *         lectura = reads everything, changes nothing
+ *         cocinero = only Kitchen & inventory + kitchen order board
+ *         mesero   = only Customers (bookings), Tables layout + orders by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
  */
 // app collection → tab name
@@ -38,11 +40,17 @@ const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jug
 
 /* ---------------- users, roles and sessions ---------------- */
 const ROLES = {
-  admin:   { label: "Administrador", write: "*" },
-  chef:    { label: "Chef", write: ["inventory", "waste", "settings", "orders"] },
-  lectura: { label: "Solo lectura", write: [] }
+  admin:    { label: "Administrador", write: "*", read: "*",
+              desc: "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings." },
+  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders"], read: "*",
+              desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso y Órdenes. / Sees everything. Changes inventory, waste, cost per cup and orders." },
+  cocinero: { label: "Cocinero", write: ["inventory", "waste", "orders"], read: ["inventory", "waste", "orders", "settings", "tables"],
+              desc: "Solo Cocina e inventario y el tablero de Órdenes: cambia stock, mermas y el estado de las órdenes. / Only Kitchen & inventory and the order board." },
+  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders"], read: ["reservations", "tables", "orders"],
+              desc: "Solo Clientes (reservas), Distribución de mesas y Órdenes por mesa: toma reservas, marca mesas ocupadas/libres y envía pedidos a cocina. / Only Customers (bookings), Tables layout and Orders by table." },
+  lectura:  { label: "Solo lectura", write: [], read: "*",
+              desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
 };
-const CHEF_TXT = "Ve todo. Cambia parámetros de cocina: Inventario (stock, alerta, cantidad máxima, costo), Mermas, costo por vaso y Órdenes (tablero de cocina). / Sees everything. Changes kitchen parameters: inventory, waste, cost per cup and the kitchen order board.";
 const SESSION_SECONDS = 21600; // 6 h
 function usersSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -52,22 +60,18 @@ function usersSheet_() {
     sh.getRange(1, 1, 1, 7).setValues([["Usuario", "Nombre", "Rol", "Activo", "Último acceso", "hash", "sal"]]);
     sh.setFrozenRows(1); sh.hideColumns(6, 2);
     sh.getRange("A1:G1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
+  }
+  const rows = [["Rol", "Nombre", "Permisos / Permissions"]].concat(Object.keys(ROLES).map(function (k) { return [k, ROLES[k].label, ROLES[k].desc]; }));
+  let r = ss.getSheetByName("Roles");
+  if (!r) { r = ss.insertSheet("Roles"); r.setColumnWidth(3, 620); }
+  const cur = r.getLastRow() >= 1 ? r.getRange(1, 1, Math.max(r.getLastRow(), rows.length), 3).getDisplayValues() : [];
+  if (JSON.stringify(cur.slice(0, rows.length)) !== JSON.stringify(rows) || cur.length !== rows.length) {
+    if (r.getLastRow() > 0) r.getRange(1, 1, r.getLastRow(), 3).clearContent();
+    r.getRange(1, 1, rows.length, 3).setValues(rows);
+    r.getRange("A1:C1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
     const rule = SpreadsheetApp.newDataValidation().requireValueInList(Object.keys(ROLES), true).build();
     sh.getRange("C2:C200").setDataValidation(rule);
   }
-  if (!ss.getSheetByName("Roles")) {
-    const r = ss.insertSheet("Roles");
-    r.getRange(1, 1, 4, 3).setValues([
-      ["Rol", "Nombre", "Permisos / Permissions"],
-      ["admin", "Administrador", "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings."],
-      ["chef", "Chef", CHEF_TXT],
-      ["lectura", "Solo lectura", "Ve todo, no cambia nada. / Sees everything, changes nothing."]
-    ]);
-    r.getRange("A1:C1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
-    r.setColumnWidth(3, 620);
-  }
-  const rr = ss.getSheetByName("Roles");
-  if (rr && rr.getRange(3, 3).getDisplayValues()[0][0] !== CHEF_TXT) rr.getRange(3, 3).setValues([[CHEF_TXT]]);
   return sh;
 }
 function hash_(password, salt) {
@@ -103,6 +107,11 @@ function session_(token) {
   if (!token) return null;
   const v = CacheService.getScriptCache().get("s_" + token);
   return v ? JSON.parse(v) : null;
+}
+function canRead_(s, col) {
+  if (!s || !ROLES[s.role]) return false;
+  const r = ROLES[s.role].read;
+  return r === "*" || r.indexOf(col) >= 0;
 }
 function canWrite_(s, col) {
   if (!s || !ROLES[s.role]) return false;
@@ -174,6 +183,7 @@ function handle_(req) {
     if (!SHEETS[col]) return out_({ ok: false, error: "bad_collection" });
     if (action === "list") {
       if (!s) return out_({ ok: false, error: "auth" });
+      if (!canRead_(s, col)) return out_({ ok: false, error: "forbidden" });
       return out_({ ok: true, docs: list_(col) });
     }
     if (action === "set") {
@@ -211,7 +221,7 @@ function menuUsuario() {
   try {
     const user = ask("Usuario (3-40 letras/números, sin espacios) / Username:");
     const name = ask("Nombre completo / Full name:");
-    const role = ask("Rol / Role:  admin, chef  o  lectura").toLowerCase();
+    const role = ask("Rol / Role:  admin, chef, cocinero, mesero  o  lectura").toLowerCase();
     const pw = ask("Contraseña (mínimo 8 caracteres). Déjala vacía para no cambiarla. / Password (min 8), blank = keep:");
     saveUser_(user, name, role, true, pw);
     ui.alert("Usuario guardado / User saved: " + user.toLowerCase() + " (" + role + ")");

@@ -877,7 +877,14 @@ function ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
 function ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
 function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
 function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
-const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],lectura:["Read only","Solo lectura"]};
+const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
+// roles limited to some modules (others see every module)
+const ROLE_VIEWS={cocinero:["m2","orders","settings"],mesero:["m1","tables","orders","settings"]};
+const ROLE_READ={cocinero:["inventory","waste","orders","settings","tables"],mesero:["reservations","tables","orders"]};
+const ROLE_WRITE={chef:["inventory","waste","settings","orders"],cocinero:["inventory","waste","orders"],mesero:["reservations","tables","orders"],lectura:[]};
+const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
+const canView=v=>{const r=myRole(); return !r||!ROLE_VIEWS[r]||ROLE_VIEWS[r].includes(v);};
+const canRead=c=>{const r=myRole(); return !r||!ROLE_READ[r]||ROLE_READ[r].includes(c);};
 const roleName=r=>ROLE_LABEL[r]?tt(ROLE_LABEL[r][0],ROLE_LABEL[r][1]):r;
 function onAuthLost(){
   if(!SESSION) return;
@@ -929,8 +936,8 @@ function showLogin(msg){
   };
 }
 function startData(){
-  ["inventory","waste","reservations","sales","posts","reviews","tables","orders"].forEach(subscribe);
-  DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+  ["inventory","waste","reservations","sales","posts","reviews","tables","orders"].filter(canRead).forEach(subscribe);
+  if(canRead("settings")) DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
 }
 function startSheet(url){
   MODE="sheet"; DB=makeSheetDB(url); if(lsGet(LS_KEY)) SAMPLE=makeApiSample();
@@ -948,13 +955,14 @@ async function startAuth(){
   showLogin(expired?tt("Your session ended. Sign in again.","Tu sesión terminó. Vuelve a iniciar sesión."):"");
 }
 // ----- what each role may change -----
-function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||(r==="chef"&&["inventory","waste","settings","orders"].includes(col)); }
+function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||!!(ROLE_WRITE[r]&&ROLE_WRITE[r].includes(col)); }
 const READ_OK='[data-aiview],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,#resCsv,#resJson,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
   if(v==="settings"||v==="overview") return;
   if(chef&&(v==="m2"||v==="orders")) return;
+  if(ROLE_VIEWS[SESSION.role]) return; // cook / waiter: full use of the modules they can open
   main.querySelectorAll("section input,section select,section textarea,section button,section .linkbtn").forEach(el=>{
     if(el.matches(READ_OK)) return;
     if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin")) return;
@@ -972,12 +980,12 @@ function usersPanel(){
    <form id="usrForm" class="fgrid">
     ${field("uUser",tt("Username","Usuario"),`<input id="uUser" required autocapitalize="none" pattern="[A-Za-z0-9._-]{3,40}">`)}
     ${field("uName",tt("Full name","Nombre"),`<input id="uName">`)}
-    ${field("uRole",tt("Role","Rol"),`<select id="uRole"><option value="lectura">${roleName("lectura")}</option><option value="chef">${roleName("chef")}</option><option value="admin">${roleName("admin")}</option></select>`)}
+    ${field("uRole",tt("Role","Rol"),`<select id="uRole"><option value="lectura">${roleName("lectura")}</option><option value="chef">${roleName("chef")}</option><option value="cocinero">${roleName("cocinero")}</option><option value="mesero">${roleName("mesero")}</option><option value="admin">${roleName("admin")}</option></select>`)}
     ${field("uPass",tt("Password (min. 8; blank = keep)","Contraseña (mín. 8; vacía = no cambiar)"),`<input id="uPass" type="password" autocomplete="new-password" minlength="8">`)}
     <label class="chk"><input type="checkbox" id="uActive" checked> ${tt("Active","Activo")}</label>
     <button class="btn" type="submit">${tt("Save user","Guardar usuario")}</button>
    </form><p class="hint" id="usrMsg" aria-live="polite"></p>
-   <p class="hint">${tt("Administrator: everything. Chef: sees everything; changes inventory, waste and cost per cup. Read only: sees everything, changes nothing.","Administrador: todo. Chef: ve todo; cambia inventario, merma y costo por vaso. Solo lectura: ve todo, no cambia nada.")}</p></div>`;
+   <p class="hint">${tt("Administrator: everything. Chef: sees everything; changes inventory, waste and cost per cup. Cook: only Kitchen & inventory and the order board. Waiter: only Customers (bookings), Tables layout and Orders by table. Read only: sees everything, changes nothing.","Administrador: todo. Chef: ve todo; cambia inventario, merma y costo por vaso. Cocinero: solo Cocina e inventario y el tablero de órdenes. Mesero: solo Clientes (reservas), Distribución de mesas y Órdenes por mesa. Solo lectura: ve todo, no cambia nada.")}</p></div>`;
 }
 async function loadUsers(){
   const el=document.getElementById("usrList"); if(!el) return;
@@ -1054,11 +1062,12 @@ const MODS=[
   {id:"settings",en:"⚙ Settings",es:"⚙ Ajustes"}
 ];
 function aiSys(){
+  if(!canView(state.aiView)) state.aiView=(ROLE_VIEWS[myRole()]||[])[0]||MODS.find(m=>canView(m.id)).id;
   const v=state.aiView;
   const banner = !capsReady ? `<p class="capnote">${tt("Connecting to data and AI…","Conectando con datos e IA…")}</p>`
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
-  const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
+  const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
   let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():aiOverview();
   return nav+banner+body;
 }
