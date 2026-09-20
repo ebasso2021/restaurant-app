@@ -106,7 +106,17 @@ function adminCount_(sh, exceptRow) {
 function session_(token) {
   if (!token) return null;
   const v = CacheService.getScriptCache().get("s_" + token);
-  return v ? JSON.parse(v) : null;
+  if (!v) return null;
+  const s = JSON.parse(v);
+  // role changes and deactivations take effect at once, without waiting for the session to expire
+  const sh = usersSheet_(), r = findUser_(sh, s.user);
+  if (r < 0) return null;
+  const row = sh.getRange(r, 1, 1, 4).getValues()[0];
+  if (row[3] === false) return null;
+  const role = String(row[2] || "").trim();
+  if (!ROLES[role]) return null;
+  s.role = role;
+  return s;
 }
 function canRead_(s, col) {
   if (!s || !ROLES[s.role]) return false;
@@ -249,8 +259,11 @@ function rowOf_(sh, id) {
   for (let i = 0; i < ids.length; i++) if (ids[i][0] === id) return i + 2;
   return -1;
 }
-function toDateStr_(v) {
-  return Object.prototype.toString.call(v) === "[object Date]" ? Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd") : String(v);
+const TIMES = ["time", "end"];
+function tz_() { return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone() || Session.getScriptTimeZone(); }
+function toDateStr_(v, key) {
+  if (Object.prototype.toString.call(v) !== "[object Date]") return String(v);
+  return Utilities.formatDate(v, tz_(), TIMES.indexOf(key) >= 0 ? "HH:mm" : "yyyy-MM-dd");
 }
 function list_(col) {
   const sh = sheet_(col), n = sh.getLastRow(), w = sh.getLastColumn(); if (n < 2) return [];
@@ -266,7 +279,7 @@ function list_(col) {
       if (!k) return; const v = row[j];
       if (NUM.indexOf(k) >= 0) { if (v !== "" && !isNaN(Number(v))) data[k] = Number(v); }
       else if (BOOL.indexOf(k) >= 0) { if (v !== "") data[k] = v === true || /^(true|verdadero|s[ií]|yes|1)$/i.test(String(v)); }
-      else data[k] = v === "" ? "" : toDateStr_(v);
+      else data[k] = v === "" ? "" : toDateStr_(v, k);
     });
     docs.push({ id: id, data: data });
   });
@@ -288,11 +301,12 @@ function write_(col, id, data) {
     let v = data[k];
     if (v == null || typeof v === "object") { row.push(""); fmts.push("@"); return; }
     if (DATES.indexOf(k) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
-      const p = String(v).split("-"); row.push(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]))); fmts.push("yyyy-mm-dd"); return;
+      const p = String(v).split("-"); row.push(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0)); fmts.push("yyyy-mm-dd"); return;
     }
     if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(Number.isInteger(v) ? "0" : "0.00"); return; }
     if (BOOL.indexOf(k) >= 0) { row.push(!!v); fmts.push("@"); return; }
-    row.push(String(v)); fmts.push("@");
+    v = String(v); if (/^[=+]/.test(v)) v = "'" + v;
+    row.push(v); fmts.push("@");
   });
   let r = rowOf_(sh, id); if (r < 0) r = sh.getLastRow() + 1;
   const range = sh.getRange(r, 1, 1, row.length);
