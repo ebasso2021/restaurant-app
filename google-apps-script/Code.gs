@@ -12,20 +12,25 @@
  *  5. Open the app on GitHub, paste the Web app URL (ends in /exec) the first time, and log in.
  *
  * Roles:  admin   = everything, including users and settings
- *         chef    = reads everything; changes Inventario, Mermas, costs (Config) and Órdenes (kitchen board)
+ *         chef    = reads everything; changes Inventario, Mermas, costs (Config), Órdenes and Recetas
  *         lectura = reads everything, changes nothing
  *         cocinero = full Kitchen & inventory; everything else read only
  *         mesero   = only Customers (bookings), Tables layout, orders and billing by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
+ * Kardex: the tab "Kardex" (created automatically) logs every stock movement — purchases from the app (+ Stock)
+ * and from the "Compras" tab, sales from paid bills, waste and stock counts — with unit cost, balance and
+ * weighted average cost. Stock may be in g, kg, ml, L or pieces; the cost is ALWAYS per kg, per L or per piece
+ * (pieces are bought by the package: unit cost = package price ÷ pieces in the package)
+ * (2 decimals), so value = stock converted to kg / L × cost. After updating this file run  instalarFormulas  again.
  */
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
                  posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)",
-                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas (app)" };
+                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas (app)", kardex: "Kardex" };
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
-  inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"]],
+  inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"],["costPer","Costo por"],["pack","Piezas por paquete"]],
   waste: [["date","Fecha"],["itemId","ID artículo"],["item","Artículo"],["qty","Cantidad"],["unit","Unidad"],["cost","Costo"],["reason","Motivo"]],
   posts: [["when","Fecha y hora"],["channel","Canal"],["status","Estado"],["text","Texto"],["image","Imagen"],["reach","Alcance"],["likes","Likes"],["comments","Comentarios"],["saves","Guardados"]],
   reviews: [["date","Fecha"],["source","Fuente"],["stars","Estrellas"],["name","Autor"],["text","Texto"],["reply","Respuesta"],["replied","Respondida"]],
@@ -34,23 +39,25 @@ const FIELDS = {
   menu: [["name","Nombre"],["cat","Grupo"],["kind","Tipo"],["price","Precio"],["notes","Nota"],["prodId","ID bebida app"],["active","Activo"]],
   bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["stockText","Descuento de stock"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
   recipes: [["item","Plato"],["portionLabel","Porción (medida única)"],["ingText","Ingredientes por 1 porción"],["steps","Preparación"],["notes","Notas"],["locked","Establecida"],["lockedAt","Establecida el"],["lockedBy","Por"],["itemId","ID del menú"],["updated","Actualizada"]],
+  kardex: [["date","Fecha"],["item","Artículo"],["type","Movimiento"],["reason","Motivo"],["qty","Cantidad"],["unit","Unidad"],["unitCost","Costo unitario"],["total","Total"],["balQty","Saldo cantidad"],["avgCost","Costo promedio"],["balValue","Saldo valor"],["ref","Referencia"],["by","Usuario"],["when","Fecha y hora"],["itemId","ID artículo"]],
   sales: [], settings: []
 };
-const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
+const NUM = ["pack","unitCost","balQty","avgCost","balValue","qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
 const BOOL = ["replied","active","occupied","locked"];
+const MONEY = ["cost","unitCost","total","avgCost","balValue","price","subtotal","discount","tax","tip","per","totalCur"]; // always 2 decimals
 const DATES = ["date"];
-const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
+const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya", lomo: "Lomo saltado" };
 
 /* ---------------- users, roles and sessions ---------------- */
 const ROLES = {
   admin:    { label: "Administrador", write: "*", read: "*",
               desc: "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings." },
-  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders", "recipes"], read: "*",
-              desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso y Órdenes. / Sees everything. Changes inventory, waste, cost per cup and orders." },
-  cocinero: { label: "Cocinero", write: ["inventory", "waste"], read: "*",
+  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders", "recipes", "kardex"], read: "*",
+              desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso, Órdenes y Recetas. / Sees everything. Changes inventory, waste, cost per cup, orders and recipes." },
+  cocinero: { label: "Cocinero", write: ["inventory", "waste", "kardex"], read: "*",
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
   mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings"],
-              desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa; no cambia la lista de precios. / Customers, Tables layout, Orders and Billing by table; cannot change the price list." },
+              desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa (al cobrar suma a Ventas y descuenta stock); no cambia el menú ni los precios. / Customers, Tables layout, Orders and Billing by table (charging adds to sales and discounts stock); cannot change the menu or prices." },
   lectura:  { label: "Solo lectura", write: [], read: "*",
               desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
 };
@@ -65,6 +72,8 @@ function usersSheet_() {
     sh.getRange("A1:G1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
   }
   const rows = [["Rol", "Nombre", "Permisos / Permissions"]].concat(Object.keys(ROLES).map(function (k) { return [k, ROLES[k].label, ROLES[k].desc]; }));
+  const cache = CacheService.getScriptCache(), ver = "roles_" + strHash_(JSON.stringify(rows));
+  if (cache.get("roles_ok") === ver && ss.getSheetByName("Roles")) return sh;
   let r = ss.getSheetByName("Roles");
   if (!r) { r = ss.insertSheet("Roles"); r.setColumnWidth(3, 620); }
   const cur = r.getLastRow() >= 1 ? r.getRange(1, 1, Math.max(r.getLastRow(), rows.length), 3).getDisplayValues() : [];
@@ -75,8 +84,10 @@ function usersSheet_() {
     const rule = SpreadsheetApp.newDataValidation().requireValueInList(Object.keys(ROLES), true).build();
     sh.getRange("C2:C200").setDataValidation(rule);
   }
+  cache.put("roles_ok", ver, 21600);
   return sh;
 }
+function strHash_(t) { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); }
 function hash_(password, salt) {
   let h = salt + "|" + password;
   for (let i = 0; i < 300; i++) h = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h, Utilities.Charset.UTF_8));
@@ -132,7 +143,7 @@ function canWrite_(s, col) {
   return w === "*" || w.indexOf(col) >= 0;
 }
 function login_(user, password) {
-  const cache = CacheService.getScriptCache(), key = "f_" + String(user || "").toLowerCase();
+  const cache = CacheService.getScriptCache(), key = "f_" + String(user || "").trim().toLowerCase();
   const fails = Number(cache.get(key) || 0);
   if (fails >= 5) return { ok: false, error: "locked" };
   const sh = usersSheet_(), r = findUser_(sh, user);
@@ -150,17 +161,25 @@ function login_(user, password) {
 }
 
 /* ---------------- web app ---------------- */
-function doGet(e) { return handle_((e && e.parameter) || {}); }
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (!p.action || p.action === "ping") return handle_({ action: "ping" });
+  return out_({ ok: false, error: "use_post" });
+}
 function doPost(e) {
   let body = {};
   try { body = JSON.parse(e.postData && e.postData.contents || "{}"); } catch (err) { return out_({ ok: false, error: "bad_json" }); }
   return handle_(body);
 }
+const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1 };
 function handle_(req) {
+  const action = String(req.action || ""), col = String(req.col || "");
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // a read can run alongside others, except the first time a tab has to be created
+  const needLock = !LOCK_FREE[action] || (action === "list" && SHEETS[col] && !ss.getSheetByName(SHEETS[col]));
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  if (needLock && !lock.tryLock(15000)) return out_({ ok: false, error: "busy" });
   try {
-    const action = String(req.action || ""), col = String(req.col || "");
     if (action === "ping") return out_({ ok: true, hasUsers: usersSheet_().getLastRow() >= 2 });
     if (action === "login") return out_(login_(req.user, req.password));
     const s = session_(req.token);
@@ -201,13 +220,19 @@ function handle_(req) {
     }
     if (action === "set") {
       const id = String(req.id || "");
-      if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null) return out_({ ok: false, error: "bad_request" });
+      if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null || Array.isArray(req.data)) return out_({ ok: false, error: "bad_request" });
       if (!s) return out_({ ok: false, error: "auth" });
       if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
+      const keys = Object.keys(req.data);
+      if (keys.length > 60 || keys.some(function (k) { return !/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(k); })) return out_({ ok: false, error: "bad_request", message: "campos inválidos" });
       const isNew = rowOf_(sheet_(col), id) < 0;
-      write_(col, id, req.data);
-      // a new paid bill discounts the stock its recipes use (one standard portion per unit sold)
-      if (col === "bills" && isNew && Array.isArray(req.data.stockUse)) useStock_(req.data.stockUse);
+      let data = req.data;
+      // a new paid bill discounts the stock its recipes use; the server works it out itself
+      let uses = null;
+      if (col === "bills" && isNew) { uses = stockForBill_(data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
+      if (JSON.stringify(data).length > 45000) return out_({ ok: false, error: "too_big" }); // a cell holds at most 50 000 characters
+      write_(col, id, data);
+      if (uses && uses.length) useStock_(uses, "Factura " + id, s.name || s.user || "");
       return out_({ ok: true });
     }
     if (action === "delete") {
@@ -220,7 +245,7 @@ function handle_(req) {
     }
     return out_({ ok: false, error: "bad_action" });
   } finally {
-    lock.releaseLock();
+    if (needLock) lock.releaseLock();
   }
 }
 
@@ -249,7 +274,7 @@ function sheet_(col) {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), name = SHEETS[col];
   let sh = ss.getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(name);
+    try { sh = ss.insertSheet(name); } catch (err) { sh = ss.getSheetByName(name); if (sh) return sh; throw err; }
     const h = ["ID", "json"].concat(FIELDS[col].map(function (f) { return f[1]; }));
     sh.getRange(1, 1, 1, h.length).setValues([h]); sh.setFrozenRows(1); sh.hideColumns(2);
     if (col === "recipes") moveOldRecipes_(ss, sh);
@@ -316,7 +341,7 @@ function write_(col, id, data) {
   Object.keys(data).forEach(function (k) {
     if (typeof data[k] === "object" && data[k] !== null) return;
     const h = byField[k] || k;
-    if (headers.indexOf(h) < 0) { headers.push(h); sh.getRange(1, headers.length).setValue(h); }
+    if (headers.indexOf(h) < 0 && headers.length < 60) { headers.push(h); sh.getRange(1, headers.length).setValue(h); }
   });
   const keys = headerMap_(col, headers), row = [], fmts = [];
   keys.forEach(function (k, j) {
@@ -327,7 +352,7 @@ function write_(col, id, data) {
     if (DATES.indexOf(k) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
       const p = String(v).split("-"); row.push(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0)); fmts.push("yyyy-mm-dd"); return;
     }
-    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(Number.isInteger(v) ? "0" : "0.00"); return; }
+    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(["cost","unitCost","avgCost"].indexOf(k) >= 0 ? "#,##0.00##" : MONEY.indexOf(k) >= 0 ? "#,##0.00" : Number.isInteger(v) ? "0" : "0.000"); return; }
     if (BOOL.indexOf(k) >= 0) { row.push(!!v); fmts.push("@"); return; }
     v = String(v); if (/^[=+]/.test(v)) v = "'" + v;
     row.push(v); fmts.push("@");
@@ -383,17 +408,58 @@ function applyPurchase_(sh, r) {
   const w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
   const cQty = headers.indexOf("Stock") + 1, cCost = headers.indexOf("Costo unitario") + 1, cUpd = headers.indexOf("Actualizado") + 1;
   const now = new Date().toISOString();
-  inv.getRange(row, cQty).setValue(Number(inv.getRange(row, cQty).getValue() || 0) + qty);
-  if (cost != null && !isNaN(cost) && cCost > 0) inv.getRange(row, cCost).setValue(cost);
+  let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
+  const q0 = Math.max(0, Number(inv.getRange(row, cQty).getValue() || 0)), c0 = cCost > 0 ? Number(inv.getRange(row, cCost).getValue() || 0) : Number(data.cost || 0);
+  const u = data.unit || v[3], B = function (q) { return toBase_(q, u, data.pack); };
+  const uc = cost != null && !isNaN(cost) ? rc_(u, cost) : c0, q1 = r3_(q0 + qty), c1 = q1 > 0 ? rc_(u, (B(q0) * c0 + B(qty) * uc) / B(q1)) : uc; // weighted average cost, in kg / L / piece
+  inv.getRange(row, cQty).setValue(q1);
+  if (cCost > 0) inv.getRange(row, cCost).setValue(c1);
   if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
   // keep the hidden json in step
-  let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
-  data.qty = Number(inv.getRange(row, cQty).getValue()); if (cost != null && !isNaN(cost)) data.cost = cost; data.updated = now;
+  data.qty = q1; data.cost = c1; data.costPer = baseOf_(u); data.updated = now;
   inv.getRange(row, 2).setValue(JSON.stringify(data));
+  kardex_({ id: String(v[2]), name: data.name || v[1], unit: data.unit || v[3], pack: data.pack }, "in", "purchase", qty, uc, q1, c1, "Compras fila " + r, "Compras");
   sh.getRange(r, 11).setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"));
 }
 
-function useStock_(uses) {
+// units the recipes use → the unit of each inventory item
+const UF_ = { g: ["m", 1], kg: ["m", 1000], mg: ["m", 0.001], ml: ["v", 1], mL: ["v", 1], l: ["v", 1000], L: ["v", 1000], tbsp: ["v", 15], tsp: ["v", 5], pc: ["c", 1], u: ["c", 1], und: ["c", 1] };
+function conv_(q, from, to) { const a = UF_[from], b = UF_[to]; if (!a || !b || a[0] !== b[0]) return null; return Number(q) * a[1] / b[1]; }
+// stock used by a bill: every line × the saved standard measure (1 portion) of its menu item
+function stockForBill_(bill) {
+  const lines = Array.isArray(bill.lines) ? bill.lines.slice(0, 200) : []; if (!lines.length) return [];
+  const key = function (t) { return String(t || "").trim().toLowerCase(); };
+  const menu = list_("menu"), recipes = list_("recipes"), inv = list_("inventory"), out = [];
+  lines.forEach(function (l) {
+    const qty = Number(l && l.qty); if (!(qty > 0)) return;
+    const m = menu.filter(function (x) { return key(x.data.name) === key(l.dish); })[0]; if (!m) return;
+    const r = recipes.filter(function (x) { return x.data.itemId === m.id && x.data.locked === true; })[0]; if (!r) return;
+    (Array.isArray(r.data.ingredients) ? r.data.ingredients : []).forEach(function (g) {
+      if (!g || !g.inv) return;
+      const it = inv.filter(function (x) { return x.id === g.inv; })[0]; if (!it) return;
+      const per = conv_(g.q, g.u, it.data.unit); if (per == null || !(per > 0)) return;
+      const q = Math.round(per * qty * 100) / 100, f = out.filter(function (x) { return x.id === it.id; })[0];
+      if (f) f.qty = Math.round((f.qty + q) * 100) / 100; else out.push({ id: it.id, name: it.data.name, unit: it.data.unit, qty: q });
+    });
+  });
+  return out;
+}
+const r2_ = function (n) { return Math.round(Number(n || 0) * 100) / 100; };
+const r3_ = function (n) { return Math.round(Number(n || 0) * 1000) / 1000; };
+const r4_ = function (n) { return Math.round(Number(n || 0) * 10000) / 10000; };
+const rc_ = function (u, n) { return u === "pc" ? r4_(n) : r2_(n); }; // cost per piece keeps 4 decimals
+// RULE: stock may be in g, kg, ml, L or pc, but the cost is always per kg (g, kg), per L (ml, L) or per piece.
+// value = stock converted to kg / L × cost   (4500 g × CA$8.50/kg = 4.5 × 8.50 = 38.25)
+const baseOf_ = function (u) { return u === "g" || u === "kg" ? "kg" : (u === "ml" || u === "mL" || u === "L" || u === "l") ? "L" : "pc"; };
+// pieces are bought by the package but costed per piece (unit cost = package price ÷ pieces) → value = pieces × unit cost
+const toBase_ = function (q, u) { return (u === "g" || u === "ml" || u === "mL") ? Number(q || 0) / 1000 : Number(q || 0); };
+// one row in the "Kardex" tab: every purchase, sale (paid bill), waste and adjustment, with running balance and average cost
+function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by) {
+  const now = new Date(), id = "k" + now.getTime().toString(36) + Math.random().toString(36).slice(2, 6);
+  write_("kardex", id, { date: Utilities.formatDate(now, tz_(), "yyyy-MM-dd"), when: now.toISOString(), itemId: it.id, item: it.name || "", unit: it.unit || "",
+    costPer: baseOf_(it.unit), pack: Number(it.pack) > 0 ? Number(it.pack) : 1, type: type, reason: reason, qty: r3_(qty), unitCost: rc_(it.unit, unitCost), total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), balQty: r3_(balQty), avgCost: rc_(it.unit, avgCost), balValue: r2_(toBase_(balQty, it.unit, it.pack) * avgCost), ref: ref || "", by: by || "" });
+}
+function useStock_(uses, ref, by) {
   const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
   const cQty = headers.indexOf("Stock") + 1, cUpd = headers.indexOf("Actualizado") + 1; if (cQty < 1) return;
   const now = new Date().toISOString();
@@ -405,6 +471,7 @@ function useStock_(uses) {
     if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
     let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
     data.qty = left; data.updated = now; inv.getRange(row, 2).setValue(JSON.stringify(data));
+    kardex_({ id: String(u.id), name: data.name || u.name, unit: data.unit || u.unit, pack: data.pack }, "out", "sale", q, Number(data.cost || 0), left, Number(data.cost || 0), ref, by);
   });
 }
 
@@ -437,13 +504,15 @@ function instalarFormulas() {
   put("Clientes", "E2", '=MAP(A2:A,LAMBDA(k,IF(k="","",MAX(MAXIFS(Reservas!C2:C,Reservas!F2:F,k),MAXIFS(Reservas!C2:C,Reservas!F2:F,"",Reservas!E2:E,k)))))');
   put("Clientes", "F2", '=MAP(A2:A,LAMBDA(k,IF(k="","",COUNTIFS(Reservas!F2:F,k,Reservas!I2:I,"cancelled")+COUNTIFS(Reservas!F2:F,"",Reservas!E2:E,k,Reservas!I2:I,"cancelled"))))');
   ss.getSheetByName("Clientes").getRange("E2:E").setNumberFormat("yyyy-mm-dd");
+
   // Stock (live view of Inventario + Compras + Mermas)
   clear("Stock", "A2:N");
   const src = { A: "A", B: "C", C: "D", D: "E", E: "F", F: "G", I: "H", N: "I" };
   Object.keys(src).forEach(function (c) { put("Stock", c + "2", '=ARRAYFORMULA(IF(Inventario!A2:A="","",Inventario!' + src[c] + '2:' + src[c] + '))'); });
   put("Stock", "G2", '=ARRAYFORMULA(IF(A2:A="","",IF((E2:E>0)*(D2:D<=E2:E),"Bajo",IF((F2:F>0)*(D2:D>F2:F),"Exceso","OK"))))');
   put("Stock", "H2", '=ARRAYFORMULA(IF(A2:A="","",IF((G2:G="Bajo")*(F2:F>D2:D),F2:F-D2:D,0)))');
-  put("Stock", "J2", '=ARRAYFORMULA(IF(A2:A="","",IFERROR(D2:D*I2:I,0)))');
+  // value = stock in g/ml ÷ 1000 × cost per kg / L; pieces × cost per piece
+  put("Stock", "J2", '=ARRAYFORMULA(IF(A2:A="","",IFERROR(IF(REGEXMATCH(LOWER(C2:C),"^(g|ml)$"),D2:D/1000,D2:D)*I2:I,0)))');
   put("Stock", "K2", '=MAP(A2:A,LAMBDA(id,IF(id="","",SUMIFS(Compras!E2:E,Compras!C2:C,id,Compras!J2:J,"Recibido",Compras!A2:A,' + d30 + '))))');
   put("Stock", "L2", '=MAP(A2:A,LAMBDA(id,IF(id="","",IF(MAXIFS(Compras!A2:A,Compras!C2:C,id)=0,"",MAXIFS(Compras!A2:A,Compras!C2:C,id)))))');
   put("Stock", "M2", '=MAP(A2:A,LAMBDA(id,IF(id="","",SUMIFS(Mermas!F2:F,Mermas!D2:D,id,Mermas!C2:C,' + d30 + '))))');
@@ -460,7 +529,7 @@ function instalarFormulas() {
   clear("Recetas", "E2:E"); clear("Recetas", "G2:H");
   put("Recetas", "E2", '=MAP(B2:B,LAMBDA(n,IF(n="","",IFERROR(INDEX(Inventario!D2:D,MATCH(n,Inventario!C2:C,0)),"no está en inventario"))))');
   put("Recetas", "G2", '=MAP(B2:B,LAMBDA(n,IF(n="","",IFERROR(INDEX(Inventario!H2:H,MATCH(n,Inventario!C2:C,0)),""))))');
-  put("Recetas", "H2", '=ARRAYFORMULA(IF(B2:B="","",IF(D2:D=E2:E,C2:C*IFERROR(G2:G*1,0),"convertir unidad")))');
+  put("Recetas", "H2", '=ARRAYFORMULA(IF(B2:B="","",IF(D2:D=E2:E,IF(REGEXMATCH(LOWER(D2:D),"^(g|ml)$"),C2:C/1000,C2:C)*IFERROR(G2:G*1,0),"convertir unidad")))'); // cost per kg / L / piece
   ss.getSheetByName("Recetas").getRange("H2:H").setNumberFormat("#,##0.00");
 
   ss.toast("Fórmulas instaladas / Formulas installed", "Taste of Peru", 5);
