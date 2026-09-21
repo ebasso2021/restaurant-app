@@ -923,7 +923,7 @@ ${text}`;
     steps:(Array.isArray(j.steps)?j.steps:[]).map(x=>String(x).trim()).filter(Boolean),notes:String(j.notes||"")};
 }
 const normName=x=>String(x||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\(.*?\)/g,"").replace(/[^a-z0-9ñ ]+/g," ").replace(/\s+/g," ").trim();
-const invUnitFor=u=>u==="mL"||u==="ml"||u==="tbsp"||u==="tsp"||u==="L"?"L":u==="pc"||u==="u"?"pc":"kg";
+const invUnitFor=u=>u==="L"?"L":u==="kg"?"kg":u==="mL"||u==="ml"||u==="tbsp"||u==="tsp"?"ml":u==="pc"||u==="u"?"pc":"g";
 const DOC_OK=/\.(docx|txt|md)$/i;
 const DOC_BAD=()=>tt("Choose a Word document (.docx) or a text file (.txt). Old .doc files: open them in Word and “Save as” .docx. PDF is not supported yet.","Elige un documento de Word (.docx) o un archivo de texto (.txt). Los .doc antiguos: ábrelos en Word y “Guardar como” .docx. PDF aún no es compatible.");
 // read a recipe document → {r (whole-recipe amounts), how:"ai"|"text"}
@@ -946,7 +946,7 @@ async function linkIngredients(r){
     const ex=D.inventory.find(i=>normName(i.name)===key)||made[key];
     if(ex){ inv=ex.id; linked++; }
     else if(!water&&invCan&&key){ const id="i"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      const doc={name:g.name.split(" (")[0].slice(0,60),unit:invUnitFor(g.unit),qty:0,min:0,par:0,cost:0,supplier:"",updated:new Date().toISOString()};
+      const doc={name:g.name.split(" (")[0].slice(0,60),unit:invUnitFor(g.unit),costPer:baseOf(invUnitFor(g.unit)),qty:0,min:0,par:0,cost:0,supplier:"",updated:new Date().toISOString()};
       await dbSet("inventory/"+id,doc); made[key]={id,...doc}; inv=id; created++; }
     else if(!water) skipped++;
     ingredients.push({n:g.note?`${g.name} (${g.note})`:g.name,q:r3(num(g.qty)/s),u:normU(g.unit),inv});
@@ -1634,7 +1634,10 @@ async function dedupeAppDrinks(){
   }
   if(removed) toast(tt(`Removed ${removed} duplicated drink(s) from the menu; kept the one with the saved recipe.`,`Se quitaron ${removed} bebida(s) duplicada(s) del menú; se dejó la que tiene la receta guardada.`));
 }
+let costPerDone=false;
+async function tagCostPer(){ costPerDone=true; for(const i of D.inventory) if(i.costPer!==baseOf(i.unit)) try{ await DB.collection("inventory").doc(i.id).update({costPer:baseOf(i.unit)}); }catch(e){} }
 function refreshNow(){
+  if(!costPerDone&&DB&&LOADED.has("inventory")&&D.inventory.length&&canWrite("inventory")) tagCostPer();
   if(!dedupeDone&&LOADED.has("menu")&&LOADED.has("recipes")&&canWrite("menu")) dedupeAppDrinks();
   if(state.tab==="recipes"){
     const sig=JSON.stringify(D.menu.map(m=>[m.id,m.name,m.cat,m.kind,m.price]))+"|"+JSON.stringify(D.recipes.map(r=>[r.itemId,r.updated,r.locked]))+"|"+JSON.stringify(D.inventory.map(i=>[i.id,i.name,i.unit,i.qty]))+"|"+state.recipe;
@@ -2385,14 +2388,20 @@ function listMenu(){
 }
 
 /* ================= MODULE 2 — KITCHEN & INVENTORY ================= */
-const UNITS=["kg","L","pc"]; // inventory is kept in kilos, litres or pieces; costs per kg / L / piece
+/* RULE: stock can be kept in g, kg, mL, L or pieces, but the COST is always per kg (g, kg), per L (mL, L) or per piece.
+   Value = stock converted to kg / L × cost.  e.g. 4,500 g of purple corn at CA$8.50/kg = 4.5 kg × 8.50 = CA$38.25 */
+const UNITS=["g","kg","ml","L","pc"];
+const baseOf=u=>u==="g"||u==="kg"?"kg":u==="ml"||u==="mL"||u==="L"||u==="l"?"L":"pc";
+const toBase=(q,u)=>u==="g"||u==="ml"||u==="mL"?num(q)/1000:num(q);   // stock quantity → kg / L / pieces
+const stockValue=i=>toBase(i.qty,i.unit)*num(i.cost);
 const cost2=v=>Math.round(num(v)*100)/100;
 const money2=v=>fmtCur(v,curNow());
 const unitLbl=u=>u==="kg"?"kg":u==="L"||u==="l"?"L":u==="g"?"g":u==="ml"||u==="mL"?"mL":tt("pc","und");
-const subUnit=u=>u==="kg"?"g":u==="L"||u==="l"?"mL":null;
+const subUnit=u=>baseOf(u)==="kg"?"g":baseOf(u)==="L"?"mL":null;
 // cost of 1 g / 1 mL from the cost per kg / L (shown with 4 decimals)
 const subCost=i=>subUnit(i.unit)?num(i.cost)/1000:null;
 const fmtSub=v=>{ const c=curInfo(curNow()); return c[1]+(v*(curRate(c[0])||1)).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{minimumFractionDigits:4,maximumFractionDigits:4}); };
+const costPerLbl=u=>baseOf(u)==="pc"?tt("piece","und"):baseOf(u);
 const KX_REASON={initial:["Opening stock","Stock inicial"],purchase:["Purchase","Compra"],sale:["Sale (paid bill)","Venta (cuenta cobrada)"],waste:["Waste","Merma"],adjust:["Stock count / adjustment","Conteo / ajuste"],cost:["Cost change","Cambio de costo"],unit:["Unit change to kg/L","Cambio de unidad a kg/L"]};
 const kxReason=k=>KX_REASON[k]?tt(KX_REASON[k][0],KX_REASON[k][1]):k;
 /* Kardex: every stock movement (in, out, adjustment) with the unit cost, running balance and weighted average cost.
@@ -2400,15 +2409,16 @@ const kxReason=k=>KX_REASON[k]?tt(KX_REASON[k][0],KX_REASON[k][1]):k;
 async function kardexMove(it,m){
   const q0=Math.max(0,num(it.qty)), c0=cost2(it.cost), stamp=new Date().toISOString();
   let qty=num(m.qty), uc=c0, q1=q0, c1=c0, type=m.type;
-  if(type==="in"){ uc=m.unitCost!=null&&m.unitCost!==""?cost2(m.unitCost):c0; q1=r3(q0+qty); c1=q1>0?cost2((q0*c0+qty*uc)/q1):uc; }
+  const B=q=>toBase(q,it.unit);
+  if(type==="in"){ uc=m.unitCost!=null&&m.unitCost!==""?cost2(m.unitCost):c0; q1=r3(q0+qty); c1=q1>0?cost2((B(q0)*c0+B(qty)*uc)/B(q1)):uc; }
   else if(type==="out"){ q1=r3(Math.max(0,q0-qty)); }
   else if(type==="adj"){ q1=r3(Math.max(0,num(m.newQty))); qty=r3(q1-q0); if(!qty) return; }
   else if(type==="cost"){ uc=cost2(m.unitCost); c1=uc; qty=0; if(c1===c0) return; }
   if(!DB) return noDb();
-  await dbUpd("inventory",it.id,{qty:q1,cost:c1,updated:stamp});
+  await dbUpd("inventory",it.id,{qty:q1,cost:c1,costPer:baseOf(it.unit),updated:stamp});
   const id="k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  await dbSet("kardex/"+id,{date:today(),when:stamp,itemId:it.id,item:it.name,unit:it.unit,type,reason:m.reason||type,qty:r3(qty),unitCost:uc,total:cost2(qty*uc),
-    balQty:q1,avgCost:c1,balValue:cost2(q1*c1),ref:m.ref||"",by:SESSION?(SESSION.name||SESSION.user):""});
+  await dbSet("kardex/"+id,{date:today(),when:stamp,itemId:it.id,item:it.name,unit:it.unit,costPer:baseOf(it.unit),type,reason:m.reason||type,qty:r3(qty),unitCost:uc,total:cost2(B(qty)*uc),
+    balQty:q1,avgCost:c1,balValue:cost2(B(q1)*c1),ref:m.ref||"",by:SESSION?(SESSION.name||SESSION.user):""});
   return {q1,c1};
 }
 let kxItem="", kxDays=30;
@@ -2419,7 +2429,7 @@ function m2(){
    <div class="panel"><h3>${tt("Stock","Stock")}</h3>
     <form id="invForm" class="fgrid wide">
      ${field("iName",tt("Item","Artículo"),`<input id="iName" required>`)}
-     ${field("iUnit",tt("Unit","Unidad"),`<select id="iUnit">${UNITS.map(u=>`<option value="${u}">${u==="kg"?tt("kilos (kg)","kilos (kg)"):u==="L"?tt("litres (L)","litros (L)"):tt("pieces","unidades")}</option>`).join("")}</select>`)}
+     ${field("iUnit",tt("Unit","Unidad"),`<select id="iUnit">${UNITS.map(u=>`<option value="${u}">${({g:tt("grams (g) — cost per kg","gramos (g) — costo por kg"),kg:tt("kilos (kg) — cost per kg","kilos (kg) — costo por kg"),ml:tt("millilitres (mL) — cost per L","mililitros (mL) — costo por L"),L:tt("litres (L) — cost per L","litros (L) — costo por L"),pc:tt("pieces — cost per piece","unidades — costo por unidad")})[u]}</option>`).join("")}</select>`)}
      ${field("iQty",tt("On hand","En stock"),`<input id="iQty" type="number" step="any" min="0">`)}
      ${field("iMin",tt("Alert below","Alerta bajo"),`<input id="iMin" type="number" step="any" min="0">`)}
      ${field("iPar",tt("Maximum quantity","Cantidad máxima"),`<input id="iPar" type="number" step="any" min="0">`)}
@@ -2431,14 +2441,13 @@ function m2(){
     <form id="addStockForm" class="addstock"><h4 class="minih">${tt("Add stock","Agregar stock")}</h4>
      <div class="fgrid">
       ${field("asItem",tt("Item","Artículo"),`<select id="asItem"></select>`)}
-      ${field("asQty",tt("Quantity received (kg / L / pieces)","Cantidad recibida (kg / L / unidades)"),`<input id="asQty" type="number" step="any" min="0" required>`)}
+      ${field("asQty",tt("Quantity received (in the item's unit)","Cantidad recibida (en la unidad del artículo)"),`<input id="asQty" type="number" step="any" min="0" required>`)}
       ${field("asCost",tt("Purchase cost per kg / L / piece","Costo de compra por kg / L / unidad")+" ("+curSym()+")",`<input id="asCost" type="number" step="0.01" min="0" placeholder="0.00">`)}
       ${field("asRef",tt("Invoice / supplier (optional)","Factura / proveedor (opcional)"),`<input id="asRef" maxlength="60">`)}
       <button class="btn" type="submit">${tt("Add stock","Agregar stock")}</button>
      </div><p class="hint" id="asMsg" aria-live="polite"></p></form>
-    <div id="invConv"></div>
     <div class="tablewrap" id="invTable"></div>
-    <p class="hint">${tt("Costs are per kilo, litre or piece with 2 decimals; the “per g / mL” column is that cost divided by 1,000. Each purchase updates the cost with the weighted average: (current stock × current cost + quantity bought × purchase cost) ÷ new stock.","Los costos son por kilo, litro o unidad con 2 decimales; la columna “por g / mL” es ese costo dividido entre 1.000. Cada compra actualiza el costo con el promedio ponderado: (stock actual × costo actual + cantidad comprada × costo de compra) ÷ stock nuevo.")}</p>
+    <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces, but the cost is always per kg (g and kg), per L (mL and L) or per piece, with 2 decimals. Stock value = stock converted to kg / L × cost (e.g. 4,500 g at CA$8.50/kg = 4.5 kg × 8.50 = CA$38.25). The “per g / mL” column is the cost ÷ 1,000. Each purchase updates the cost with the weighted average: (current stock in kg/L × current cost + kg/L bought × purchase cost) ÷ new stock in kg/L.","El stock puede estar en gramos, kilos, mililitros, litros o unidades, pero el costo siempre es por kg (g y kg), por L (mL y L) o por unidad, con 2 decimales. Valor del stock = stock convertido a kg / L × costo (p. ej. 4.500 g a CA$8,50/kg = 4,5 kg × 8,50 = CA$38,25). La columna “por g / mL” es el costo ÷ 1.000. Cada compra actualiza el costo con el promedio ponderado: (stock actual en kg/L × costo actual + kg/L comprados × costo de compra) ÷ stock nuevo en kg/L.")}</p>
    </div>
    <div class="panel" style="margin-top:20px" id="kxPanel"><h3>📒 Kardex</h3>
     <div class="fgrid" style="margin-bottom:10px">
@@ -2475,7 +2484,7 @@ function wireM2(){
     e.preventDefault(); if(!val("iName")) return;
     if(!DB) return noDb();
     const id="i"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), q=Math.max(0,num(val("iQty"))), c=cost2(toCAD(val("iCost")));
-    const it={id,name:val("iName"),unit:val("iUnit"),qty:0,min:num(val("iMin")),par:num(val("iPar")),cost:c,supplier:val("iSup"),updated:new Date().toISOString()};
+    const it={id,name:val("iName"),unit:val("iUnit"),costPer:baseOf(val("iUnit")),qty:0,min:num(val("iMin")),par:num(val("iPar")),cost:c,supplier:val("iSup"),updated:new Date().toISOString()};
     const {id:_,...doc}=it; await dbSet("inventory/"+id,doc);
     if(q>0) await kardexMove(it,{type:"in",reason:"initial",qty:q,unitCost:c});
     e.target.reset();
@@ -2486,7 +2495,7 @@ function wireM2(){
     P.forEach(p=>p.variants.forEach(v=>v.ing.forEach(g=>{
       const n=T(g.n).split(" (")[0]; const k=n.toLowerCase();
       if(/^(water|agua|ice|hielo|hot water|agua caliente|cold)/i.test(n)||have.has(k)||seen.has(k)) return;
-      seen.add(k); adds.push({name:n,unit:invUnitFor(g.u),qty:0,min:0,par:0,cost:0,supplier:"",updated:new Date().toISOString()});
+      seen.add(k); adds.push({name:n,unit:invUnitFor(g.u),costPer:baseOf(invUnitFor(g.u)),qty:0,min:0,par:0,cost:0,supplier:"",updated:new Date().toISOString()});
     })));
     for(const a of adds) await dbAdd("inventory",a);
     toast(tt(`${adds.length} items added`,`${adds.length} artículos agregados`));
@@ -2508,13 +2517,13 @@ function wireM2(){
     if(!it||q<=0) return;
     const uc=val("asCost")!==""?toCAD(val("asCost")):null;
     const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef")||(it.supplier||"")}); if(!r) return;
-    document.getElementById("asMsg").textContent=tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${money2(r.c1)} per ${unitLbl(it.unit)}${subUnit(it.unit)?` (${fmtSub(r.c1/1000)} per ${subUnit(it.unit)})`:""}.`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${money2(r.c1)} por ${unitLbl(it.unit)}${subUnit(it.unit)?` (${fmtSub(r.c1/1000)} por ${subUnit(it.unit)})`:""}.`);
+    document.getElementById("asMsg").textContent=tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${money2(r.c1)} per ${costPerLbl(it.unit)} · value ${money2(toBase(r.q1,it.unit)*r.c1)}${subUnit(it.unit)?` (${fmtSub(r.c1/1000)} per ${subUnit(it.unit)})`:""}.`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${money2(r.c1)} por ${costPerLbl(it.unit)} · valor ${money2(toBase(r.q1,it.unit)*r.c1)}${subUnit(it.unit)?` (${fmtSub(r.c1/1000)} por ${subUnit(it.unit)})`:""}.`);
     document.getElementById("asQty").value=""; document.getElementById("asCost").value=""; document.getElementById("asRef").value="";
   };
   document.getElementById("wForm").onsubmit=async e=>{
     e.preventDefault(); const it=D.inventory.find(i=>i.id===val("wItem")); if(!it||!num(val("wQty"))) return;
     const wq=num(val("wQty"));
-    await dbAdd("waste",{itemId:it.id,item:it.name,unit:it.unit,qty:wq,cost:cost2(wq*num(it.cost)),reason:val("wReason"),date:val("wDate")||today()});
+    await dbAdd("waste",{itemId:it.id,item:it.name,unit:it.unit,qty:wq,cost:cost2(toBase(wq,it.unit)*num(it.cost)),reason:val("wReason"),date:val("wDate")||today()});
     await kardexMove(it,{type:"out",reason:"waste",qty:wq,ref:tt(...(REASONS.find(r=>r[0]===val("wReason"))||REASONS[4]).slice(1))});
     document.getElementById("wQty").value="";
   };
@@ -2523,16 +2532,10 @@ function wireM2(){
   document.getElementById("kxDays").onchange=e=>{ kxDays=num(e.target.value); listKardex(); };
   document.getElementById("kxCsv").onclick=()=>{ const rows=kardexRows(); if(!rows.length) return toast(tt("No movements to export.","No hay movimientos para exportar."));
     saveFile("kardex-"+today()+".csv",toCSV(rows.map(k=>({...k,reason:kxReason(k.reason)})),["date","item","type","reason","qty","unit","unitCost","total","balQty","avgCost","balValue","ref","by"])); };
-  document.getElementById("invConv").addEventListener("click",async e=>{ if(!e.target.closest("#convKg")) return;
-    const old=D.inventory.filter(i=>["g","ml","mL"].includes(i.unit)); if(!old.length||!confirm(tt(`Convert ${old.length} item(s) from g/mL to kg/L? Quantities are divided by 1,000 and costs multiplied by 1,000.`,`¿Convertir ${old.length} artículo(s) de g/mL a kg/L? Las cantidades se dividen entre 1.000 y los costos se multiplican por 1.000.`))) return;
-    for(const i of old){ const u=i.unit==="g"?"kg":"L", q=r3(num(i.qty)/1000), c=cost2(num(i.cost)*1000);
-      await dbUpd("inventory",i.id,{unit:u,qty:q,min:r3(num(i.min)/1000),par:r3(num(i.par)/1000),cost:c,updated:new Date().toISOString()});
-      await dbSet("kardex/k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),{date:today(),when:new Date().toISOString(),itemId:i.id,item:i.name,unit:u,type:"adj",reason:"unit",qty:0,unitCost:c,total:0,balQty:q,avgCost:c,balValue:cost2(q*c),ref:`${num(i.qty)} ${i.unit} → ${q} ${u}`,by:SESSION?(SESSION.name||SESSION.user):""}); }
-    toast(tt("Units converted to kg / L.","Unidades convertidas a kg / L.")); });
   document.getElementById("fcAI").onclick=forecastAI;
 }
 function invStatus(i){ if(i.min>0&&i.qty<=i.min) return ["bad",tt("Low","Bajo")]; if(i.par>0&&i.qty>i.par) return ["warn",tt("Overstock","Exceso")]; return ["ok","OK"]; }
-function poLines(){ return D.inventory.filter(i=>i.min>0&&i.qty<=i.min&&i.par>i.qty).map(i=>({...i,order:i.par-i.qty,est:(i.par-i.qty)*num(i.cost)})); }
+function poLines(){ return D.inventory.filter(i=>i.min>0&&i.qty<=i.min&&i.par>i.qty).map(i=>({...i,order:i.par-i.qty,est:toBase(i.par-i.qty,i.unit)*num(i.cost)})); }
 function poText(){ const L=poLines(); const by={}; L.forEach(l=>{(by[l.supplier||tt("No supplier","Sin proveedor")] ||= []).push(l);});
   return tt("PURCHASE ORDER","ORDEN DE COMPRA")+" — "+today()+"\n"+Object.entries(by).map(([s,ls])=>`\n${s}\n`+ls.map(l=>`• ${l.name}: ${+l.order.toFixed(2)} ${l.unit}`).join("\n")).join("\n"); }
 function listM2(){
@@ -2543,18 +2546,19 @@ function listM2(){
       :`<p class="empty">${tt("No saved recipe is linked to inventory yet.","Aún no hay recetas guardadas vinculadas al inventario.")}</p>`); }
   const inv=[...D.inventory].sort((a,b)=>a.name.localeCompare(b.name));
   const low=inv.filter(i=>invStatus(i)[0]==="bad"), over=inv.filter(i=>invStatus(i)[0]==="warn");
-  const stockVal=inv.reduce((s,i)=>s+num(i.qty)*num(i.cost),0);
+  const stockVal=inv.reduce((s,i)=>s+stockValue(i),0);
   const since=addDays(today(),-30), w30=D.waste.filter(w=>w.date>=since), wCost=w30.reduce((s,w)=>s+num(w.cost),0);
   document.getElementById("invKpis").innerHTML=[
     [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
     [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
-  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Cost per kg / L / pc","Costo por kg / L / und")} (${curSym()})</th><th>${tt("Per g / mL","Por g / mL")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), sc=subCost(i);return `<tr><td>${esc(i.name)} <small>${esc(unitLbl(i.unit))}</small></td>
+  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Cost per kg / L / pc","Costo por kg / L / und")} (${curSym()})</th><th>${tt("Per g / mL","Por g / mL")}</th><th>${tt("Stock value","Valor del stock")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), sc=subCost(i);return `<tr><td>${esc(i.name)} <small>${esc(unitLbl(i.unit))}</small></td>
      <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.qty)}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.min)}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.par)}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
-     <td><input data-f="cost" data-id="${i.id}" type="number" step="0.01" min="0" value="${inCur(i.cost).toFixed(2)}" aria-label="${tt("Cost","Costo")} ${esc(i.name)}"></td>
+     <td class="nw"><input data-f="cost" data-id="${i.id}" type="number" step="0.01" min="0" value="${inCur(i.cost).toFixed(2)}" aria-label="${tt("Cost per","Costo por")} ${costPerLbl(i.unit)} ${esc(i.name)}"><span class="unit"> / ${esc(costPerLbl(i.unit))}</span></td>
      <td class="nw">${sc!=null?`${fmtSub(sc)} / ${subUnit(i.unit)}`:`<span class="dimtxt">—</span>`}</td>
+     <td class="nw" title="${esc(`${num(i.qty)} ${unitLbl(i.unit)} = ${nice(toBase(i.qty,i.unit))} ${costPerLbl(i.unit)} × ${money2(i.cost)}`)}">${money2(stockValue(i))}<small>${i.unit!==baseOf(i.unit)&&baseOf(i.unit)!=="pc"?`${nice(toBase(i.qty,i.unit))} ${baseOf(i.unit)} × ${money2(i.cost)}`:""}</small></td>
      <td><input data-f="supplier" data-id="${i.id}" class="txt" value="${esc(i.supplier)}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
      <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}" aria-label="${tt("Add stock","Agregar stock")} ${esc(i.name)}">+ ${tt("Stock","Stock")}</button> <button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
@@ -2570,8 +2574,6 @@ function listM2(){
     :`<p class="empty">${tt("No waste logged in the last 30 days.","No hay merma registrada en los últimos 30 días.")}</p>`;
   document.getElementById("wBox").onclick=async e=>{const b=e.target.closest("[data-wdel]"); if(b) await dbDel("waste",b.dataset.wdel);};
   document.getElementById("fcBox").innerHTML=forecastHTML();
-  const old=D.inventory.filter(i=>["g","ml","mL"].includes(i.unit));
-  setHTML(document.getElementById("invConv"),old.length&&canWrite("inventory")?`<p class="hint warnnote">⚖ ${tt(`${old.length} item(s) are still in grams or millilitres (${esc(old.slice(0,4).map(i=>i.name).join(", "))}${old.length>4?"…":""}).`,`${old.length} artículo(s) siguen en gramos o mililitros (${esc(old.slice(0,4).map(i=>i.name).join(", "))}${old.length>4?"…":""}).`)} <button type="button" class="linkbtn" id="convKg">${tt("Convert them to kg / L","Convertirlos a kg / L")}</button></p>`:"");
   const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
   listKardex();
 }
@@ -2580,7 +2582,7 @@ function listKardex(){
   const el=document.getElementById("kxBox"); if(!el) return;
   const rows=kardexRows(), ins=rows.filter(k=>k.type==="in"||(k.type==="adj"&&num(k.qty)>0)), outs=rows.filter(k=>k.type==="out"||(k.type==="adj"&&num(k.qty)<0));
   const it=kxItem?invItem(kxItem):null;
-  setHTML(el,rows.length?`${it?`<p class="dimtxt">${esc(it.name)} · ${tt("stock","stock")} <b>${num(it.qty)} ${esc(unitLbl(it.unit))}</b> · ${tt("average cost","costo promedio")} <b>${money2(it.cost)}</b> / ${esc(unitLbl(it.unit))}${subCost(it)!=null?` (${fmtSub(subCost(it))} / ${subUnit(it.unit)})`:""} · ${tt("value","valor")} <b>${money2(num(it.qty)*num(it.cost))}</b></p>`:""}
+  setHTML(el,rows.length?`${it?`<p class="dimtxt">${esc(it.name)} · ${tt("stock","stock")} <b>${num(it.qty)} ${esc(unitLbl(it.unit))}</b> · ${tt("average cost","costo promedio")} <b>${money2(it.cost)}</b> / ${esc(costPerLbl(it.unit))}${subCost(it)!=null?` (${fmtSub(subCost(it))} / ${subUnit(it.unit)})`:""} · ${tt("value","valor")} <b>${money2(stockValue(it))}</b></p>`:""}
    <table class="dt kx"><thead><tr><th>${tt("Date","Fecha")}</th>${kxItem?"":`<th>${tt("Item","Artículo")}</th>`}<th>${tt("Movement","Movimiento")}</th><th>${tt("In","Entrada")}</th><th>${tt("Out","Salida")}</th><th>${tt("Unit cost","Costo unit.")}</th><th>${tt("Total","Total")}</th><th>${tt("Balance","Saldo")}</th><th>${tt("Avg. cost","Costo prom.")}</th><th>${tt("Value","Valor")}</th></tr></thead><tbody>
    ${rows.slice(0,300).map(k=>{const q=num(k.qty), isIn=k.type==="in"||(k.type==="adj"&&q>0), isOut=k.type==="out"||(k.type==="adj"&&q<0);
      return `<tr><td class="nw">${esc(String(k.when||k.date).slice(0,16).replace("T"," "))}</td>${kxItem?"":`<td>${esc(k.item)}</td>`}<td>${esc(kxReason(k.reason))}${k.ref?`<small>${esc(k.ref)}${k.by?" · "+esc(k.by):""}</small>`:k.by?`<small>${esc(k.by)}</small>`:""}</td>
