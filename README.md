@@ -37,7 +37,7 @@ Al cambiar EN/ES cambian los nombres de los platos, los ingredientes y la prepar
 |---|---|
 | 1 · Clientes | Asistente para clientes (texto y **voz** 🎤, lectura de respuestas en voz alta), formulario de reservas, **list box** de reservas con filtro (Próximas/Todas/Pasadas/Canceladas), Confirmar/Cancelar/Borrar y mensaje de confirmación para copiar. |
 | 2 · Cocina e inventario | Stock con **Alerta** y **Cantidad máxima**, botón **Agregar item**, cuadro y botón **+ Stock** (suma a lo existente), orden de compra automática, predicción de demanda (día y hora) con ajuste por IA, registro de merma. |
-| 3 · Ventas y análisis | Registro de ventas, costo por vaso, ingresos, márgenes, gráfico diario, bebidas más rentables / "se vende bien, margen bajo", proyección de 7 días, análisis con IA. |
+| 3 · Ventas y análisis | Registro de ventas, costo por vaso, ingresos, márgenes, gráfico diario, bebidas más rentables / "se vende bien, margen bajo", proyección de 7 días, análisis con IA. **Costos operativos** (personal con calculadora, alquiler, electricidad, impuestos, seguros, licencias y permisos anuales, mantenimiento de equipos, otros y costos propios; por semana/mes/año) → utilidad neta y punto de equilibrio (vasos al día). |
 | 4 · Marketing | Generador de 3 opciones de publicación o anuncio (respeta reglas de afirmaciones), calendario de publicaciones, engagement %, análisis con IA. |
 | 5 · Reseñas | Registro de reseñas, respuestas con IA, alerta de salud/inocuidad, problemas recurrentes, reporte semanal. |
 
@@ -98,7 +98,7 @@ Switching EN/ES switches dish names, ingredients and preparation. When a recipe 
 |---|---|
 | 1 · Customers | Customer assistant (text and **voice** 🎤, replies read aloud), booking form, bookings **list box** with filter (Upcoming/All/Past/Cancelled), Confirm/Cancel/Delete and a copy-ready confirmation message. |
 | 2 · Kitchen & inventory | Stock with **Alert** and **Maximum quantity**, **Add item** button, **+ Stock** box and button (adds to existing), automatic purchase order, demand forecast (day and hour) with AI adjustment, waste log. |
-| 3 · Sales & analytics | Sales log, cost per cup, revenue, margins, daily chart, most profitable / "sells well, low margin" drinks, 7-day projection, AI analysis. |
+| 3 · Sales & analytics | Sales log, cost per cup, revenue, margins, daily chart, most profitable / "sells well, low margin" drinks, 7-day projection, AI analysis. **Operating costs** (staff with calculator, rent, electricity, taxes, insurance, annual licences and permits, equipment maintenance, other and your own costs; per week/month/year) → net profit and break-even (cups per day). |
 | 4 · Marketing | Generator of 3 post or ad options (follows claim rules), posting calendar, engagement %, AI analysis. |
 | 5 · Reviews | Review log, AI reply drafts, health/safety flag, recurring problems, weekly report. |
 

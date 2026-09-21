@@ -284,6 +284,10 @@ svg.bars .grid{stroke:var(--line);stroke-width:1}
 svg.bars .ax{fill:var(--muted);font:11px var(--mono)}
 svg.bars .mark{fill:var(--accent)}
 svg.bars .bar:hover .mark{opacity:.8}
+table.dt.opex td:first-child{min-width:170px}
+table.dt.opex tfoot th{padding-top:10px}
+table.dt.opex select{font:14px var(--body);padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink)}
+tr.staffrow td{background:var(--sunk)}
 .costgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .gen{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px}
 .gen small{color:var(--muted);font-size:13px}
@@ -1228,7 +1232,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{}};
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},opex:{}};
 if(!state.aiView) state.aiView="overview";
 
 const LOADED=new Set(); // collections that have answered at least once
@@ -1459,7 +1463,8 @@ function startData(){
   ["inventory","waste","reservations","sales","posts","reviews","tables","orders","menu","bills","recipes"].filter(canRead).forEach(subscribe);
   if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{});
-    DB.doc("settings/path").onSnapshot(s=>{D.path=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
+    DB.doc("settings/path").onSnapshot(s=>{D.path=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+    DB.doc("settings/opex").onSnapshot(s=>{D.opex=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
 function startSheet(url){
   MODE="sheet"; DB=makeSheetDB(url); if(lsGet(LS_KEY)) SAMPLE=makeApiSample();
@@ -1489,7 +1494,7 @@ function applyRoleUI(){
   if(cook&&v==="m2") return; // cook: full use of Kitchen & inventory only
   main.querySelectorAll("section input,section select,section textarea,section button,section .linkbtn").forEach(el=>{
     if(el.matches(READ_OK)) return;
-    if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin")) return;
+    if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin"||el.closest("#opexBox,#opexAdd"))) return;
     el.disabled=true; el.classList.add("ro"); el.title=tt("Your role can't change this","Tu rol no puede cambiar esto");
   });
   if(!main.querySelector(".roNote")){
@@ -2551,6 +2556,67 @@ ${base}`;
 
 /* ================= MODULE 3 — SALES & ANALYTICS ================= */
 let range=14;
+/* ----- operating costs (settings/opex): fixed costs of running the place, entered per week / month / year ----- */
+const OPEX_FREQ=[["week","per week","por semana",52/12],["month","per month","por mes",1],["year","per year","por año",1/12]];
+const OPEX_BASE=[["staff","Staff (wages)","Personal (sueldos)","month"],["rent","Rent","Alquiler del local","month"],["electricity","Electricity","Electricidad","month"],
+  ["taxes","Taxes (property, business, other)","Impuestos (predial, negocio, otros)","year"],["insurance","Insurance","Seguros","year"],["licences","Annual licences","Licencias anuales","year"],
+  ["permits","Annual permits (e.g. AHS food handling)","Permisos anuales (p. ej. manipulación de alimentos AHS)","year"],["maintenance","Equipment maintenance","Mantenimiento de equipos","year"],["other","Other operating expenses","Otros gastos operativos","month"]];
+const opexFactor=f=>(OPEX_FREQ.find(x=>x[0]===f)||OPEX_FREQ[1])[3];
+function opexRows(){
+  const o=D.opex||{}, rows=OPEX_BASE.map(b=>({key:b[0],name:tt(b[1],b[2]),amt:num(o["amt_"+b[0]]),freq:o["freq_"+b[0]]||b[3],base:true}));
+  const st=o.staff||{};
+  const staffCalc=num(st.n)>0&&num(st.hours)>0&&num(st.wage)>0;
+  if(staffCalc){ rows[0].amt=num(st.n)*num(st.hours)*num(st.wage)*52/12*(1+num(st.extra)/100); rows[0].freq="month"; rows[0].calc=true; }
+  (Array.isArray(o.extra)?o.extra:[]).forEach(x=>rows.push({key:x.id,name:x.name,amt:num(x.amt),freq:x.freq||"month",base:false}));
+  return rows.map(r=>({...r,monthly:r.amt*opexFactor(r.freq)}));
+}
+const opexMonthly=()=>opexRows().reduce((s,r)=>s+r.monthly,0);
+const opexDaily=()=>opexMonthly()*12/365;
+const opexCan=()=>!!DB&&canWrite("settings");
+function opexHTML(){
+  const rows=opexRows(), st=(D.opex||{}).staff||{}, can=opexCan(), dis=can?"":" disabled";
+  const tot=rows.reduce((s,r)=>s+r.monthly,0);
+  return `<div class="tablewrap"><table class="dt opex"><thead><tr><th>${tt("Cost","Costo")}</th><th>${tt("Amount","Monto")} (${curSym()})</th><th>${tt("Paid","Se paga")}</th><th>${tt("Per month","Por mes")}</th><th></th></tr></thead><tbody>
+   ${rows.map(r=>`<tr data-ox="${esc(r.key)}"><td>${esc(r.name)}${r.calc?`<small>${tt("from the staff calculator","según la calculadora de personal")}</small>`:""}</td>
+     <td><input data-oxf="amt" type="number" min="0" step="0.01" value="${r.amt?inCur(r.amt):""}" placeholder="0"${r.calc?" disabled":dis}></td>
+     <td><select data-oxf="freq"${r.calc?" disabled":dis}>${OPEX_FREQ.map(f=>`<option value="${f[0]}"${f[0]===r.freq?" selected":""}>${tt(f[1],f[2])}</option>`).join("")}</select></td>
+     <td class="nw">${r.monthly?money(r.monthly):"—"}</td>
+     <td>${r.base?(r.key==="staff"?`<button type="button" class="linkbtn" data-staff>${tt("Calculator","Calculadora")}</button>`:""):`<button type="button" class="btn sm ghost" data-oxdel="${esc(r.key)}" aria-label="${tt("Delete","Borrar")}"${dis}>✕</button>`}</td></tr>
+     ${r.key==="staff"&&opexStaffOpen?`<tr class="staffrow"><td colspan="5"><div class="fgrid">
+       ${field("stN",tt("Employees","Empleados"),`<input id="stN" type="number" min="0" step="1" value="${esc(st.n||"")}"${dis}>`)}
+       ${field("stH",tt("Hours per week (each)","Horas por semana (c/u)"),`<input id="stH" type="number" min="0" step="0.5" value="${esc(st.hours||"")}"${dis}>`)}
+       ${field("stW",tt("Hourly wage","Sueldo por hora")+" ("+curSym()+")",`<input id="stW" type="number" min="0" step="0.01" value="${num(st.wage)?inCur(st.wage):""}"${dis}>`)}
+       ${field("stX",tt("Employer costs % (CPP, EI, vacation pay…)","Costos del empleador % (CPP, EI, vacaciones…)"),`<input id="stX" type="number" min="0" step="0.1" value="${esc(st.extra||"")}"${dis}>`)}
+       </div><p class="hint">${tt("Monthly = employees × hours/week × wage × 52 ÷ 12 × (1 + employer %). Check the current Alberta minimum wage and payroll deductions with the Government of Alberta and CRA. Leave the calculator empty to type the staff cost by hand.","Mensual = empleados × horas/semana × sueldo × 52 ÷ 12 × (1 + % del empleador). Revisa el salario mínimo vigente en Alberta y las deducciones de nómina con el Gobierno de Alberta y la CRA. Deja la calculadora vacía para escribir el costo de personal a mano.")}</p></td></tr>`:""}`).join("")}
+   </tbody><tfoot><tr><th>${tt("Total","Total")}</th><th></th><th></th><th class="nw">${money(tot)} / ${tt("month","mes")}</th><th></th></tr>
+   <tr><td colspan="5" class="dimtxt">≈ ${money(tot*12)} / ${tt("year","año")} · ≈ ${money(tot*12/365)} / ${tt("day","día")}</td></tr></tfoot></table></div>
+   ${can?"":`<p class="hint">${!DB?tt("Open the app in Claude (or sign in on the website) to save operating costs.","Abre la app en Claude (o inicia sesión en la web) para guardar los costos operativos."):tt("Only an administrator or the chef can change operating costs.","Solo un administrador o el chef pueden cambiar los costos operativos.")}</p>`}`;
+}
+let opexStaffOpen=false;
+async function opexSave(patch){ if(!opexCan()) return noDb(); await dbSet("settings/opex",{...(D.opex||{}),...patch,updated:new Date().toISOString()}); }
+function wireOpex(){
+  const box=document.getElementById("opexBox"); if(!box) return;
+  box.addEventListener("change",async e=>{
+    const el=e.target;
+    if(["stN","stH","stW","stX"].includes(el.id)){ const st={...((D.opex||{}).staff||{})};
+      if(el.id==="stN") st.n=Math.max(0,Math.round(num(el.value))); if(el.id==="stH") st.hours=Math.max(0,num(el.value)); if(el.id==="stW") st.wage=Math.max(0,toCAD(el.value)); if(el.id==="stX") st.extra=Math.max(0,num(el.value));
+      await opexSave({staff:st}); return; }
+    const tr=el.closest("[data-ox]"), f=el.dataset.oxf; if(!tr||!f) return; const key=tr.dataset.ox;
+    const val=f==="amt"?Math.max(0,toCAD(el.value)):el.value;
+    if(OPEX_BASE.some(b=>b[0]===key)) await opexSave({[f+"_"+key]:val});
+    else await opexSave({extra:(D.opex.extra||[]).map(x=>x.id===key?{...x,[f]:val}:x)});
+  });
+  box.addEventListener("focusout",()=>setTimeout(()=>{ if(!box.contains(document.activeElement)) refreshAI(); },50));
+  box.addEventListener("click",async e=>{
+    if(e.target.closest("[data-staff]")){ opexStaffOpen=!opexStaffOpen; box.innerHTML=opexHTML(); return; }
+    const d=e.target.closest("[data-oxdel]"); if(d) await opexSave({extra:((D.opex||{}).extra||[]).filter(x=>x.id!==d.dataset.oxdel)});
+  });
+  document.getElementById("opexAdd").onsubmit=async e=>{ e.preventDefault(); const name=val("oxName"), amt=toCAD(val("oxAmt")), msg=document.getElementById("opexMsg");
+    if(!name){ msg.textContent=tt("Type the name of the cost.","Escribe el nombre del costo."); return; }
+    await opexSave({extra:[...(((D.opex||{}).extra)||[]),{id:"x"+Date.now().toString(36),name,amt:Math.max(0,amt),freq:val("oxFreq")}]});
+    msg.textContent=""; e.target.reset(); document.getElementById("oxFreq").value="month"; };
+  if(!opexCan()) document.querySelectorAll("#opexAdd input,#opexAdd select,#opexAdd button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
+}
 function m3(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Sales & analytics","Ventas y análisis"),tt("Log sales, set the cost per cup, and see revenue, margins, the most profitable drinks and the ones that sell but earn little.","Registra ventas, define el costo por vaso y mira ingresos, márgenes, las bebidas más rentables y las que se venden pero dejan poco."))}
    <div class="grid">
@@ -2574,6 +2640,16 @@ function m3(){
    <div class="kpis" id="sKpis" style="margin-top:20px"></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Daily revenue","Ingresos diarios")}</h3><div id="sChart" class="chartbox"></div></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("By drink","Por bebida")}</h3><div class="tablewrap" id="sTable"></div></div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
+    <p class="hint" style="margin:0 0 10px">${tt("Enter each cost as you pay it — per week, per month or per year. The app converts everything to a monthly amount, subtracts it from the gross margin of the period and shows your net profit and break-even point. Amounts in","Ingresa cada costo como lo pagas — por semana, por mes o por año. La app lo convierte todo a un monto mensual, lo resta del margen bruto del periodo y muestra tu utilidad neta y punto de equilibrio. Montos en")} ${curSym()}.</p>
+    <div id="opexBox"></div>
+    <form id="opexAdd" class="fgrid" style="margin-top:12px">
+     ${field("oxName",tt("Other cost (name)","Otro costo (nombre)"),`<input id="oxName" maxlength="60" placeholder="${tt("Internet, POS, cleaning…","Internet, POS, limpieza…")}">`)}
+     ${field("oxAmt",tt("Amount","Monto")+" ("+curSym()+")",`<input id="oxAmt" type="number" min="0" step="0.01">`)}
+     ${field("oxFreq",tt("Paid","Se paga"),`<select id="oxFreq">${OPEX_FREQ.map(f=>`<option value="${f[0]}"${f[0]==="month"?" selected":""}>${tt(f[1],f[2])}</option>`).join("")}</select>`)}
+     <button class="btn ghost" type="submit">+ ${tt("Add cost","Agregar costo")}</button>
+    </form><p class="hint" id="opexMsg" aria-live="polite"></p>
+   </div>
    <div class="grid" style="margin-top:20px">
     <div class="panel"><h3>${tt("Projection","Proyección")}</h3><div id="sProj"></div></div>
     <div class="panel"><h3>${tt("AI analysis","Análisis con IA")}</h3><button class="btn" id="sAI" data-needs-ai>${tt("Explain my numbers","Explicar mis números")}</button><div id="sAIout" class="aiout"></div></div>
@@ -2594,6 +2670,7 @@ function wireM3(){
   document.getElementById("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
   document.getElementById("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
   document.getElementById("sAI").onclick=salesAI;
+  wireOpex();
 }
 function prodStats(n){
   const days=salesDays(n), st={};
@@ -2603,13 +2680,17 @@ function prodStats(n){
 }
 function listM3(){
   const cb=document.getElementById("costBox"); if(!cb) return;
+  const ob=document.getElementById("opexBox"); if(ob&&!ob.contains(document.activeElement)) setHTML(ob,opexHTML());
   if(document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`;
   const days=salesDays(range), tot=days.map(dayTotals);
   const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
   const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
   document.getElementById("sKpis").innerHTML=[[money(rev),tt("revenue","ingresos")],[cups,tt("cups sold","vasos vendidos")],[cups?money(rev/cups):"—",tt("average price","precio promedio")],
-    [costKnown&&rev?money(rev-cost):"—",tt("gross margin","margen bruto")],[costKnown&&rev?Math.round((rev-cost)/rev*100)+"%":"—",tt("margin %","margen %")]]
-    .map(k=>`<div class="kpi"><div class="big">${k[0]}</div><div class="lbl">${k[1]} · ${range} ${tt("days","días")}</div></div>`).join("")+(!costKnown&&rev?`<p class="hint" style="grid-column:1/-1">${tt("Enter the cost per cup of every drink sold to see margins.","Ingresa el costo por vaso de cada bebida vendida para ver márgenes.")}</p>`:"");
+    [costKnown&&rev?money(rev-cost):"—",tt("gross margin","margen bruto")],[costKnown&&rev?Math.round((rev-cost)/rev*100)+"%":"—",tt("margin %","margen %")],
+    ...(opexMonthly()>0?[[money(opexDaily()*range),tt("operating costs","costos operativos")],
+      [costKnown&&rev?money(rev-cost-opexDaily()*range):"—",tt("net profit","utilidad neta"),costKnown&&rev?(rev-cost-opexDaily()*range<0?"bad":"okk"):""]]:[])]
+    .map(k=>`<div class="kpi${k[2]?" "+k[2]:""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]} · ${range} ${tt("days","días")}</div></div>`).join("")
+    +(opexMonthly()>0&&costKnown&&cups&&rev>cost?`<p class="hint" style="grid-column:1/-1">⚖ ${tt("Break-even","Punto de equilibrio")}: ${tt(`about <b>${Math.ceil(opexDaily()/((rev-cost)/cups))}</b> cups a day (${money(opexMonthly())} of operating costs per month ÷ ${money((rev-cost)/cups)} average margin per cup). You sold ${Math.round(cups/range)} a day in this period.`,`unos <b>${Math.ceil(opexDaily()/((rev-cost)/cups))}</b> vasos al día (${money(opexMonthly())} de costos operativos al mes ÷ ${money((rev-cost)/cups)} de margen promedio por vaso). En este periodo vendiste ${Math.round(cups/range)} al día.`)}</p>`:"")+(!costKnown&&rev?`<p class="hint" style="grid-column:1/-1">${tt("Enter the cost per cup of every drink sold to see margins.","Ingresa el costo por vaso de cada bebida vendida para ver márgenes.")}</p>`:"");
   document.getElementById("sChart").innerHTML=rev?barChart(days.map((d,i)=>({x:d.date,y:tot[i].rev})),document.getElementById("sChart").clientWidth):`<p class="empty">${tt("No sales in this period yet.","Aún no hay ventas en este periodo.")}</p>`;
   const target=num(D.costs._target)||60, sold=st.filter(s=>s.cups>0), avgCups=sold.length?sold.reduce((a,s)=>a+s.cups,0)/sold.length:0;
   const rows=[...st].sort((a,b)=>b.margin-a.margin);
@@ -2642,7 +2723,8 @@ async function salesAI(){
 BY DRINK:
 ${lines}
 BY DAY:
-${daily}`,{cache:false,onText:({text})=>{out.textContent=text;}}); }
+${daily}
+OPERATING COSTS (per month, CAD): ${opexRows().filter(r=>r.monthly).map(r=>r.name+" "+r.monthly.toFixed(2)).join("; ")||"not entered"}. Total per month: ${opexMonthly().toFixed(2)}. If they are entered, also comment on net profit (gross margin minus operating costs for 30 days) and the break-even number of cups per day.`,{cache:false,onText:({text})=>{out.textContent=text;}}); }
   catch(e){ out.textContent=e.text||aiErr(e); }
 }
 
