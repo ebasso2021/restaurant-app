@@ -20,7 +20,7 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 
 ### Pestañas
 1. **Productos** — Jugo de quinua, Chicha morada, Jugo de maca, Mazamorra morada, Jugo de lúcuma, Jugo de chirimoya y **Lomo saltado** (plato de fondo, 4 porciones, ingredientes y preparación en ES/EN): calculadora de lotes, preparación, beneficios, verificación de afirmaciones y flujo con puntos críticos de control (PCC).
-2. **Sistema IA** — resumen y 5 módulos funcionales (ver abajo).
+2. **Gestión con IA** — resumen y 5 módulos funcionales (ver abajo).
 3. **Normas AHS** — requisitos de inocuidad de Alberta Health Services.
 4. **Camino a la venta** — pasos para vender en Edmonton.
 
@@ -29,7 +29,7 @@ En **Recetas** hay dos botones: **📄 Nueva receta desde un documento de Word**
 
 En **Menú → Agregar al menú** hay dos botones: **📄 Importar documento** (un archivo de receta Word .docx o .txt → crea el plato o bebida con el grupo, tipo, precio y nota del formulario, guarda su receta para 1 porción y agrega los ingredientes al stock) y **🥕 Importar ingredientes** (un archivo con solo la lista de ingredientes → los agrega al stock con cantidad 0; si escribiste un nombre, también crea ese plato con esos ingredientes como receta).
 
-### Módulos del Sistema IA
+### Módulos de Gestión con IA
 | Módulo | Funciones |
 |---|---|
 | 1 · Clientes | Asistente para clientes (texto y **voz** 🎤, lectura de respuestas en voz alta), formulario de reservas, **list box** de reservas con filtro (Próximas/Todas/Pasadas/Canceladas), Confirmar/Cancelar/Borrar y mensaje de confirmación para copiar. |
@@ -78,7 +78,7 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 
 ### Tabs
 1. **Products** — Quinoa drink, Chicha morada, Maca shake, Mazamorra morada, Lúcuma juice, Chirimoya juice and **Lomo saltado** (main dish, serves 4, ingredients and method in EN/ES): batch calculator, method, benefits, claim check and flow with critical control points (CCP).
-2. **AI system** — overview and 5 working modules (below).
+2. **AI System Management** — overview and 5 working modules (below).
 3. **AHS rules** — Alberta Health Services food-safety requirements.
 4. **Path to sale** — steps to sell in Edmonton.
 
@@ -87,7 +87,7 @@ In **Recipes** there are two buttons: **📄 New recipe from a Word document** (
 
 In **Menu → Add to the menu** there are two buttons: **📄 Import document** (a Word .docx or .txt recipe file → creates the dish or drink with the form's group, type, price and note, saves its 1-portion recipe and adds the ingredients to the stock) and **🥕 Import ingredients** (a file with just the ingredient list → adds them to the stock at quantity 0; if you typed a name, it also creates that dish with those ingredients as its recipe).
 
-### AI system modules
+### AI System Management modules
 | Module | Features |
 |---|---|
 | 1 · Customers | Customer assistant (text and **voice** 🎤, replies read aloud), booking form, bookings **list box** with filter (Upcoming/All/Past/Cancelled), Confirm/Cancel/Delete and a copy-ready confirmation message. |

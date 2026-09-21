@@ -321,7 +321,7 @@ function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:stat
 const UI = {
   sub:{en:"Batch calculators, benefits, Alberta food-safety rules and the path to sale for Peruvian drinks, desserts and dishes (now with lomo saltado) — plus a working AI system to run the restaurant.",
        es:"Calculadoras de lotes, beneficios, normas de inocuidad de Alberta y el camino a la venta para bebidas, postres y platos peruanos (ahora con lomo saltado) — más un sistema de IA funcional para manejar el restaurante."},
-  ai:{en:"AI system",es:"Sistema IA"},
+  ai:{en:"AI System Management",es:"Gestión con IA"},
   rules:{en:"AHS rules",es:"Normas AHS"}, path:{en:"Path to sale",es:"Camino a la venta"},
   recipe:{en:"Recipe calculator",es:"Calculadora de receta"},
   scaleBy:{en:"Servings",es:"Porciones"},
@@ -1102,7 +1102,7 @@ function aiOverview(){
   ];
   const lbl={ok:es?"Respaldado":"Supported",warn:es?"No verificado":"Unverified"};
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">
-   <div class="hero"><div><div class="eyebrow">${es?"Inteligencia artificial para el restaurante":"Artificial intelligence for the restaurant"}</div><h2>${es?"Sistema de IA":"AI system"}</h2><p>${es?"Qué puede hacer la IA en un restaurante y cómo serían los cinco módulos del sistema. Las cifras de ahorro se revisaron contra sus fuentes: ver la verificación al final.":"What AI can do in a restaurant and how the system's five modules would work. Savings figures were checked against their sources — see the claim check at the end."}</p></div></div>
+   <div class="hero"><div><div class="eyebrow">${es?"Inteligencia artificial para el restaurante":"Artificial intelligence for the restaurant"}</div><h2>${es?"Gestión con IA":"AI System Management"}</h2><p>${es?"Qué puede hacer la IA en un restaurante y cómo serían los cinco módulos del sistema. Las cifras de ahorro se revisaron contra sus fuentes: ver la verificación al final.":"What AI can do in a restaurant and how the system's five modules would work. Savings figures were checked against their sources — see the claim check at the end."}</p></div></div>
    <h3 class="sec">${es?"Qué puede hacer":"What it can do"}</h3>
    <div class="caps">${caps.map(c=>`<div class="cap"><b>${c[0]}</b><span>${c[1]}</span></div>`).join("")}</div>
    <h3 class="sec">${es?"Los cinco módulos":"The five modules"}</h3>
