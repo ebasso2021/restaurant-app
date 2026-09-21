@@ -27,7 +27,7 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 ### Aprender recetas de un documento de Word
 En **Recetas** hay dos botones: **📄 Nueva receta desde un documento de Word** (crea el ítem en el menú) y, dentro de cada receta, **📄 Aprender ingredientes y preparación de un documento de Word**. La app lee el archivo `.docx` en el navegador (con IA si está disponible, si no con un lector de texto que busca los títulos “Ingredientes” y “Preparación”), convierte las cantidades a 1 porción, llena el editor de la receta y agrega al inventario los ingredientes que faltan (con stock 0, ya vinculados). Revisa y pulsa **Guardar como medida única**.
 
-En **Menú → Agregar al menú** también está **📄 Agregar desde un documento de receta (Word .docx o .txt)**: usa el grupo, tipo, precio y nota del formulario, crea el plato o bebida, guarda su receta para 1 porción y agrega los ingredientes al stock (cantidad 0).
+En **Menú → Agregar al menú** hay dos botones: **📄 Importar documento** (un archivo de receta Word .docx o .txt → crea el plato o bebida con el grupo, tipo, precio y nota del formulario, guarda su receta para 1 porción y agrega los ingredientes al stock) y **🥕 Importar ingredientes** (un archivo con solo la lista de ingredientes → los agrega al stock con cantidad 0; si escribiste un nombre, también crea ese plato con esos ingredientes como receta).
 
 ### Módulos del Sistema IA
 | Módulo | Funciones |
@@ -85,7 +85,7 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 ### Learn recipes from a Word document
 In **Recipes** there are two buttons: **📄 New recipe from a Word document** (creates the menu item) and, inside each recipe, **📄 Learn ingredients and preparation from a Word document**. The app reads the `.docx` file in the browser (with AI when available, otherwise with a text reader that looks for “Ingredients” and “Preparation” headings), converts the amounts to 1 portion, fills the recipe editor and adds the missing ingredients to the inventory (stock 0, already linked). Review and press **Save as the standard measure**.
 
-In **Menu → Add to the menu** there is also **📄 Add from a recipe document (Word .docx or .txt)**: it uses the form's group, type, price and note, creates the dish or drink, saves its recipe for 1 portion and adds the ingredients to the stock (quantity 0).
+In **Menu → Add to the menu** there are two buttons: **📄 Import document** (a Word .docx or .txt recipe file → creates the dish or drink with the form's group, type, price and note, saves its 1-portion recipe and adds the ingredients to the stock) and **🥕 Import ingredients** (a file with just the ingredient list → adds them to the stock at quantity 0; if you typed a name, it also creates that dish with those ingredients as its recipe).
 
 ### AI system modules
 | Module | Features |
