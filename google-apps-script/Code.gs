@@ -12,7 +12,7 @@
  *  5. Open the app on GitHub, paste the Web app URL (ends in /exec) the first time, and log in.
  *
  * Roles:  admin   = everything, including users and settings
- *         chef    = reads everything; changes Inventario, Mermas, costs (Config) and Órdenes (kitchen board)
+ *         chef    = reads everything; changes Inventario, Mermas, costs (Config), Órdenes and Recetas
  *         lectura = reads everything, changes nothing
  *         cocinero = full Kitchen & inventory; everything else read only
  *         mesero   = only Customers (bookings), Tables layout, orders and billing by table
@@ -46,11 +46,11 @@ const ROLES = {
   admin:    { label: "Administrador", write: "*", read: "*",
               desc: "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings." },
   chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders", "recipes"], read: "*",
-              desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso y Órdenes. / Sees everything. Changes inventory, waste, cost per cup and orders." },
+              desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso, Órdenes y Recetas. / Sees everything. Changes inventory, waste, cost per cup, orders and recipes." },
   cocinero: { label: "Cocinero", write: ["inventory", "waste"], read: "*",
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
   mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings"],
-              desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa; no cambia la lista de precios. / Customers, Tables layout, Orders and Billing by table; cannot change the price list." },
+              desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa (al cobrar suma a Ventas y descuenta stock); no cambia el menú ni los precios. / Customers, Tables layout, Orders and Billing by table (charging adds to sales and discounts stock); cannot change the menu or prices." },
   lectura:  { label: "Solo lectura", write: [], read: "*",
               desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
 };
@@ -65,6 +65,8 @@ function usersSheet_() {
     sh.getRange("A1:G1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
   }
   const rows = [["Rol", "Nombre", "Permisos / Permissions"]].concat(Object.keys(ROLES).map(function (k) { return [k, ROLES[k].label, ROLES[k].desc]; }));
+  const cache = CacheService.getScriptCache(), ver = "roles_" + strHash_(JSON.stringify(rows));
+  if (cache.get("roles_ok") === ver && ss.getSheetByName("Roles")) return sh;
   let r = ss.getSheetByName("Roles");
   if (!r) { r = ss.insertSheet("Roles"); r.setColumnWidth(3, 620); }
   const cur = r.getLastRow() >= 1 ? r.getRange(1, 1, Math.max(r.getLastRow(), rows.length), 3).getDisplayValues() : [];
@@ -75,8 +77,10 @@ function usersSheet_() {
     const rule = SpreadsheetApp.newDataValidation().requireValueInList(Object.keys(ROLES), true).build();
     sh.getRange("C2:C200").setDataValidation(rule);
   }
+  cache.put("roles_ok", ver, 21600);
   return sh;
 }
+function strHash_(t) { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); }
 function hash_(password, salt) {
   let h = salt + "|" + password;
   for (let i = 0; i < 300; i++) h = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h, Utilities.Charset.UTF_8));
@@ -132,7 +136,7 @@ function canWrite_(s, col) {
   return w === "*" || w.indexOf(col) >= 0;
 }
 function login_(user, password) {
-  const cache = CacheService.getScriptCache(), key = "f_" + String(user || "").toLowerCase();
+  const cache = CacheService.getScriptCache(), key = "f_" + String(user || "").trim().toLowerCase();
   const fails = Number(cache.get(key) || 0);
   if (fails >= 5) return { ok: false, error: "locked" };
   const sh = usersSheet_(), r = findUser_(sh, user);
@@ -150,17 +154,25 @@ function login_(user, password) {
 }
 
 /* ---------------- web app ---------------- */
-function doGet(e) { return handle_((e && e.parameter) || {}); }
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (!p.action || p.action === "ping") return handle_({ action: "ping" });
+  return out_({ ok: false, error: "use_post" });
+}
 function doPost(e) {
   let body = {};
   try { body = JSON.parse(e.postData && e.postData.contents || "{}"); } catch (err) { return out_({ ok: false, error: "bad_json" }); }
   return handle_(body);
 }
+const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1 };
 function handle_(req) {
+  const action = String(req.action || ""), col = String(req.col || "");
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // a read can run alongside others, except the first time a tab has to be created
+  const needLock = !LOCK_FREE[action] || (action === "list" && SHEETS[col] && !ss.getSheetByName(SHEETS[col]));
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  if (needLock && !lock.tryLock(15000)) return out_({ ok: false, error: "busy" });
   try {
-    const action = String(req.action || ""), col = String(req.col || "");
     if (action === "ping") return out_({ ok: true, hasUsers: usersSheet_().getLastRow() >= 2 });
     if (action === "login") return out_(login_(req.user, req.password));
     const s = session_(req.token);
@@ -201,13 +213,19 @@ function handle_(req) {
     }
     if (action === "set") {
       const id = String(req.id || "");
-      if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null) return out_({ ok: false, error: "bad_request" });
+      if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null || Array.isArray(req.data)) return out_({ ok: false, error: "bad_request" });
       if (!s) return out_({ ok: false, error: "auth" });
       if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
+      const keys = Object.keys(req.data);
+      if (keys.length > 60 || keys.some(function (k) { return !/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(k); })) return out_({ ok: false, error: "bad_request", message: "campos inválidos" });
       const isNew = rowOf_(sheet_(col), id) < 0;
-      write_(col, id, req.data);
-      // a new paid bill discounts the stock its recipes use (one standard portion per unit sold)
-      if (col === "bills" && isNew && Array.isArray(req.data.stockUse)) useStock_(req.data.stockUse);
+      let data = req.data;
+      // a new paid bill discounts the stock its recipes use; the server works it out itself
+      let uses = null;
+      if (col === "bills" && isNew) { uses = stockForBill_(data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
+      if (JSON.stringify(data).length > 45000) return out_({ ok: false, error: "too_big" }); // a cell holds at most 50 000 characters
+      write_(col, id, data);
+      if (uses && uses.length) useStock_(uses);
       return out_({ ok: true });
     }
     if (action === "delete") {
@@ -220,7 +238,7 @@ function handle_(req) {
     }
     return out_({ ok: false, error: "bad_action" });
   } finally {
-    lock.releaseLock();
+    if (needLock) lock.releaseLock();
   }
 }
 
@@ -249,7 +267,7 @@ function sheet_(col) {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), name = SHEETS[col];
   let sh = ss.getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(name);
+    try { sh = ss.insertSheet(name); } catch (err) { sh = ss.getSheetByName(name); if (sh) return sh; throw err; }
     const h = ["ID", "json"].concat(FIELDS[col].map(function (f) { return f[1]; }));
     sh.getRange(1, 1, 1, h.length).setValues([h]); sh.setFrozenRows(1); sh.hideColumns(2);
     if (col === "recipes") moveOldRecipes_(ss, sh);
@@ -316,7 +334,7 @@ function write_(col, id, data) {
   Object.keys(data).forEach(function (k) {
     if (typeof data[k] === "object" && data[k] !== null) return;
     const h = byField[k] || k;
-    if (headers.indexOf(h) < 0) { headers.push(h); sh.getRange(1, headers.length).setValue(h); }
+    if (headers.indexOf(h) < 0 && headers.length < 60) { headers.push(h); sh.getRange(1, headers.length).setValue(h); }
   });
   const keys = headerMap_(col, headers), row = [], fmts = [];
   keys.forEach(function (k, j) {
@@ -393,6 +411,28 @@ function applyPurchase_(sh, r) {
   sh.getRange(r, 11).setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"));
 }
 
+// units the recipes use → the unit of each inventory item
+const UF_ = { g: ["m", 1], kg: ["m", 1000], mg: ["m", 0.001], ml: ["v", 1], mL: ["v", 1], l: ["v", 1000], L: ["v", 1000], tbsp: ["v", 15], tsp: ["v", 5], pc: ["c", 1], u: ["c", 1], und: ["c", 1] };
+function conv_(q, from, to) { const a = UF_[from], b = UF_[to]; if (!a || !b || a[0] !== b[0]) return null; return Number(q) * a[1] / b[1]; }
+// stock used by a bill: every line × the saved standard measure (1 portion) of its menu item
+function stockForBill_(bill) {
+  const lines = Array.isArray(bill.lines) ? bill.lines.slice(0, 200) : []; if (!lines.length) return [];
+  const key = function (t) { return String(t || "").trim().toLowerCase(); };
+  const menu = list_("menu"), recipes = list_("recipes"), inv = list_("inventory"), out = [];
+  lines.forEach(function (l) {
+    const qty = Number(l && l.qty); if (!(qty > 0)) return;
+    const m = menu.filter(function (x) { return key(x.data.name) === key(l.dish); })[0]; if (!m) return;
+    const r = recipes.filter(function (x) { return x.data.itemId === m.id && x.data.locked === true; })[0]; if (!r) return;
+    (Array.isArray(r.data.ingredients) ? r.data.ingredients : []).forEach(function (g) {
+      if (!g || !g.inv) return;
+      const it = inv.filter(function (x) { return x.id === g.inv; })[0]; if (!it) return;
+      const per = conv_(g.q, g.u, it.data.unit); if (per == null || !(per > 0)) return;
+      const q = Math.round(per * qty * 100) / 100, f = out.filter(function (x) { return x.id === it.id; })[0];
+      if (f) f.qty = Math.round((f.qty + q) * 100) / 100; else out.push({ id: it.id, name: it.data.name, unit: it.data.unit, qty: q });
+    });
+  });
+  return out;
+}
 function useStock_(uses) {
   const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
   const cQty = headers.indexOf("Stock") + 1, cUpd = headers.indexOf("Actualizado") + 1; if (cQty < 1) return;

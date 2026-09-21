@@ -1043,7 +1043,14 @@ function makeSheetDB(url){
     catch(e){ if(e.code!=="auth") toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora.")); }
   }
   const denied=()=>toast(tt("Your role can't make this change.","Tu rol no permite este cambio."));
-  async function write(col,id,data){ if(!canWrite(col)){ denied(); await load(col); throw {code:"forbidden"}; } try{ await sheetCall(url,{action:"set",col,id,data}); }catch(e){ if(e.code==="forbidden") denied(); else if(e.code!=="auth") toast(tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo.")); await load(col); throw e; } }
+  async function write(col,id,data){ if(!canWrite(col)){ denied(); await load(col); throw {code:"forbidden"}; }
+    try{ try{ await sheetCall(url,{action:"set",col,id,data}); }
+         catch(e){ if(e.code!=="busy") throw e; await new Promise(r=>setTimeout(r,1500)); await sheetCall(url,{action:"set",col,id,data}); } } // one retry when the server is busy
+    catch(e){ if(e.code==="forbidden") denied();
+      else if(e.code==="too_big") toast(tt("Too much text to save in one record. Shorten it and try again.","Demasiado texto para guardar en un registro. Acórtalo e inténtalo de nuevo."));
+      else if(e.code==="busy") toast(tt("The Google Sheet is busy. Try again in a moment.","La hoja de Google está ocupada. Inténtalo de nuevo en un momento."));
+      else if(e.code!=="auth") toast(tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo."));
+      await load(col); throw e; } }
   function docRef(path){ const [col,id]=path.split("/"); return {id,path,
     async get(){ if(!loaded[col]) await load(col); return snap(col,id); },
     async set(d){ (cache[col] ||= {})[id]=JSON.parse(JSON.stringify(d)); notify(col); await write(col,id,cache[col][id]); },
