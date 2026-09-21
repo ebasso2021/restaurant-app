@@ -892,6 +892,12 @@ function fmtCur(v,cur,rate){
 }
 // every amount in the app is stored in CAD and displayed in the currency chosen in the header
 const money=v=>fmtCur(v,curOk(state.cur)?state.cur:"CAD");
+const curNow=()=>curOk(state.cur)?state.cur:"CAD";
+const curSym=()=>curInfo(curNow())[1];
+// CAD (stored) → number shown in an input, in the chosen currency
+const inCur=cad=>{const r=curRate(curNow());return Math.round(num(cad)*r*100)/100;};
+// number typed in the chosen currency → CAD to store
+const toCAD=v=>{const r=curRate(curNow())||1;return Math.round(num(v)/r*10000)/10000;};
 function renderCurBox(){
   const el=document.getElementById("curSel"); if(!el) return;
   el.innerHTML=CURS.map(c=>`<option value="${c[0]}"${state.cur===c[0]?" selected":""}>${c[1]} ${c[0]}</option>`).join("");
@@ -1733,19 +1739,19 @@ function billBody(){
   const el=document.getElementById("blBody"); if(!el) return;
   if(!billTable){ el.innerHTML=(billMsg?`<p class="capnote">✅ ${esc(billMsg)}</p>`:"")+`<p class="empty">${tt("Choose a table to build its bill.","Elige una mesa para armar su cuenta.")}</p>`; return; }
   const t=billTotals(), tip=[0,10,15,18];
-  el.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Ítem")}</th><th>${tt("Qty","Cant.")}</th><th>${tt("Price","Precio")}</th><th>${tt("Line","Línea")}</th><th></th></tr></thead>
+  el.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Ítem")}</th><th>${tt("Qty","Cant.")}</th><th>${tt("Price","Precio")} (${curSym()})</th><th>${tt("Line","Línea")}</th><th></th></tr></thead>
    <tbody>${(billLines||[]).map((l,i)=>`<tr data-i="${i}"><td><input class="txt" data-b="dish" value="${esc(l.dish)}" list="dishList2"></td>
     <td><input data-b="qty" type="number" min="0" step="1" value="${esc(l.qty)}"></td>
-    <td><input data-b="price" type="number" min="0" step="0.01" value="${esc(l.price)}"></td>
+    <td><input data-b="price" type="number" min="0" step="0.01" value="${esc(inCur(l.price))}" aria-label="${tt("Price","Precio")} (${curSym()})"></td>
     <td class="nw">${money(num(l.qty)*num(l.price))}</td>
     <td><button type="button" class="btn sm ghost" data-brm="${i}" aria-label="${tt("Remove line","Quitar línea")}">✕</button></td></tr>`).join("")}</tbody></table></div>
    <div class="acts"><button type="button" class="btn sm ghost" id="blAdd">+ ${tt("Add line","Agregar línea")}</button><button type="button" class="btn sm ghost" id="blReload">↻ ${tt("Reload orders","Recargar órdenes")}</button></div>
    ${(billLines||[]).some(l=>!num(l.price))?`<p class="hint warnnote">⚠ ${tt("Some lines have no price. Add them to the price list or type the price here.","Algunas líneas no tienen precio. Agrégalas a la lista de precios o escribe el precio aquí.")}</p>`:""}
    <div class="billbox">
     <div class="brow"><span>${tt("Subtotal","Subtotal")}</span><b>${money(t.subtotal)}</b></div>
-    <div class="brow"><span>${tt("Discount","Descuento")}</span><span class="bctl"><input id="blDisc" type="number" min="0" step="0.01" value="${esc(billDisc.v)}"><select id="blDiscMode"><option value="pct"${billDisc.mode==="pct"?" selected":""}>%</option><option value="amt"${billDisc.mode==="amt"?" selected":""}>$</option></select><input id="blDiscWhy" class="why" placeholder="${tt("Reason","Motivo")}" value="${esc(billDisc.why)}"></span><b>−${money(t.discount)}</b></div>
+    <div class="brow"><span>${tt("Discount","Descuento")}</span><span class="bctl"><input id="blDisc" type="number" min="0" step="0.01" value="${esc(billDisc.mode==="amt"?inCur(billDisc.v):billDisc.v)}"><select id="blDiscMode"><option value="pct"${billDisc.mode==="pct"?" selected":""}>%</option><option value="amt"${billDisc.mode==="amt"?" selected":""}>${curSym()}</option></select><input id="blDiscWhy" class="why" placeholder="${tt("Reason","Motivo")}" value="${esc(billDisc.why)}"></span><b>−${money(t.discount)}</b></div>
     <div class="brow"><span>${tt("GST","GST")} ${taxRate()}%</span><b>${money(t.tax)}</b></div>
-    <div class="brow"><span>${tt("Tip","Propina")}</span><span class="bctl">${tip.map(p=>`<button type="button" class="btn sm ${billTipPct===p?"":"ghost"}" data-tip="${p}">${p}%</button>`).join("")}<input id="blTip" type="number" min="0" step="0.01" value="${esc(billTipPct!=null?t.tip:billTip)}"></span><b>${money(t.tip)}</b></div>
+    <div class="brow"><span>${tt("Tip","Propina")}</span><span class="bctl">${tip.map(p=>`<button type="button" class="btn sm ${billTipPct===p?"":"ghost"}" data-tip="${p}">${p}%</button>`).join("")}<input id="blTip" type="number" min="0" step="0.01" value="${esc(inCur(billTipPct!=null?t.tip:billTip))}" aria-label="${tt("Tip","Propina")} (${curSym()})"></span><b>${money(t.tip)}</b></div>
     <div class="brow tot"><span>${tt("Total","Total")}</span><b>${money(t.total)}</b></div>
     <div class="brow"><span>${tt("Split between","Dividir entre")}</span><span class="bctl"><input id="blSplit" type="number" min="1" step="1" value="${esc(t.split)}"> ${tt("people","personas")}</span><b>${t.split>1?money(t.per)+" "+tt("each","c/u"):"—"}</b></div>
     <div class="brow"><span>${tt("Payment","Pago")}</span><span class="bctl"><select id="blMethod">${PAYMENTS.map(p=>`<option value="${p[0]}"${billMethod===p[0]?" selected":""}>${tt(p[1],p[2])}</option>`).join("")}</select></span>
@@ -1797,12 +1803,12 @@ function wireBill(){
     if(tr&&el.dataset.b){ const l=billLines[num(tr.dataset.i)]; if(!l) return;
       if(el.dataset.b==="dish"){ l.dish=el.value.trim(); if(!num(l.price)) l.price=priceOf(l.dish); }
       if(el.dataset.b==="qty") l.qty=Math.max(0,num(el.value));
-      if(el.dataset.b==="price") l.price=Math.max(0,num(el.value));
+      if(el.dataset.b==="price") l.price=Math.max(0,toCAD(el.value));
       billBody(); return; }
-    if(el.id==="blDisc"){ billDisc.v=num(el.value); billBody(); }
-    if(el.id==="blDiscMode"){ billDisc.mode=el.value; billBody(); }
+    if(el.id==="blDisc"){ billDisc.v=billDisc.mode==="amt"?toCAD(el.value):num(el.value); billBody(); }
+    if(el.id==="blDiscMode"){ billDisc.mode=el.value; billDisc.v=0; billBody(); }
     if(el.id==="blDiscWhy"){ billDisc.why=el.value.trim(); }
-    if(el.id==="blTip"){ billTip=num(el.value); billTipPct=null; billBody(); }
+    if(el.id==="blTip"){ billTip=toCAD(el.value); billTipPct=null; billBody(); }
     if(el.id==="blSplit"){ billSplit=Math.max(1,Math.round(num(el.value))); billBody(); }
     if(el.id==="blMethod"){ billMethod=el.value; }
   });
@@ -1915,7 +1921,7 @@ function menuView(){
       ${field("mnName",tt("Name","Nombre"),`<input id="mnName" required maxlength="60">`)}
       ${field("mnCat",tt("Group","Grupo"),`<select id="mnCat">${MENU_CATS.map(c=>`<option value="${c[0]}"${menuCat===c[0]?" selected":""}>${tt(c[1],c[2])}</option>`).join("")}</select>`)}
       ${field("mnKind",tt("Type","Tipo"),`<select id="mnKind">${(MENU_KINDS[menuCat]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join("")}</select>`)}
-      ${field("mnPrice",tt("Price","Precio"),`<input id="mnPrice" type="number" min="0" step="0.01" value="0">`)}
+      ${field("mnPrice",tt("Price","Precio")+" ("+curSym()+")",`<input id="mnPrice" type="number" min="0" step="0.01" value="0">`)}
       ${field("mnNotes",tt("Note (allergens, size…)","Nota (alérgenos, tamaño…)"),`<input id="mnNotes" maxlength="120">`)}
       <button class="btn" type="submit">${tt("Add","Agregar")}</button>
      </form><p class="hint" id="mnMsg" aria-live="polite"></p>
@@ -1935,7 +1941,7 @@ function wireMenu(){
     if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ msg.textContent=tt(`“${name}” is already on the menu.`,`“${name}” ya está en el menú.`); return; }
     const cat=val("mnCat"), kind=val("mnKind");
     const prod=cat==="bebida"?matchProduct(name):"";
-    await dbAdd("menu",{name,cat,kind,price:num(val("mnPrice")),prodId:prod,notes:val("mnNotes"),active:true});
+    await dbAdd("menu",{name,cat,kind,price:toCAD(val("mnPrice")),prodId:prod,notes:val("mnNotes"),active:true});
     msg.textContent=""; e.target.reset(); document.getElementById("mnCat").value=cat; kindSel(); document.getElementById("mnPrice").value=0; document.getElementById("mnName").focus();
   };
   document.getElementById("mnSeed").onclick=async()=>{
@@ -1945,7 +1951,7 @@ function wireMenu(){
   const list=document.getElementById("mnList");
   list.addEventListener("change",async e=>{
     const id=e.target.closest("tr")?.dataset.id; if(!id) return; const f=e.target.dataset.f;
-    if(f==="price") await dbUpd("menu",id,{price:Math.max(0,num(e.target.value))});
+    if(f==="price") await dbUpd("menu",id,{price:Math.max(0,toCAD(e.target.value))});
     if(f==="active") await dbUpd("menu",id,{active:e.target.checked});
     if(f==="kind") await dbUpd("menu",id,{kind:e.target.value});
     if(f==="notes") await dbUpd("menu",id,{notes:e.target.value.trim()});
@@ -1966,9 +1972,9 @@ function listMenu(){
   const rows=menuItems(menuCat), el=document.getElementById("mnList");
   if(el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT") return;
   const groups=(MENU_KINDS[menuCat]||[]).map(kd=>[kd[0],rows.filter(r=>(r.kind||"otro")===kd[0])]).filter(g=>g[1].length);
-  setHTML(el,rows.length?`<div class="tablewrap"><table class="dt menutbl"><thead><tr><th>${tt("Name","Nombre")}</th><th>${tt("Price","Precio")}</th><th>${tt("Note","Nota")}</th><th>${tt("On","Activo")}</th><th></th></tr></thead><tbody>
+  setHTML(el,rows.length?`<div class="tablewrap"><table class="dt menutbl"><thead><tr><th>${tt("Name","Nombre")}</th><th>${tt("Price","Precio")} (${curSym()})</th><th>${tt("Note","Nota")}</th><th>${tt("On","Activo")}</th><th></th></tr></thead><tbody>
    ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(m.name)}${m.prodId?` <span class="badge ok">${tt("app drink","bebida de la app")}</span>`:""}</td>
-     <td><input data-f="price" type="number" min="0" step="0.01" value="${esc(m.price)}" aria-label="${tt("Price","Precio")}"></td>
+     <td><input data-f="price" type="number" min="0" step="0.01" value="${esc(inCur(m.price))}" aria-label="${tt("Price","Precio")} (${curSym()})"></td>
      <td><input class="txt" data-f="notes" value="${esc(m.notes||"")}" aria-label="${tt("Note","Nota")}"></td>
      <td><input data-f="active" type="checkbox" style="width:auto"${m.active!==false?" checked":""} aria-label="${tt("On","Activo")}"></td>
      <td class="nw"><button type="button" class="btn sm ghost" data-mndel="${esc(m.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")).join("")}
@@ -1990,7 +1996,7 @@ function m2(){
      ${field("iQty",tt("On hand","En stock"),`<input id="iQty" type="number" step="any" min="0">`)}
      ${field("iMin",tt("Alert below","Alerta bajo"),`<input id="iMin" type="number" step="any" min="0">`)}
      ${field("iPar",tt("Maximum quantity","Cantidad máxima"),`<input id="iPar" type="number" step="any" min="0">`)}
-     ${field("iCost",tt("Cost per unit ($)","Costo por unidad ($)"),`<input id="iCost" type="number" step="any" min="0">`)}
+     ${field("iCost",tt("Cost per unit","Costo por unidad")+" ("+curSym()+")",`<input id="iCost" type="number" step="any" min="0">`)}
      ${field("iSup",tt("Supplier","Proveedor"),`<input id="iSup">`)}
      <button class="btn" type="submit">${tt("Add item","Agregar item")}</button>
     </form>
@@ -1999,7 +2005,7 @@ function m2(){
      <div class="fgrid">
       ${field("asItem",tt("Item","Artículo"),`<select id="asItem"></select>`)}
       ${field("asQty",tt("Quantity received","Cantidad recibida"),`<input id="asQty" type="number" step="any" min="0" required>`)}
-      ${field("asCost",tt("New cost per unit (optional)","Nuevo costo por unidad (opcional)"),`<input id="asCost" type="number" step="any" min="0">`)}
+      ${field("asCost",tt("New cost per unit (optional)","Nuevo costo por unidad (opcional)")+" ("+curSym()+")",`<input id="asCost" type="number" step="any" min="0">`)}
       <button class="btn" type="submit">${tt("Add stock","Agregar stock")}</button>
      </div><p class="hint" id="asMsg" aria-live="polite"></p></form>
     <div class="tablewrap" id="invTable"></div>
@@ -2028,7 +2034,7 @@ function m2(){
 function wireM2(){
   document.getElementById("invForm").onsubmit=async e=>{
     e.preventDefault(); if(!val("iName")) return;
-    await dbAdd("inventory",{name:val("iName"),unit:val("iUnit"),qty:num(val("iQty")),min:num(val("iMin")),par:num(val("iPar")),cost:num(val("iCost")),supplier:val("iSup"),updated:new Date().toISOString()});
+    await dbAdd("inventory",{name:val("iName"),unit:val("iUnit"),qty:num(val("iQty")),min:num(val("iMin")),par:num(val("iPar")),cost:toCAD(val("iCost")),supplier:val("iSup"),updated:new Date().toISOString()});
     e.target.reset();
   };
   document.getElementById("loadIng").onclick=async()=>{
@@ -2044,7 +2050,7 @@ function wireM2(){
   };
   document.getElementById("invTable").addEventListener("change",async e=>{
     const inp=e.target.closest("[data-f]"); if(!inp) return;
-    await dbUpd("inventory",inp.dataset.id,{[inp.dataset.f]:inp.dataset.f==="supplier"?inp.value.trim():num(inp.value),updated:new Date().toISOString()});
+    await dbUpd("inventory",inp.dataset.id,{[inp.dataset.f]:inp.dataset.f==="supplier"?inp.value.trim():inp.dataset.f==="cost"?toCAD(inp.value):num(inp.value),updated:new Date().toISOString()});
   });
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
   document.getElementById("invTable").addEventListener("click",async e=>{
@@ -2054,7 +2060,7 @@ function wireM2(){
   document.getElementById("addStockForm").onsubmit=async e=>{
     e.preventDefault(); const it=D.inventory.find(i=>i.id===val("asItem")); const q=num(val("asQty"));
     if(!it||q<=0) return;
-    const upd={qty:num(it.qty)+q,updated:new Date().toISOString()}; if(val("asCost")!=="") upd.cost=num(val("asCost"));
+    const upd={qty:num(it.qty)+q,updated:new Date().toISOString()}; if(val("asCost")!=="") upd.cost=toCAD(val("asCost"));
     await dbUpd("inventory",it.id,upd);
     document.getElementById("asMsg").textContent=tt(`Added ${q} ${it.unit} of ${it.name}. New stock: ${+upd.qty.toFixed(2)} ${it.unit}.`,`Se agregaron ${q} ${it.unit} de ${it.name}. Stock nuevo: ${+upd.qty.toFixed(2)} ${it.unit}.`);
     document.getElementById("asQty").value=""; document.getElementById("asCost").value="";
@@ -2085,11 +2091,11 @@ function listM2(){
     [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
     [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
-  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Cost/unit","Costo/u")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i);return `<tr><td>${esc(i.name)} <small>${esc(i.unit)}</small></td>
+  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Cost/unit","Costo/u")} (${curSym()})</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i);return `<tr><td>${esc(i.name)} <small>${esc(i.unit)}</small></td>
      <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.qty)}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.min)}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.par)}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
-     <td><input data-f="cost" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.cost)}" aria-label="${tt("Cost","Costo")} ${esc(i.name)}"></td>
+     <td><input data-f="cost" data-id="${i.id}" type="number" step="any" min="0" value="${inCur(i.cost)}" aria-label="${tt("Cost","Costo")} ${esc(i.name)}"></td>
      <td><input data-f="supplier" data-id="${i.id}" class="txt" value="${esc(i.supplier)}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
      <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}" aria-label="${tt("Add stock","Agregar stock")} ${esc(i.name)}">+ ${tt("Stock","Stock")}</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
@@ -2161,7 +2167,7 @@ function m3(){
        ${field("sHour",tt("Hour (optional)","Hora (opcional)"),`<select id="sHour"><option value="">—</option>${Array.from({length:24},(_,h)=>`<option value="${String(h).padStart(2,"0")}">${String(h).padStart(2,"0")}:00</option>`).join("")}</select>`)}
        ${field("sProd",tt("Drink","Bebida"),`<select id="sProd">${prodOptions()}</select>`)}
        ${field("sCups",tt("Cups sold","Vasos vendidos"),`<input id="sCups" type="number" min="1" step="1" required>`)}
-       ${field("sPrice",tt("Price per cup ($)","Precio por vaso ($)"),`<input id="sPrice" type="number" min="0" step="0.01" required>`)}
+       ${field("sPrice",tt("Price per cup","Precio por vaso")+" ("+curSym()+")",`<input id="sPrice" type="number" min="0" step="0.01" required>`)}
        <button class="btn" type="submit">${tt("Add","Agregar")}</button>
       </form><p class="hint">${tt("Entries add up: logging 10 cups twice on the same day gives 20.","Las entradas se suman: registrar 10 vasos dos veces el mismo día da 20.")}</p></div>
      <div class="panel"><h3>${tt("Cost per cup","Costo por vaso")}</h3><div id="costBox"></div><p class="hint">${tt("Use the recipe calculators and your supplier prices to work out each cost.","Usa las calculadoras de receta y los precios de tus proveedores para calcular cada costo.")}</p></div>
@@ -2181,7 +2187,7 @@ function m3(){
 }
 function wireM3(){
   document.getElementById("sForm").onsubmit=async e=>{
-    e.preventDefault(); const d=val("sDate"), pid=val("sProd"), cups=Math.round(num(val("sCups"))), price=num(val("sPrice")), h=val("sHour");
+    e.preventDefault(); const d=val("sDate"), pid=val("sProd"), cups=Math.round(num(val("sCups"))), price=toCAD(val("sPrice")), h=val("sHour");
     if(!d||cups<=0) return;
     const cur=D.sales.find(s=>s.id===d)||{items:{},hours:{}};
     const items=JSON.parse(JSON.stringify(cur.items||{})), hours=JSON.parse(JSON.stringify(cur.hours||{}));
@@ -2192,7 +2198,7 @@ function wireM3(){
   };
   document.getElementById("rangeBtns").onclick=e=>{const b=e.target.closest("[data-range]"); if(!b) return; range=+b.dataset.range; render();};
   document.getElementById("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
-  document.getElementById("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:num(i.value)});});
+  document.getElementById("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
   document.getElementById("sAI").onclick=salesAI;
 }
 function prodStats(n){
@@ -2203,7 +2209,7 @@ function prodStats(n){
 }
 function listM3(){
   const cb=document.getElementById("costBox"); if(!cb) return;
-  if(document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])||""}" placeholder="$"></label>`).join("")}</div>`;
+  if(document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`;
   const days=salesDays(range), tot=days.map(dayTotals);
   const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
   const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
