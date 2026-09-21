@@ -17,11 +17,14 @@
  *         cocinero = full Kitchen & inventory; everything else read only
  *         mesero   = only Customers (bookings), Tables layout, orders and billing by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
+ * Kardex: the tab "Kardex" (created automatically) logs every stock movement — purchases from the app (+ Stock)
+ * and from the "Compras" tab, sales from paid bills, waste and stock counts — with unit cost, balance and
+ * weighted average cost. Inventory costs are per kg / L / piece with 2 decimals.
  */
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
                  posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)",
-                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas (app)" };
+                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas (app)", kardex: "Kardex" };
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
@@ -34,10 +37,12 @@ const FIELDS = {
   menu: [["name","Nombre"],["cat","Grupo"],["kind","Tipo"],["price","Precio"],["notes","Nota"],["prodId","ID bebida app"],["active","Activo"]],
   bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["stockText","Descuento de stock"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
   recipes: [["item","Plato"],["portionLabel","Porción (medida única)"],["ingText","Ingredientes por 1 porción"],["steps","Preparación"],["notes","Notas"],["locked","Establecida"],["lockedAt","Establecida el"],["lockedBy","Por"],["itemId","ID del menú"],["updated","Actualizada"]],
+  kardex: [["date","Fecha"],["item","Artículo"],["type","Movimiento"],["reason","Motivo"],["qty","Cantidad"],["unit","Unidad"],["unitCost","Costo unitario"],["total","Total"],["balQty","Saldo cantidad"],["avgCost","Costo promedio"],["balValue","Saldo valor"],["ref","Referencia"],["by","Usuario"],["when","Fecha y hora"],["itemId","ID artículo"]],
   sales: [], settings: []
 };
-const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
+const NUM = ["unitCost","balQty","avgCost","balValue","qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
 const BOOL = ["replied","active","occupied","locked"];
+const MONEY = ["cost","unitCost","total","avgCost","balValue","price","subtotal","discount","tax","tip","per","totalCur"]; // always 2 decimals
 const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya", lomo: "Lomo saltado" };
 
@@ -45,9 +50,9 @@ const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jug
 const ROLES = {
   admin:    { label: "Administrador", write: "*", read: "*",
               desc: "Acceso total: todos los módulos, usuarios y ajustes. / Full access: all modules, users and settings." },
-  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders", "recipes"], read: "*",
+  chef:     { label: "Chef", write: ["inventory", "waste", "settings", "orders", "recipes", "kardex"], read: "*",
               desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso, Órdenes y Recetas. / Sees everything. Changes inventory, waste, cost per cup, orders and recipes." },
-  cocinero: { label: "Cocinero", write: ["inventory", "waste"], read: "*",
+  cocinero: { label: "Cocinero", write: ["inventory", "waste", "kardex"], read: "*",
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
   mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings"],
               desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa (al cobrar suma a Ventas y descuenta stock); no cambia el menú ni los precios. / Customers, Tables layout, Orders and Billing by table (charging adds to sales and discounts stock); cannot change the menu or prices." },
@@ -225,7 +230,7 @@ function handle_(req) {
       if (col === "bills" && isNew) { uses = stockForBill_(data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
       if (JSON.stringify(data).length > 45000) return out_({ ok: false, error: "too_big" }); // a cell holds at most 50 000 characters
       write_(col, id, data);
-      if (uses && uses.length) useStock_(uses);
+      if (uses && uses.length) useStock_(uses, "Factura " + id, s.name || s.user || "");
       return out_({ ok: true });
     }
     if (action === "delete") {
@@ -345,7 +350,7 @@ function write_(col, id, data) {
     if (DATES.indexOf(k) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
       const p = String(v).split("-"); row.push(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0)); fmts.push("yyyy-mm-dd"); return;
     }
-    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(Number.isInteger(v) ? "0" : "0.00"); return; }
+    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(MONEY.indexOf(k) >= 0 ? "#,##0.00" : Number.isInteger(v) ? "0" : "0.000"); return; }
     if (BOOL.indexOf(k) >= 0) { row.push(!!v); fmts.push("@"); return; }
     v = String(v); if (/^[=+]/.test(v)) v = "'" + v;
     row.push(v); fmts.push("@");
@@ -401,13 +406,16 @@ function applyPurchase_(sh, r) {
   const w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
   const cQty = headers.indexOf("Stock") + 1, cCost = headers.indexOf("Costo unitario") + 1, cUpd = headers.indexOf("Actualizado") + 1;
   const now = new Date().toISOString();
-  inv.getRange(row, cQty).setValue(Number(inv.getRange(row, cQty).getValue() || 0) + qty);
-  if (cost != null && !isNaN(cost) && cCost > 0) inv.getRange(row, cCost).setValue(cost);
+  let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
+  const q0 = Math.max(0, Number(inv.getRange(row, cQty).getValue() || 0)), c0 = cCost > 0 ? Number(inv.getRange(row, cCost).getValue() || 0) : Number(data.cost || 0);
+  const uc = cost != null && !isNaN(cost) ? r2_(cost) : c0, q1 = r3_(q0 + qty), c1 = q1 > 0 ? r2_((q0 * c0 + qty * uc) / q1) : uc; // weighted average cost
+  inv.getRange(row, cQty).setValue(q1);
+  if (cCost > 0) inv.getRange(row, cCost).setValue(c1);
   if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
   // keep the hidden json in step
-  let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
-  data.qty = Number(inv.getRange(row, cQty).getValue()); if (cost != null && !isNaN(cost)) data.cost = cost; data.updated = now;
+  data.qty = q1; data.cost = c1; data.updated = now;
   inv.getRange(row, 2).setValue(JSON.stringify(data));
+  kardex_({ id: String(v[2]), name: data.name || v[1], unit: data.unit || v[3] }, "in", "purchase", qty, uc, q1, c1, "Compras fila " + r, "Compras");
   sh.getRange(r, 11).setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"));
 }
 
@@ -433,7 +441,15 @@ function stockForBill_(bill) {
   });
   return out;
 }
-function useStock_(uses) {
+const r2_ = function (n) { return Math.round(Number(n || 0) * 100) / 100; };
+const r3_ = function (n) { return Math.round(Number(n || 0) * 1000) / 1000; };
+// one row in the "Kardex" tab: every purchase, sale (paid bill), waste and adjustment, with running balance and average cost
+function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by) {
+  const now = new Date(), id = "k" + now.getTime().toString(36) + Math.random().toString(36).slice(2, 6);
+  write_("kardex", id, { date: Utilities.formatDate(now, tz_(), "yyyy-MM-dd"), when: now.toISOString(), itemId: it.id, item: it.name || "", unit: it.unit || "",
+    type: type, reason: reason, qty: r3_(qty), unitCost: r2_(unitCost), total: r2_(qty * unitCost), balQty: r3_(balQty), avgCost: r2_(avgCost), balValue: r2_(balQty * avgCost), ref: ref || "", by: by || "" });
+}
+function useStock_(uses, ref, by) {
   const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
   const cQty = headers.indexOf("Stock") + 1, cUpd = headers.indexOf("Actualizado") + 1; if (cQty < 1) return;
   const now = new Date().toISOString();
@@ -445,6 +461,7 @@ function useStock_(uses) {
     if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
     let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
     data.qty = left; data.updated = now; inv.getRange(row, 2).setValue(JSON.stringify(data));
+    kardex_({ id: String(u.id), name: data.name || u.name, unit: data.unit || u.unit }, "out", "sale", q, Number(data.cost || 0), left, Number(data.cost || 0), ref, by);
   });
 }
 
