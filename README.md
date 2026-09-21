@@ -22,7 +22,7 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 1. **Productos** — Jugo de quinua, Chicha morada, Jugo de maca, Mazamorra morada, Jugo de lúcuma, Jugo de chirimoya y **Lomo saltado** (plato de fondo, 4 porciones, ingredientes y preparación en ES/EN): calculadora de lotes, preparación, beneficios, verificación de afirmaciones y flujo con puntos críticos de control (PCC).
 2. **Gestión con IA** — resumen y 5 módulos funcionales (ver abajo).
 3. **Normas AHS** — requisitos de inocuidad de Alberta Health Services.
-4. **Camino a la venta** — pasos para vender en Edmonton.
+4. **Camino a la venta** — pasos para vender en Edmonton. Cada paso tiene **✎ Agregar/Editar nota** (con **Guardar**) para anotar el avance, y **✓ Hecho** para marcarlo con ✓; arriba se ve el progreso (p. ej. 2 / 11). Lo pueden cambiar el administrador y el chef.
 
 ### Aprender recetas de un documento de Word
 En **Recetas** hay dos botones: **📄 Nueva receta desde un documento de Word** (crea el ítem en el menú) y, dentro de cada receta, **📄 Aprender ingredientes y preparación de un documento de Word**. La app lee el archivo `.docx` en el navegador (con IA si está disponible, si no con un lector de texto que busca los títulos “Ingredientes” y “Preparación”), convierte las cantidades a 1 porción, llena el editor de la receta y agrega al inventario los ingredientes que faltan (con stock 0, ya vinculados). Revisa y pulsa **Guardar como medida única**.
@@ -80,7 +80,7 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 1. **Products** — Quinoa drink, Chicha morada, Maca shake, Mazamorra morada, Lúcuma juice, Chirimoya juice and **Lomo saltado** (main dish, serves 4, ingredients and method in EN/ES): batch calculator, method, benefits, claim check and flow with critical control points (CCP).
 2. **AI System Management** — overview and 5 working modules (below).
 3. **AHS rules** — Alberta Health Services food-safety requirements.
-4. **Path to sale** — steps to sell in Edmonton.
+4. **Path to sale** — steps to sell in Edmonton. Each step has **✎ Add/Edit note** (with **Save**) to record progress, and **✓ Done** to check it off with ✓; progress shows at the top (e.g. 2 / 11). The administrator and the chef can change it.
 
 ### Learn recipes from a Word document
 In **Recipes** there are two buttons: **📄 New recipe from a Word document** (creates the menu item) and, inside each recipe, **📄 Learn ingredients and preparation from a Word document**. The app reads the `.docx` file in the browser (with AI when available, otherwise with a text reader that looks for “Ingredients” and “Preparation” headings), converts the amounts to 1 portion, fills the recipe editor and adds the missing ingredients to the inventory (stock 0, already linked). Review and press **Save as the standard measure**.

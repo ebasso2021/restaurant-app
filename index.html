@@ -116,6 +116,13 @@ ul.plain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
 .pstep .n{font-family:var(--display);font-size:26px;color:var(--accent);line-height:1}
 .pstep h4{margin:0 0 4px;font-size:16px}
 .pstep p{margin:0;color:var(--muted);font-size:14px}
+.pstep.done{border-color:var(--ok);background:color-mix(in oklab,var(--ok-bg) 60%,var(--surface))}
+.pstep.done .n{color:var(--ok)}
+.pstep .acts{margin-top:10px}
+.pnote{margin-top:10px;padding:8px 10px;background:var(--sunk);border-radius:8px;font-size:14px;white-space:pre-wrap}
+.pprog{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-size:14px}
+.pbar{flex:1 1 200px;height:10px;background:var(--sunk);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+.pbar span{display:block;height:100%;background:var(--ok);border-radius:999px}
 .disclaimer{margin-top:28px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
 
 .mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
@@ -1151,7 +1158,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{}};
+const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{}};
 if(!state.aiView) state.aiView="overview";
 
 const LOADED=new Set(); // collections that have answered at least once
@@ -1381,7 +1388,8 @@ function showLogin(msg){
 function startData(){
   ["inventory","waste","reservations","sales","posts","reviews","tables","orders","menu","bills","recipes"].filter(canRead).forEach(subscribe);
   if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
-    DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
+    DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+    DB.doc("settings/path").onSnapshot(s=>{D.path=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
 function startSheet(url){
   MODE="sheet"; DB=makeSheetDB(url); if(lsGet(LS_KEY)) SAMPLE=makeApiSample();
@@ -1557,6 +1565,7 @@ function refreshNow(){
     if(sig!==recSig&&!(main.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))){ recSig=sig; render(); }
     return; }
   if(state.tab==="menu"){ listMenu(); return; }
+  if(state.tab==="path"){ const sig=JSON.stringify(D.path||{}); if(sig!==pathSig&&pathEdit==null){ pathSig=sig; render(); } return; }
   if(state.tab!=="ai") return;
   const v=state.aiView;
   if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill();
@@ -2793,6 +2802,45 @@ function rules(){
   </section>`;
 }
 
+/* ----- Path to sale: a note per step (Edit → Save) and a Done ✓ mark, saved in settings/path ----- */
+let pathEdit=null, pathSig="";
+const pathGet=i=>{ const d=D.path||{}; return {note:d["note_"+i]||"",done:!!d["done_"+i],doneAt:d["doneAt_"+i]||"",doneBy:d["doneBy_"+i]||"",updated:d["upd_"+i]||""}; };
+const pathCan=()=>!!DB&&canWrite("settings");
+function pathProgress(n){
+  let done=0; for(let i=0;i<n;i++) if(pathGet(i).done) done++;
+  const pct=n?Math.round(done/n*100):0;
+  return `<div class="pprog"><div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${n}" aria-valuenow="${done}"><span style="width:${pct}%"></span></div>
+   <b>${done} / ${n}</b> ${tt("steps done","pasos hechos")}${!DB?` · <span class="dimtxt">${tt("open the app in Claude (or sign in on the website) to save notes and progress","abre la app en Claude (o inicia sesión en la web) para guardar notas y avance")}</span>`:!pathCan()?` · <span class="dimtxt">${tt("read only for your role","solo lectura para tu rol")}</span>`:""}</div>`;
+}
+function pathStep(st,i){
+  const g=pathGet(i), ed=pathEdit===i, can=pathCan();
+  const when=g.doneAt?new Date(g.doneAt).toLocaleDateString(state.lang==="es"?"es-CA":"en-CA",{dateStyle:"medium"}):"";
+  return `<div class="pstep${g.done?" done":""}" data-ps="${i}"><div class="n" aria-hidden="true">${g.done?"✓":i+1}</div><div>
+    <h4>${st[0]}${g.done?` <span class="badge ok">✓ ${tt("Done","Hecho")}${when?" · "+esc(when):""}${g.doneBy?" · "+esc(g.doneBy):""}</span>`:""}</h4><p>${st[1]}</p>
+    ${ed?`<div class="f full" style="margin-top:10px"><label for="pnote${i}">${tt("My notes for this step (what is done, what is missing, contacts, dates…)","Mis notas de este paso (qué está hecho, qué falta, contactos, fechas…)")}</label><textarea id="pnote${i}" rows="4">${esc(g.note)}</textarea></div>`
+      :g.note?`<div class="pnote">📝 ${esc(g.note)}</div>`:""}
+    ${can?`<div class="acts">${ed?`<button type="button" class="btn sm" data-psave="${i}">💾 ${tt("Save","Guardar")}</button><button type="button" class="btn sm ghost" data-pcancel="${i}">${tt("Cancel","Cancelar")}</button>`
+        :`<button type="button" class="btn sm ghost" data-pedit="${i}">✎ ${g.note?tt("Edit note","Editar nota"):tt("Add note","Agregar nota")}</button>`}
+      ${g.done?`<button type="button" class="btn sm ghost" data-pdone="${i}" aria-pressed="true">↺ ${tt("Mark as not done","Marcar como no hecho")}</button>`
+        :`<button type="button" class="btn sm" data-pdone="${i}" aria-pressed="false">✓ ${tt("Done","Hecho")}</button>`}</div>`:""}
+  </div></div>`;
+}
+function wirePath(){
+  const box=main.querySelector(".path"); if(!box) return;
+  box.onclick=async e=>{
+    const b=e.target.closest("[data-pedit],[data-psave],[data-pcancel],[data-pdone]"); if(!b) return;
+    if(!pathCan()) return noDb();
+    if(b.dataset.pedit!=null){ pathEdit=+b.dataset.pedit; render(); const t=document.getElementById("pnote"+pathEdit); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length); } return; }
+    if(b.dataset.pcancel!=null){ pathEdit=null; render(); return; }
+    const stamp=new Date().toISOString();
+    if(b.dataset.psave!=null){ const i=+b.dataset.psave, note=(document.getElementById("pnote"+i)?.value||"").trim().slice(0,2000);
+      pathEdit=null; await dbSet("settings/path",{...(D.path||{}),["note_"+i]:note,["upd_"+i]:stamp}); render(); toast(tt("Note saved.","Nota guardada.")); return; }
+    if(b.dataset.pdone!=null){ const i=+b.dataset.pdone, g=pathGet(i);
+      if(pathEdit===i){ const t=document.getElementById("pnote"+i); if(t) D.path={...(D.path||{}),["note_"+i]:t.value.trim().slice(0,2000),["upd_"+i]:stamp}; pathEdit=null; }
+      await dbSet("settings/path",{...(D.path||{}),["done_"+i]:!g.done,["doneAt_"+i]:g.done?"":stamp,["doneBy_"+i]:g.done?"":(SESSION?SESSION.name||SESSION.user:"")});
+      render(); toast(g.done?tt("Step marked as not done.","Paso marcado como no hecho."):tt("Step done ✓","Paso hecho ✓")); }
+  };
+}
 function path(){
   const es=state.lang==="es";
   const S=es?[
@@ -2822,7 +2870,8 @@ function path(){
   ];
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">
    <div class="hero"><div><div class="eyebrow">${es?"De la idea al primer vaso vendido":"From idea to first cup sold"}</div><h2>${es?"Camino a la venta":"Path to sale"}</h2><p>${es?"Pasos en orden para vender las seis bebidas en Edmonton. Cada pestaña de producto tiene además su propio flujo con puntos críticos de control.":"Ordered steps to sell all six drinks in Edmonton. Each product tab also has its own flow with critical control points."}</p></div></div>
-   <div class="path">${S.map((s,i)=>`<div class="pstep"><div class="n">${i+1}</div><div><h4>${s[0]}</h4><p>${s[1]}</p></div></div>`).join("")}</div>
+   ${pathProgress(S.length)}
+   <div class="path">${S.map((s,i)=>pathStep(s,i)).join("")}</div>
    <div class="panel sources" style="margin-top:20px"><h3>${es?"Fuentes":"Sources"}</h3><ul>
     <li>${L("ahs","AHS — Starting a Food Business (PUB-0420-202601)")}</li>
     <li>${L("temp","AHS — Important Temperatures for Safe Food Handling")}</li>
@@ -2844,7 +2893,8 @@ function render(){
   if(state.tab==="recipes"){ main.innerHTML=recipesTab(); wireRecipes(); }
   else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
   else if(state.tab==="menu"){ main.innerHTML=menuView(); wireMenu(); listMenu(); }
-  else main.innerHTML= state.tab==="rules"? rules() : path();
+  else if(state.tab==="path"){ main.innerHTML=path(); wirePath(); pathSig=JSON.stringify(D.path||{}); }
+  else main.innerHTML=rules();
   renderUserBox(); renderCurBox();
 }
 document.getElementById("curSel").onchange=e=>{
