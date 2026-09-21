@@ -32,12 +32,12 @@ const FIELDS = {
   tables: [["num","Mesa"],["seats","Sillas"],["zone","Zona"],["active","Activa"],["occupied","Ocupada"],["occSince","Ocupada desde"]],
   orders: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["status","Estado"],["itemsText","Platos"],["allergies","Alergias"],["message","Mensaje a cocina"],["booking","Reserva"],["by","Tomada por"],["created","Creada"],["updated","Actualizada"],["resId","ID reserva"]],
   menu: [["name","Nombre"],["cat","Grupo"],["kind","Tipo"],["price","Precio"],["notes","Nota"],["prodId","ID bebida app"],["active","Activo"]],
-  bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
-  recipes: [["item","Plato"],["portions","Porciones"],["ingText","Ingredientes"],["steps","Preparación"],["notes","Notas"],["itemId","ID del menú"],["updated","Actualizada"]],
+  bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["stockText","Descuento de stock"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
+  recipes: [["item","Plato"],["portionLabel","Porción (medida única)"],["ingText","Ingredientes por 1 porción"],["steps","Preparación"],["notes","Notas"],["locked","Establecida"],["lockedAt","Establecida el"],["lockedBy","Por"],["itemId","ID del menú"],["updated","Actualizada"]],
   sales: [], settings: []
 };
 const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
-const BOOL = ["replied","active","occupied"];
+const BOOL = ["replied","active","occupied","locked"];
 const DATES = ["date"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
 
@@ -204,7 +204,10 @@ function handle_(req) {
       if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null) return out_({ ok: false, error: "bad_request" });
       if (!s) return out_({ ok: false, error: "auth" });
       if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
+      const isNew = rowOf_(sheet_(col), id) < 0;
       write_(col, id, req.data);
+      // a new paid bill discounts the stock its recipes use (one standard portion per unit sold)
+      if (col === "bills" && isNew && Array.isArray(req.data.stockUse)) useStock_(req.data.stockUse);
       return out_({ ok: true });
     }
     if (action === "delete") {
@@ -370,6 +373,21 @@ function applyPurchase_(sh, r) {
   data.qty = Number(inv.getRange(row, cQty).getValue()); if (cost != null && !isNaN(cost)) data.cost = cost; data.updated = now;
   inv.getRange(row, 2).setValue(JSON.stringify(data));
   sh.getRange(r, 11).setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"));
+}
+
+function useStock_(uses) {
+  const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
+  const cQty = headers.indexOf("Stock") + 1, cUpd = headers.indexOf("Actualizado") + 1; if (cQty < 1) return;
+  const now = new Date().toISOString();
+  uses.slice(0, 200).forEach(function (u) {
+    const q = Number(u && u.qty); if (!u || !u.id || !(q > 0)) return;
+    const row = rowOf_(inv, String(u.id)); if (row < 0) return;
+    const left = Math.max(0, Math.round((Number(inv.getRange(row, cQty).getValue() || 0) - q) * 1000) / 1000);
+    inv.getRange(row, cQty).setValue(left);
+    if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
+    let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
+    data.qty = left; data.updated = now; inv.getRange(row, 2).setValue(JSON.stringify(data));
+  });
 }
 
 /* ---------------- formulas (run once) ---------------- */
