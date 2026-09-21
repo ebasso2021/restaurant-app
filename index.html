@@ -313,8 +313,8 @@ try{ const s=JSON.parse(localStorage.getItem("adl-state")||"{}"); Object.assign(
 function save(){ try{ localStorage.setItem("adl-state",JSON.stringify({lang:state.lang,tab:state.tab,aiView:state.aiView,recipe:state.recipe,cur:state.cur})); }catch(e){} }
 
 const UI = {
-  sub:{en:"Batch calculators, benefits, Alberta food-safety rules and the path to sale for six Peruvian drinks and desserts — plus a working AI system to run the restaurant.",
-       es:"Calculadoras de lotes, beneficios, normas de inocuidad de Alberta y el camino a la venta para seis bebidas y postres peruanos — más un sistema de IA funcional para manejar el restaurante."},
+  sub:{en:"Batch calculators, benefits, Alberta food-safety rules and the path to sale for Peruvian drinks, desserts and dishes (now with lomo saltado) — plus a working AI system to run the restaurant.",
+       es:"Calculadoras de lotes, beneficios, normas de inocuidad de Alberta y el camino a la venta para bebidas, postres y platos peruanos (ahora con lomo saltado) — más un sistema de IA funcional para manejar el restaurante."},
   ai:{en:"AI system",es:"Sistema IA"},
   rules:{en:"AHS rules",es:"Normas AHS"}, path:{en:"Path to sale",es:"Camino a la venta"},
   recipe:{en:"Recipe calculator",es:"Calculadora de receta"},
@@ -577,9 +577,48 @@ const P = [
    RECEIVE, THAWF,
    {t:{en:"Inspect pulp for seed fragments before blending.",es:"Revisa la pulpa por fragmentos de pepa antes de licuar."},ccp:1},
    {t:{en:"Blend to order.",es:"Licúa al momento."}},
-   {t:{en:"Serve immediately or hold at 4 °C or colder; if the pulp is unpasteurized and you bottle the juice, label it “unpasteurized”.",es:"Sirve de inmediato o mantén a 4 °C o menos; si la pulpa no es pasteurizada y embotellas el jugo, etiquétalo “no pasteurizado”."},ccp:1}]}
+   {t:{en:"Serve immediately or hold at 4 °C or colder; if the pulp is unpasteurized and you bottle the juice, label it “unpasteurized”.",es:"Sirve de inmediato o mantén a 4 °C o menos; si la pulpa no es pasteurizada y embotellas el jugo, etiquétalo “no pasteurizado”."},ccp:1}]},
+
+{ id:"lomo", c:"#9A3B1F", cat:"comida", kind:"fondo", name:{en:"Lomo saltado",es:"Lomo saltado"},
+  eyebrow:{en:"Peruvian beef stir-fry · main dish · prep 15 min · cook 15 min",es:"Salteado peruano de res · plato de fondo · prep. 15 min · cocción 15 min"},
+  intro:{en:"Lomo Saltado is a Peruvian stir-fry made with beef, onions, tomatoes, soy sauce, vinegar and cilantro. It's cooked over high heat for a smoky flavour and finished with French fries, served alongside white rice.",
+         es:"El Lomo Saltado es un clásico peruano que combina carne de res salteada con cebolla, tomate, ají amarillo, salsa de soya y vinagre. Se cocina a fuego alto para lograr un sabor ahumado y se mezcla con papas fritas antes de servir con arroz blanco."},
+  variants:[
+   { name:{en:"Classic (your recipe, serves 4)",es:"Clásico (tu receta, 4 porciones)"}, src:{en:"Your recipe document lomo_saltado — serves 4",es:"Tu documento de receta lomo_saltado — 4 porciones"},
+     servings:4, serveLabel:{en:"1 plate",es:"1 plato"}, driver:0, noRatio:1,
+     ing:[
+      {n:{en:"Beef sirloin, cut into strips",es:"Lomo de res en tiras"},q:500,u:"g"},
+      {n:{en:"Tomatoes, sliced into thick wedges",es:"Tomates en gajos"},q:2,u:"u"},
+      {n:{en:"Red onion, sliced",es:"Cebolla roja en gajos"},q:1,u:"u"},
+      {n:{en:"Yellow chili pepper (ají amarillo), sliced — optional",es:"Ají amarillo en tiras (opcional)"},q:1,u:"u"},
+      {n:{en:"Soy sauce",es:"Salsa de soya"},q:3,u:"tbsp"},
+      {n:{en:"Vinegar",es:"Vinagre"},q:2,u:"tbsp"},
+      {n:{en:"Oyster sauce (optional)",es:"Salsa de ostión (opcional)"},q:1,u:"tbsp"},
+      {n:{en:"Fresh cilantro, chopped",es:"Cilantro picado"},q:1,u:"u",note:{en:"1 handful",es:"1 puñado"}},
+      {n:{en:"Salt and pepper",es:"Sal y pimienta"},q:0,u:"g",taste:1},
+      {n:{en:"Oil for stir-frying",es:"Aceite para saltear"},q:2,u:"tbsp"},
+      {n:{en:"French fries (fresh or frozen)",es:"Papas fritas (frescas o congeladas)"},q:473,u:"ml",note:{en:"2 cups",es:"2 tazas"}},
+      {n:{en:"Cooked white rice (for serving)",es:"Arroz blanco cocido (para acompañar)"},q:473,u:"ml",note:{en:"2 cups",es:"2 tazas"}}],
+     steps:[
+      {en:"Prepare the ingredients: cut the beef into strips, slice the onions and tomatoes, and chop the cilantro.",es:"Prepara los ingredientes: corta la carne en tiras, corta la cebolla y los tomates en gajos y pica el cilantro."},
+      {en:"Heat the pan: heat the oil in a wok or large skillet over high heat until very hot.",es:"Calienta la sartén: calienta el aceite en un wok o sartén grande a fuego alto hasta que esté muy caliente."},
+      {en:"Sear the beef: add the beef, season with salt and pepper, and cook quickly until browned.",es:"Sella la carne: agrega la carne, sazona con sal y pimienta y cocina rápido hasta que se dore."},
+      {en:"Add the vegetables: add the onions, tomatoes and ají amarillo. Stir-fry for 1–2 minutes.",es:"Agrega las verduras: añade la cebolla, el tomate y el ají amarillo. Saltea 1–2 minutos."},
+      {en:"Add the sauces: pour in the soy sauce, vinegar and oyster sauce. Toss everything together.",es:"Agrega las salsas: incorpora la salsa de soya, el vinagre y la salsa de ostión. Mezcla todo."},
+      {en:"Finish the dish: add the chopped cilantro and mix in the French fries.",es:"Termina el plato: añade el cilantro picado y mezcla con las papas fritas."},
+      {en:"Serve immediately with white rice on the side.",es:"Sirve de inmediato con arroz blanco al costado."}]}],
+  benefits:[],
+  claims:[],
+  allergen:{en:"Soy sauce usually contains soy and wheat; oyster sauce contains shellfish (mollusc) and may contain wheat. Check each label and declare allergens to customers.",es:"La salsa de soya suele contener soya y trigo; la salsa de ostión contiene mariscos (molusco) y puede contener trigo. Revisa cada etiqueta e informa los alérgenos a los clientes."},
+  flow:[
+   {t:{en:"Receive the beef at 4 °C or colder from an approved supplier; store it covered on the lowest shelf, below ready-to-eat food.",es:"Recibe la carne a 4 °C o menos de un proveedor aprobado; guárdala tapada en la repisa más baja, debajo de los alimentos listos para comer."},ccp:1},
+   {t:{en:"Use separate boards and knives for raw beef and for vegetables and cilantro; wash and sanitize them after use.",es:"Usa tablas y cuchillos separados para la carne cruda y para las verduras y el cilantro; lávalos y desinféctalos después de usarlos."}},
+   {t:{en:"Stir-fry over high heat; check the beef with a probe thermometer (Health Canada: 63 °C for beef pieces and whole cuts).",es:"Saltea a fuego alto; revisa la carne con un termómetro de punción (Health Canada: 63 °C para piezas y cortes enteros de res)."},ccp:1},
+   {t:{en:"Hold cooked rice hot at 60 °C or hotter, or cool it quickly and keep it at 4 °C or colder — cooked rice is a high-risk food.",es:"Mantén el arroz cocido caliente a 60 °C o más, o enfríalo rápido y guárdalo a 4 °C o menos — el arroz cocido es un alimento de alto riesgo."},ccp:1},
+   {t:{en:"Cook to order and serve immediately; discard anything left out more than 2 hours.",es:"Cocina al momento y sirve de inmediato; desecha lo que haya estado fuera más de 2 horas."}}]}
 ];
 /* ---------- FORMATTING ---------- */
+const serveTxt=v=>v.serveMl?v.serveMl+" mL":T(v.serveLabel||{en:"1 portion",es:"1 porción"});
 function nice(x){ if(x>=100) return Math.round(x).toString(); if(x>=10) return (Math.round(x*10)/10).toString(); return (Math.round(x*100)/100).toString(); }
 function frac(x){ const w=Math.floor(x), r=x-w, qs=[[0,""],[.25,"¼"],[.33,"⅓"],[.5,"½"],[.67,"⅔"],[.75,"¾"],[1,""]]; let best=qs[0]; for(const q of qs){ if(Math.abs(r-q[0])<Math.abs(r-best[0])) best=q; } const ww=best[0]===1?w+1:w; return (ww?ww:"")+(best[1]) || "0"; }
 const UN = {
@@ -614,19 +653,19 @@ const r3=n=>Math.round(num(n)*1000)/1000;
 const normU=u=>u==="ml"?"mL":u==="u"?"pc":u;
 let curRecipe=null, recScale=1, recSig="", recN=1, recEdit=null;
 function recipeList(){
-  if(!D.menu.length) return P.map(p=>({id:p.id,name:T(p.name),prod:p,c:p.c,item:{id:p.id,name:T(p.name),cat:"bebida",kind:"jugo",prodId:p.id,price:0}}));
+  if(!D.menu.length) return P.map(p=>({id:p.id,name:T(p.name),prod:p,c:p.c,item:{id:p.id,name:T(p.name),cat:p.cat||"bebida",kind:p.kind||"jugo",prodId:p.id,price:0}}));
   return D.menu.slice().sort((a,b)=>String(b.cat).localeCompare(String(a.cat))||String(a.name).localeCompare(String(b.name)))
     .map(m=>{ const prod=m.prodId?P.find(x=>x.id===m.prodId):null;
       return {id:m.id,name:m.name,prod,c:prod?prod.c:(m.cat==="comida"?"#9A4A00":"#2F6B3A"),item:m}; });
 }
 function recipeOf(itemId){ return D.recipes.find(r=>r.itemId===itemId)||null; }
-// starting values for the six app drinks: the reference batch divided by its servings
+// starting values for the app's drinks and dishes: the reference batch divided by its servings
 function defaultStandard(item){
   const p=item.prodId?P.find(x=>x.id===item.prodId):null;
   if(!p) return {portionLabel:"",ingredients:[],steps:"",notes:"",fromRef:false};
   const v=p.variants[0], s=num(v.servings)||1;
-  return {portionLabel:v.serveMl?v.serveMl+" mL":"",ingredients:v.ing.map(g=>({n:T(g.n),q:r3(num(g.q)/s),u:normU(g.u),inv:""})),
-    steps:(v.steps||[]).map(x=>T(x.t||x)).join("\n"),notes:p.allergen?T(p.allergen):"",fromRef:true,refName:T(v.name),refServ:s,refMl:v.serveMl};
+  return {portionLabel:serveTxt(v),ingredients:v.ing.map(g=>({n:T(g.n),q:r3(num(g.q)/s),u:normU(g.u),inv:""})),
+    steps:(v.steps||[]).map(x=>T(x.t||x)).join("\n"),notes:p.allergen?T(p.allergen):"",fromRef:true,refName:T(v.name),refServ:s,refMl:serveTxt(v)};
 }
 // the recipe as it should be used: the saved standard, or the starting values
 function standardOf(item){ const r=recipeOf(item.id); return r&&Array.isArray(r.ingredients)?{...r,saved:true}:{...defaultStandard(item),saved:false,locked:false}; }
@@ -673,7 +712,7 @@ function standardRecipe(item,prod){
    <div class="grid">
     <div class="stack">
      <div class="panel"><h3>${tt("Standard measure · 1 portion","Medida única · 1 porción")} ${status}</h3>
-      ${!std.saved&&std.fromRef?`<p class="hint warnnote">${tt(`Starting values: the reference batch “${esc(std.refName)}” (${std.refServ} portions of ${std.refMl} mL) divided by ${std.refServ}. Check them, link each ingredient to its inventory item and save.`,`Valores iniciales: el lote de referencia “${esc(std.refName)}” (${std.refServ} porciones de ${std.refMl} mL) dividido entre ${std.refServ}. Revísalos, vincula cada ingrediente con su artículo del inventario y guarda.`)}</p>`:""}
+      ${!std.saved&&std.fromRef?`<p class="hint warnnote">${tt(`Starting values: the reference batch “${esc(std.refName)}” (${std.refServ} portions of ${std.refMl}) divided by ${std.refServ}. Check them, link each ingredient to its inventory item and save.`,`Valores iniciales: el lote de referencia “${esc(std.refName)}” (${std.refServ} porciones de ${std.refMl}) dividido entre ${std.refServ}. Revísalos, vincula cada ingrediente con su artículo del inventario y guarda.`)}</p>`:""}
       ${field("stPortion",tt("One portion is (size or description)","Una porción es (tamaño o descripción)"),`<input id="stPortion" value="${esc(std.portionLabel||"")}" placeholder="${tt("250 mL, 1 plate, 300 g…","250 mL, 1 plato, 300 g…")}">`)}
       <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>${tt("Per portion","Por porción")}</th><th>${tt("Unit","Unidad")}</th><th>${tt("Inventory item","Artículo de inventario")}</th><th></th></tr></thead>
        <tbody>${ing.map((g,i)=>`<tr data-i="${i}"><td><input class="txt" data-r="n" value="${esc(g.n||"")}" aria-label="${tt("Ingredient","Ingrediente")}"></td>
@@ -757,11 +796,11 @@ function product(p){
   const pc2=`color-mix(in oklab, ${p.c} 80%, var(--ink))`;
   const rows=v.ing.map((g,i)=>`<tr class="${i===v.driver?"driver":""}">
       <td class="name">${T(g.n)}${g.note?`<small>${T(g.note)}</small>`:""}</td>
-      <td class="amt"><input id="amt-${p.id}-${vi}-${i}" type="number" inputmode="decimal" min="0" step="any" data-i="${i}" value="${nice(g.q*f)}" aria-label="${T(g.n)}"><span class="unit">${T(UN[g.u])}</span></td>
-      <td class="conv" data-conv="${i}">${conv(g.q*f,g.u)}</td></tr>`).join("");
+      ${g.taste?`<td class="amt"><span class="unit">${state.lang==="es"?"al gusto":"to taste"}</span></td><td class="conv"></td>`:`<td class="amt"><input id="amt-${p.id}-${vi}-${i}" type="number" inputmode="decimal" min="0" step="any" data-i="${i}" value="${nice(g.q*f)}" aria-label="${T(g.n)}"><span class="unit">${T(UN[g.u])}</span></td>
+      <td class="conv" data-conv="${i}">${conv(g.q*f,g.u)}</td>`}</tr>`).join("");
   const water=v.ing.findIndex(g=>g.u==="ml"), drv=v.ing[v.driver];
-  const ratio=(water>=0 && drv.u==="g" && water!==v.driver)? `<div class="ratio"><span>${T(v.ing[water].n).split(" (")[0]} : ${T(drv.n).split(",")[0].split(" (")[0]} = ${nice(v.ing[water].q/drv.q)} : 1 ${state.lang==="es"?"(mL por g)":"(mL per g)"}</span><span>${T(UI.yield)} ≈ <b data-yield>${nice(v.servings*f)}</b> ${T(UI.per)} ${v.serveMl} mL</span></div>`
-     : `<div class="ratio"><span>${T(UI.yield)} ≈ <b data-yield>${nice(v.servings*f)}</b> ${T(UI.per)} ${v.serveMl} mL</span></div>`;
+  const ratio=(!v.noRatio && water>=0 && drv.u==="g" && water!==v.driver)? `<div class="ratio"><span>${T(v.ing[water].n).split(" (")[0]} : ${T(drv.n).split(",")[0].split(" (")[0]} = ${nice(v.ing[water].q/drv.q)} : 1 ${state.lang==="es"?"(mL por g)":"(mL per g)"}</span><span>${T(UI.yield)} ≈ <b data-yield>${nice(v.servings*f)}</b> ${T(UI.per)} ${serveTxt(v)}</span></div>`
+     : `<div class="ratio"><span>${T(UI.yield)} ≈ <b data-yield>${nice(v.servings*f)}</b> ${T(UI.per)} ${serveTxt(v)}</span></div>`;
   return `<section style="--pc:${p.c};--pc2:${pc2}" aria-labelledby="h-${p.id}">
    <div class="hero"><div><div class="eyebrow">${T(p.eyebrow)}</div><h2 id="h-${p.id}">${T(p.name)}</h2><p>${T(p.intro)}</p></div><div class="swatch" aria-hidden="true"></div></div>
    <div class="grid">
@@ -770,7 +809,7 @@ function product(p){
       <h3>${T(UI.recipe)}</h3>
       ${p.variants.length>1?`<div class="variants">${p.variants.map((x,i)=>`<button type="button" data-variant="${i}" aria-pressed="${i===vi}">${T(x.name)}</button>`).join("")}</div>`:`<div class="variants"><button type="button" aria-pressed="true">${T(v.name)}</button></div>`}
       <div class="controls">
-        <div class="field"><label for="srv-${p.id}">${T(UI.scaleBy)} (${v.serveMl} mL)</label><input id="srv-${p.id}" type="number" min="0" step="any" value="${nice(v.servings*f)}"></div>
+        <div class="field"><label for="srv-${p.id}">${T(UI.scaleBy)} (${serveTxt(v)})</label><input id="srv-${p.id}" type="number" min="0" step="any" value="${nice(v.servings*f)}"></div>
         <div class="field"><label>${T(UI.batch)}</label><div class="chips">${[0.5,1,2,5,10].map(m=>`<button type="button" data-mult="${m}">×${m}</button>`).join("")}</div></div>
         <div class="factor">${T(UI.factor)} <b data-factor>×${nice(f)}</b></div>
       </div>
@@ -784,7 +823,7 @@ function product(p){
       <p class="hint">${T(UI.ccpNote)}</p></div>
     </div>
     <div class="stack">
-     <div class="panel"><h3>${T(UI.benefits)}</h3><ul class="plain">${p.benefits.map(b=>`<li>${T(b)}</li>`).join("")}</ul>
+     <div class="panel"><h3>${T(UI.benefits)}</h3>${p.benefits.length?`<ul class="plain">${p.benefits.map(b=>`<li>${T(b)}</li>`).join("")}</ul>`:""}
       ${p.allergen?`<p class="note" style="margin-top:12px"><b>${state.lang==="es"?"Alérgenos":"Allergens"}:</b> ${T(p.allergen)}</p>`:""}</div>
      ${p.claims.length?`<div class="panel"><h3>${T(UI.check)}</h3><div class="claims">${p.claims.map(c=>`<div class="claim ${c.v}"><span class="v">${c.v==="bad"?(state.lang==="es"?"Falso / riesgo":"False / risk"):c.v==="warn"?(state.lang==="es"?"No verificado":"Unverified"):(state.lang==="es"?"Respaldado":"Supported")}</span><span class="q">${T(c.q)}</span>${T(c.t)}</div>`).join("")}</div></div>`:""}
     </div>
@@ -1900,8 +1939,8 @@ const menuItems=cat=>D.menu.filter(m=>!cat||m.cat===cat).sort((a,b)=>String(a.ki
 const menuActive=()=>D.menu.filter(m=>m.active!==false);
 const menuNames=()=>{const n=menuActive().map(m=>m.name).filter(Boolean);return n.length?n:P.map(p=>T(p.name));};
 const dishDatalist=id=>`<datalist id="${id}">${menuNames().map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`;
-// the six drinks of this app, so they can be loaded into Drinks → Juices in one click
-const SEED_DRINKS=()=>P.map(p=>({name:T(p.name),cat:"bebida",kind:"jugo",prodId:p.id,price:0,active:true}));
+// the drinks and dishes of this app, so they can be loaded into the menu in one click (drinks → Juices, lomo saltado → Food → Main dish)
+const SEED_DRINKS=()=>P.map(p=>({name:T(p.name),cat:p.cat||"bebida",kind:p.kind||"jugo",prodId:p.id,price:0,active:true}));
 async function seedMenuDrinks(){
   let added=0;
   for(const d of SEED_DRINKS()){
@@ -1925,7 +1964,7 @@ function menuView(){
       ${field("mnNotes",tt("Note (allergens, size…)","Nota (alérgenos, tamaño…)"),`<input id="mnNotes" maxlength="120">`)}
       <button class="btn" type="submit">${tt("Add","Agregar")}</button>
      </form><p class="hint" id="mnMsg" aria-live="polite"></p>
-     <div class="acts"><button type="button" class="btn sm ghost" id="mnSeed">${tt("Load this app's 6 juices into Drinks","Cargar los 6 jugos de esta app en Bebidas")}</button></div>
+     <div class="acts"><button type="button" class="btn sm ghost" id="mnSeed">${tt(`Load this app's ${P.length} drinks and dishes into the menu`,`Cargar las ${P.length} bebidas y platos de esta app al menú`)}</button></div>
      <p class="hint">${tt("Only an administrator can change the menu. An item that is off stays in the list but is not suggested in orders or bills.","Solo un administrador puede cambiar el menú. Un ítem apagado queda en la lista pero no se sugiere en órdenes ni cuentas.")}</p></div>
     <div class="panel"><h3 id="mnTitle"></h3><div id="mnList"></div></div>
    </div></section>`;
@@ -1940,13 +1979,13 @@ function wireMenu(){
     if(!name) return;
     if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ msg.textContent=tt(`“${name}” is already on the menu.`,`“${name}” ya está en el menú.`); return; }
     const cat=val("mnCat"), kind=val("mnKind");
-    const prod=cat==="bebida"?matchProduct(name):"";
+    const prod=matchProduct(name);
     await dbAdd("menu",{name,cat,kind,price:toCAD(val("mnPrice")),prodId:prod,notes:val("mnNotes"),active:true});
     msg.textContent=""; e.target.reset(); document.getElementById("mnCat").value=cat; kindSel(); document.getElementById("mnPrice").value=0; document.getElementById("mnName").focus();
   };
   document.getElementById("mnSeed").onclick=async()=>{
     const n=await seedMenuDrinks();
-    document.getElementById("mnMsg").textContent=n?tt(`${n} juice(s) added to Drinks. Set their prices.`,`${n} jugo(s) agregado(s) a Bebidas. Ponles precio.`):tt("They are already on the menu.","Ya están en el menú.");
+    document.getElementById("mnMsg").textContent=n?tt(`${n} item(s) added to the menu. Set their prices.`,`${n} producto(s) agregado(s) al menú. Ponles precio.`):tt("They are already on the menu.","Ya están en el menú.");
   };
   const list=document.getElementById("mnList");
   list.addEventListener("change",async e=>{
@@ -1964,7 +2003,7 @@ function wireMenu(){
 }
 function listMenu(){
   const k=document.getElementById("mnKpis"); if(!k) return;
-  if(!menuSeeded&&LOADED.has("menu")&&!D.menu.length&&canWrite("menu")){ menuSeeded=true; seedMenuDrinks().then(n=>{ if(n) toast(tt(`${n} juices added to Drinks — set their prices.`,`${n} jugos agregados a Bebidas — ponles precio.`)); }); }
+  if(!menuSeeded&&LOADED.has("menu")&&!D.menu.length&&canWrite("menu")){ menuSeeded=true; seedMenuDrinks().then(n=>{ if(n) toast(tt(`${n} items added to the menu — set their prices.`,`${n} productos agregados al menú — ponles precio.`)); }); }
   const food=menuItems("comida"), drinks=menuItems("bebida"), priced=D.menu.filter(m=>num(m.price)>0);
   setHTML(k,[[D.menu.length,tt("menu items","ítems del menú")],[food.length,tt("food","comidas")],[drinks.length,tt("drinks","bebidas")],[D.menu.length-priced.length,tt("without a price","sin precio"),D.menu.length>priced.length?"warn":""]]
     .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join(""));
@@ -1973,13 +2012,13 @@ function listMenu(){
   if(el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT") return;
   const groups=(MENU_KINDS[menuCat]||[]).map(kd=>[kd[0],rows.filter(r=>(r.kind||"otro")===kd[0])]).filter(g=>g[1].length);
   setHTML(el,rows.length?`<div class="tablewrap"><table class="dt menutbl"><thead><tr><th>${tt("Name","Nombre")}</th><th>${tt("Price","Precio")} (${curSym()})</th><th>${tt("Note","Nota")}</th><th>${tt("On","Activo")}</th><th></th></tr></thead><tbody>
-   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(m.name)}${m.prodId?` <span class="badge ok">${tt("app drink","bebida de la app")}</span>`:""}</td>
+   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(m.name)}${m.prodId?` <span class="badge ok">${tt("app recipe","receta de la app")}</span>`:""}</td>
      <td><input data-f="price" type="number" min="0" step="0.01" value="${esc(inCur(m.price))}" aria-label="${tt("Price","Precio")} (${curSym()})"></td>
      <td><input class="txt" data-f="notes" value="${esc(m.notes||"")}" aria-label="${tt("Note","Nota")}"></td>
      <td><input data-f="active" type="checkbox" style="width:auto"${m.active!==false?" checked":""} aria-label="${tt("On","Activo")}"></td>
      <td class="nw"><button type="button" class="btn sm ghost" data-mndel="${esc(m.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")).join("")}
    </tbody></table></div>`
-   :`<p class="empty">${tt("Nothing in this group yet. Add dishes above, or load this app's 6 juices into Drinks.","Aún no hay nada en este grupo. Agrega platos arriba, o carga los 6 jugos de esta app en Bebidas.")}</p>`);
+   :`<p class="empty">${tt("Nothing in this group yet. Add dishes above, or load this app's drinks and dishes.","Aún no hay nada en este grupo. Agrega platos arriba, o carga las bebidas y platos de esta app.")}</p>`);
   if(!canWrite("menu")) el.querySelectorAll("input,button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
 }
 
@@ -2143,7 +2182,7 @@ async function forecastAI(){
   const notes=val("fcNotes");
   const prompt=`You help a small Peruvian drinks counter in Edmonton plan production. Below are its real daily sales in cups for the last 28 days, and a baseline forecast for the next 7 days (average of the same weekday). ${notes?"The owner adds this context about the coming days: "+notes:"There is no extra context."}
 Adjust the baseline only where the context or a clear trend in the data justifies it, and keep changes modest. ${LANGLINE()}
-Reply with only JSON: {"days":[{"date":"YYYY-MM-DD","cups":{"quinoa":0,"chicha":0,"maca":0,"mazamorra":0,"lucuma":0,"chirimoya":0}}],"reasons":["short sentence", "..."]}
+Reply with only JSON: {"days":[{"date":"YYYY-MM-DD","cups":{${P.map(p=>'"'+p.id+'":0').join(",")}}}],"reasons":["short sentence", "..."]}
 SALES:
 ${hist}
 BASELINE:

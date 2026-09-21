@@ -39,7 +39,7 @@ const FIELDS = {
 const NUM = ["qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
 const BOOL = ["replied","active","occupied","locked"];
 const DATES = ["date"];
-const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya" };
+const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya", lomo: "Lomo saltado" };
 
 /* ---------------- users, roles and sessions ---------------- */
 const ROLES = {

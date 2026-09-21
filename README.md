@@ -1,7 +1,7 @@
 # Taste of Peru — Restaurant App
 
 **Online version (with data saving and AI):** https://claude.ai/artifact/UZQpG8ZbaffWJ3cS2f6zsq
-Last updated: 2026-09-19
+Last updated: 2026-09-21
 
 ---
 
@@ -19,7 +19,7 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 > **Importante:** si abres `index.html` directamente desde tu computadora, las calculadoras, normas y textos funcionan, pero **no se guardan datos y la IA no funciona**. Esas funciones solo existen en la versión en línea en Claude (enlace arriba).
 
 ### Pestañas
-1. **Productos** — Jugo de quinua, Chicha morada, Jugo de maca, Mazamorra morada, Jugo de lúcuma, Jugo de chirimoya: calculadora de lotes, preparación, beneficios, verificación de afirmaciones y flujo con puntos críticos de control (PCC).
+1. **Productos** — Jugo de quinua, Chicha morada, Jugo de maca, Mazamorra morada, Jugo de lúcuma, Jugo de chirimoya y **Lomo saltado** (plato de fondo, 4 porciones, ingredientes y preparación en ES/EN): calculadora de lotes, preparación, beneficios, verificación de afirmaciones y flujo con puntos críticos de control (PCC).
 2. **Sistema IA** — resumen y 5 módulos funcionales (ver abajo).
 3. **Normas AHS** — requisitos de inocuidad de Alberta Health Services.
 4. **Camino a la venta** — pasos para vender en Edmonton.
@@ -72,7 +72,7 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 > **Important:** if you open `index.html` directly from your computer, the calculators, rules and text work, but **no data is saved and AI does not work**. Those features only exist in the online version in Claude (link above).
 
 ### Tabs
-1. **Products** — Quinoa drink, Chicha morada, Maca shake, Mazamorra morada, Lúcuma juice, Chirimoya juice: batch calculator, method, benefits, claim check and flow with critical control points (CCP).
+1. **Products** — Quinoa drink, Chicha morada, Maca shake, Mazamorra morada, Lúcuma juice, Chirimoya juice and **Lomo saltado** (main dish, serves 4, ingredients and method in EN/ES): batch calculator, method, benefits, claim check and flow with critical control points (CCP).
 2. **AI system** — overview and 5 working modules (below).
 3. **AHS rules** — Alberta Health Services food-safety requirements.
 4. **Path to sale** — steps to sell in Edmonton.
