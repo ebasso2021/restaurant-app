@@ -913,8 +913,9 @@ function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r
 const D={inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{}};
 if(!state.aiView) state.aiView="overview";
 
+const LOADED=new Set(); // collections that have answered at least once
 function subscribe(name){
-  DB.collection(name).onSnapshot(s=>{D[name]=s.docs.map(d=>({id:d.id,...d.data()}));refreshAI();},
+  DB.collection(name).onSnapshot(s=>{D[name]=s.docs.map(d=>({id:d.id,...d.data()}));LOADED.add(name);refreshAI();},
     e=>{console.warn(name,e.code);});
 }
 
@@ -1287,7 +1288,21 @@ function wireAI(){
 function setHTML(el,html){ if(!el) return; if(el.innerHTML!==html) el.innerHTML=html; }
 let aiPending=false;
 function refreshAI(){ if(aiPending) return; aiPending=true; requestAnimationFrame(()=>{ aiPending=false; refreshNow(); }); }
+let dedupeDone=false;
+async function dedupeAppDrinks(){
+  dedupeDone=true;
+  const groups={}; D.menu.forEach(m=>{ if(m.prodId) (groups[m.prodId] ||= []).push(m); });
+  const saved=m=>{const r=recipeOf(m.id); return !!(r&&r.locked);};
+  let removed=0;
+  for(const list of Object.values(groups)){
+    if(list.length<2) continue;
+    const keep=list.slice().sort((a,b)=>(saved(b)-saved(a))||String((recipeOf(b.id)||{}).lockedAt||"").localeCompare(String((recipeOf(a.id)||{}).lockedAt||""))||String(a.id).localeCompare(String(b.id)))[0];
+    for(const m of list) if(m.id!==keep.id&&!saved(m)){ await dbDel("menu",m.id); removed++; }
+  }
+  if(removed) toast(tt(`Removed ${removed} duplicated drink(s) from the menu; kept the one with the saved recipe.`,`Se quitaron ${removed} bebida(s) duplicada(s) del menú; se dejó la que tiene la receta guardada.`));
+}
 function refreshNow(){
+  if(!dedupeDone&&LOADED.has("menu")&&LOADED.has("recipes")&&canWrite("menu")) dedupeAppDrinks();
   if(state.tab==="recipes"){
     const sig=JSON.stringify(D.menu.map(m=>[m.id,m.name,m.cat,m.kind,m.price]))+"|"+JSON.stringify(D.recipes.map(r=>[r.itemId,r.updated,r.locked]))+"|"+JSON.stringify(D.inventory.map(i=>[i.id,i.name,i.unit,i.qty]))+"|"+state.recipe;
     const ae=document.activeElement;
@@ -1936,7 +1951,7 @@ function wireMenu(){
 }
 function listMenu(){
   const k=document.getElementById("mnKpis"); if(!k) return;
-  if(!menuSeeded&&!D.menu.length&&canWrite("menu")){ menuSeeded=true; seedMenuDrinks().then(n=>{ if(n) toast(tt(`${n} juices added to Drinks — set their prices.`,`${n} jugos agregados a Bebidas — ponles precio.`)); }); }
+  if(!menuSeeded&&LOADED.has("menu")&&!D.menu.length&&canWrite("menu")){ menuSeeded=true; seedMenuDrinks().then(n=>{ if(n) toast(tt(`${n} juices added to Drinks — set their prices.`,`${n} jugos agregados a Bebidas — ponles precio.`)); }); }
   const food=menuItems("comida"), drinks=menuItems("bebida"), priced=D.menu.filter(m=>num(m.price)>0);
   setHTML(k,[[D.menu.length,tt("menu items","ítems del menú")],[food.length,tt("food","comidas")],[drinks.length,tt("drinks","bebidas")],[D.menu.length-priced.length,tt("without a price","sin precio"),D.menu.length>priced.length?"warn":""]]
     .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join(""));

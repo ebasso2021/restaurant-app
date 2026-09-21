@@ -21,7 +21,7 @@
 // app collection → tab name
 const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Mermas", sales: "Ventas (app)",
                  posts: "Publicaciones", reviews: "Reseñas", settings: "Config (app)",
-                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas" };
+                 tables: "Mesas", orders: "Órdenes", menu: "Menú", bills: "Facturas", recipes: "Recetas (app)" };
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
@@ -252,8 +252,26 @@ function sheet_(col) {
     sh = ss.insertSheet(name);
     const h = ["ID", "json"].concat(FIELDS[col].map(function (f) { return f[1]; }));
     sh.getRange(1, 1, 1, h.length).setValues([h]); sh.setFrozenRows(1); sh.hideColumns(2);
+    if (col === "recipes") moveOldRecipes_(ss, sh);
   }
   return sh;
+}
+// Earlier versions saved the app's recipes inside the costing tab "Recetas" (rows at the bottom and
+// extra columns on the right). Move them to "Recetas (app)" once, and leave "Recetas" as it was.
+function moveOldRecipes_(ss, dest) {
+  const old = ss.getSheetByName("Recetas"); if (!old) return;
+  const n = old.getLastRow(), w = old.getLastColumn(); if (n < 2 || w < 2) return;
+  const vals = old.getRange(1, 1, n, w).getValues(), moved = [];
+  for (let i = n - 1; i >= 1; i--) {
+    const id = String(vals[i][0] || ""); if (!/^r[A-Za-z0-9]{6,}$/.test(id)) continue;
+    let data = null; try { data = JSON.parse(vals[i][1] || ""); } catch (e) {}
+    if (!data || !data.itemId) continue;
+    moved.push([id, data]); old.deleteRow(i + 1);
+  }
+  moved.reverse().forEach(function (m) { write_("recipes", m[0], m[1]); });
+  const labels = FIELDS.recipes.map(function (f) { return f[1]; });
+  const head = old.getRange(1, 1, 1, old.getLastColumn()).getDisplayValues()[0];
+  for (let c = head.length; c >= 1; c--) if (labels.indexOf(head[c - 1]) >= 0) old.deleteColumn(c);
 }
 function headerMap_(col, headers) { // header → field
   const m = {}; FIELDS[col].forEach(function (f) { m[f[1]] = f[0]; });
