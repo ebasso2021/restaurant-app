@@ -20,6 +20,7 @@
  * Kardex: the tab "Kardex" (created automatically) logs every stock movement — purchases from the app (+ Stock)
  * and from the "Compras" tab, sales from paid bills, waste and stock counts — with unit cost, balance and
  * weighted average cost. Stock may be in g, kg, ml, L or pieces; the cost is ALWAYS per kg, per L or per piece
+ * (pieces are bought by the package: unit cost = package price ÷ pieces in the package)
  * (2 decimals), so value = stock converted to kg / L × cost. After updating this file run  instalarFormulas  again.
  */
 // app collection → tab name
@@ -29,7 +30,7 @@ const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Merm
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
-  inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"],["costPer","Costo por"]],
+  inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"],["costPer","Costo por"],["pack","Piezas por paquete"]],
   waste: [["date","Fecha"],["itemId","ID artículo"],["item","Artículo"],["qty","Cantidad"],["unit","Unidad"],["cost","Costo"],["reason","Motivo"]],
   posts: [["when","Fecha y hora"],["channel","Canal"],["status","Estado"],["text","Texto"],["image","Imagen"],["reach","Alcance"],["likes","Likes"],["comments","Comentarios"],["saves","Guardados"]],
   reviews: [["date","Fecha"],["source","Fuente"],["stars","Estrellas"],["name","Autor"],["text","Texto"],["reply","Respuesta"],["replied","Respondida"]],
@@ -41,7 +42,7 @@ const FIELDS = {
   kardex: [["date","Fecha"],["item","Artículo"],["type","Movimiento"],["reason","Motivo"],["qty","Cantidad"],["unit","Unidad"],["unitCost","Costo unitario"],["total","Total"],["balQty","Saldo cantidad"],["avgCost","Costo promedio"],["balValue","Saldo valor"],["ref","Referencia"],["by","Usuario"],["when","Fecha y hora"],["itemId","ID artículo"]],
   sales: [], settings: []
 };
-const NUM = ["unitCost","balQty","avgCost","balValue","qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
+const NUM = ["pack","unitCost","balQty","avgCost","balValue","qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
 const BOOL = ["replied","active","occupied","locked"];
 const MONEY = ["cost","unitCost","total","avgCost","balValue","price","subtotal","discount","tax","tip","per","totalCur"]; // always 2 decimals
 const DATES = ["date"];
@@ -351,7 +352,7 @@ function write_(col, id, data) {
     if (DATES.indexOf(k) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
       const p = String(v).split("-"); row.push(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0)); fmts.push("yyyy-mm-dd"); return;
     }
-    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(MONEY.indexOf(k) >= 0 ? "#,##0.00" : Number.isInteger(v) ? "0" : "0.000"); return; }
+    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(["cost","unitCost","avgCost"].indexOf(k) >= 0 ? "#,##0.00##" : MONEY.indexOf(k) >= 0 ? "#,##0.00" : Number.isInteger(v) ? "0" : "0.000"); return; }
     if (BOOL.indexOf(k) >= 0) { row.push(!!v); fmts.push("@"); return; }
     v = String(v); if (/^[=+]/.test(v)) v = "'" + v;
     row.push(v); fmts.push("@");
@@ -409,15 +410,15 @@ function applyPurchase_(sh, r) {
   const now = new Date().toISOString();
   let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
   const q0 = Math.max(0, Number(inv.getRange(row, cQty).getValue() || 0)), c0 = cCost > 0 ? Number(inv.getRange(row, cCost).getValue() || 0) : Number(data.cost || 0);
-  const u = data.unit || v[3], B = function (q) { return toBase_(q, u); };
-  const uc = cost != null && !isNaN(cost) ? r2_(cost) : c0, q1 = r3_(q0 + qty), c1 = q1 > 0 ? r2_((B(q0) * c0 + B(qty) * uc) / B(q1)) : uc; // weighted average cost, in kg / L
+  const u = data.unit || v[3], B = function (q) { return toBase_(q, u, data.pack); };
+  const uc = cost != null && !isNaN(cost) ? rc_(u, cost) : c0, q1 = r3_(q0 + qty), c1 = q1 > 0 ? rc_(u, (B(q0) * c0 + B(qty) * uc) / B(q1)) : uc; // weighted average cost, in kg / L / piece
   inv.getRange(row, cQty).setValue(q1);
   if (cCost > 0) inv.getRange(row, cCost).setValue(c1);
   if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
   // keep the hidden json in step
   data.qty = q1; data.cost = c1; data.costPer = baseOf_(u); data.updated = now;
   inv.getRange(row, 2).setValue(JSON.stringify(data));
-  kardex_({ id: String(v[2]), name: data.name || v[1], unit: data.unit || v[3] }, "in", "purchase", qty, uc, q1, c1, "Compras fila " + r, "Compras");
+  kardex_({ id: String(v[2]), name: data.name || v[1], unit: data.unit || v[3], pack: data.pack }, "in", "purchase", qty, uc, q1, c1, "Compras fila " + r, "Compras");
   sh.getRange(r, 11).setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"));
 }
 
@@ -445,15 +446,18 @@ function stockForBill_(bill) {
 }
 const r2_ = function (n) { return Math.round(Number(n || 0) * 100) / 100; };
 const r3_ = function (n) { return Math.round(Number(n || 0) * 1000) / 1000; };
+const r4_ = function (n) { return Math.round(Number(n || 0) * 10000) / 10000; };
+const rc_ = function (u, n) { return u === "pc" ? r4_(n) : r2_(n); }; // cost per piece keeps 4 decimals
 // RULE: stock may be in g, kg, ml, L or pc, but the cost is always per kg (g, kg), per L (ml, L) or per piece.
 // value = stock converted to kg / L × cost   (4500 g × CA$8.50/kg = 4.5 × 8.50 = 38.25)
 const baseOf_ = function (u) { return u === "g" || u === "kg" ? "kg" : (u === "ml" || u === "mL" || u === "L" || u === "l") ? "L" : "pc"; };
+// pieces are bought by the package but costed per piece (unit cost = package price ÷ pieces) → value = pieces × unit cost
 const toBase_ = function (q, u) { return (u === "g" || u === "ml" || u === "mL") ? Number(q || 0) / 1000 : Number(q || 0); };
 // one row in the "Kardex" tab: every purchase, sale (paid bill), waste and adjustment, with running balance and average cost
 function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by) {
   const now = new Date(), id = "k" + now.getTime().toString(36) + Math.random().toString(36).slice(2, 6);
   write_("kardex", id, { date: Utilities.formatDate(now, tz_(), "yyyy-MM-dd"), when: now.toISOString(), itemId: it.id, item: it.name || "", unit: it.unit || "",
-    costPer: baseOf_(it.unit), type: type, reason: reason, qty: r3_(qty), unitCost: r2_(unitCost), total: r2_(toBase_(qty, it.unit) * unitCost), balQty: r3_(balQty), avgCost: r2_(avgCost), balValue: r2_(toBase_(balQty, it.unit) * avgCost), ref: ref || "", by: by || "" });
+    costPer: baseOf_(it.unit), pack: Number(it.pack) > 0 ? Number(it.pack) : 1, type: type, reason: reason, qty: r3_(qty), unitCost: rc_(it.unit, unitCost), total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), balQty: r3_(balQty), avgCost: rc_(it.unit, avgCost), balValue: r2_(toBase_(balQty, it.unit, it.pack) * avgCost), ref: ref || "", by: by || "" });
 }
 function useStock_(uses, ref, by) {
   const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
@@ -467,7 +471,7 @@ function useStock_(uses, ref, by) {
     if (cUpd > 0) inv.getRange(row, cUpd).setValue(now);
     let data = {}; try { data = JSON.parse(inv.getRange(row, 2).getValue() || "{}"); } catch (err) {}
     data.qty = left; data.updated = now; inv.getRange(row, 2).setValue(JSON.stringify(data));
-    kardex_({ id: String(u.id), name: data.name || u.name, unit: data.unit || u.unit }, "out", "sale", q, Number(data.cost || 0), left, Number(data.cost || 0), ref, by);
+    kardex_({ id: String(u.id), name: data.name || u.name, unit: data.unit || u.unit, pack: data.pack }, "out", "sale", q, Number(data.cost || 0), left, Number(data.cost || 0), ref, by);
   });
 }
 
@@ -507,7 +511,8 @@ function instalarFormulas() {
   Object.keys(src).forEach(function (c) { put("Stock", c + "2", '=ARRAYFORMULA(IF(Inventario!A2:A="","",Inventario!' + src[c] + '2:' + src[c] + '))'); });
   put("Stock", "G2", '=ARRAYFORMULA(IF(A2:A="","",IF((E2:E>0)*(D2:D<=E2:E),"Bajo",IF((F2:F>0)*(D2:D>F2:F),"Exceso","OK"))))');
   put("Stock", "H2", '=ARRAYFORMULA(IF(A2:A="","",IF((G2:G="Bajo")*(F2:F>D2:D),F2:F-D2:D,0)))');
-  put("Stock", "J2", '=ARRAYFORMULA(IF(A2:A="","",IFERROR(IF(REGEXMATCH(LOWER(C2:C),"^(g|ml)$"),D2:D/1000,D2:D)*I2:I,0)))'); // stock in g/ml → kg/L × cost per kg/L
+  // value = stock in g/ml ÷ 1000 × cost per kg / L; pieces × cost per piece
+  put("Stock", "J2", '=ARRAYFORMULA(IF(A2:A="","",IFERROR(IF(REGEXMATCH(LOWER(C2:C),"^(g|ml)$"),D2:D/1000,D2:D)*I2:I,0)))');
   put("Stock", "K2", '=MAP(A2:A,LAMBDA(id,IF(id="","",SUMIFS(Compras!E2:E,Compras!C2:C,id,Compras!J2:J,"Recibido",Compras!A2:A,' + d30 + '))))');
   put("Stock", "L2", '=MAP(A2:A,LAMBDA(id,IF(id="","",IF(MAXIFS(Compras!A2:A,Compras!C2:C,id)=0,"",MAXIFS(Compras!A2:A,Compras!C2:C,id)))))');
   put("Stock", "M2", '=MAP(A2:A,LAMBDA(id,IF(id="","",SUMIFS(Mermas!F2:F,Mermas!D2:D,id,Mermas!C2:C,' + d30 + '))))');
@@ -524,7 +529,7 @@ function instalarFormulas() {
   clear("Recetas", "E2:E"); clear("Recetas", "G2:H");
   put("Recetas", "E2", '=MAP(B2:B,LAMBDA(n,IF(n="","",IFERROR(INDEX(Inventario!D2:D,MATCH(n,Inventario!C2:C,0)),"no está en inventario"))))');
   put("Recetas", "G2", '=MAP(B2:B,LAMBDA(n,IF(n="","",IFERROR(INDEX(Inventario!H2:H,MATCH(n,Inventario!C2:C,0)),""))))');
-  put("Recetas", "H2", '=ARRAYFORMULA(IF(B2:B="","",IF(D2:D=E2:E,IF(REGEXMATCH(LOWER(D2:D),"^(g|ml)$"),C2:C/1000,C2:C)*IFERROR(G2:G*1,0),"convertir unidad")))'); // cost is per kg / L
+  put("Recetas", "H2", '=ARRAYFORMULA(IF(B2:B="","",IF(D2:D=E2:E,IF(REGEXMATCH(LOWER(D2:D),"^(g|ml)$"),C2:C/1000,C2:C)*IFERROR(G2:G*1,0),"convertir unidad")))'); // cost per kg / L / piece
   ss.getSheetByName("Recetas").getRange("H2:H").setNumberFormat("#,##0.00");
 
   ss.toast("Fórmulas instaladas / Formulas installed", "Taste of Peru", 5);
