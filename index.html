@@ -1502,7 +1502,7 @@ function applyRoleUI(){
     el.disabled=true; el.classList.add("ro"); el.title=tt("Your role can't change this","Tu rol no puede cambiar esto");
   });
   if(!main.querySelector(".roNote")){
-    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${cook?tt("Cook: read only here. You can change data only in “2 · Kitchen & inventory”.","Cocinero: solo lectura aquí. Solo puedes cambiar datos en “2 · Cocina e inventario”."):chef?tt("Chef: you can view this module; you can work on “Orders by table”, change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Sales”.","Chef: puedes ver este módulo; puedes trabajar en “Órdenes por mesa”, cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Ventas”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
+    const sec=main.querySelector("section"); if(sec) sec.insertAdjacentHTML("afterbegin",`<p class="capnote warnnote roNote">🔒 ${cook?tt("Cook: read only here. You can change data only in “2 · Kitchen & inventory”.","Cocinero: solo lectura aquí. Solo puedes cambiar datos en “2 · Cocina e inventario”."):chef?tt("Chef: you can view this module; you can work on “Orders by table”, change kitchen parameters in “2 · Kitchen & inventory” and the cost per cup in “3 · Costs, sales & analytics”.","Chef: puedes ver este módulo; puedes trabajar en “Órdenes por mesa”, cambiar parámetros de cocina en “2 · Cocina e inventario” y el costo por vaso en “3 · Costos, ventas y análisis”."):tt("Read only: you can view everything but not change it.","Solo lectura: puedes ver todo, pero no cambiarlo.")}</p>`);
   }
 }
 // ----- admin: users -----
@@ -1596,7 +1596,7 @@ const MODS=[
   {id:"orders",en:"Orders by table",es:"Órdenes por mesa"},
   {id:"bill",en:"Billing by table",es:"Facturación por mesa"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
-  {id:"m3",en:"3 · Sales & analytics",es:"3 · Ventas y análisis"},
+  {id:"m3",en:"3 · Costs, sales & analytics",es:"3 · Costos, ventas y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
   {id:"m5",en:"5 · Reviews",es:"5 · Reseñas"},
   {id:"settings",en:"⚙ Settings",es:"⚙ Ajustes"}
@@ -2198,7 +2198,7 @@ async function payBill(){
     it.cups=num(it.cups)+num(l.qty); it.revenue=r2(num(it.revenue)+num(l.qty)*num(l.price)); items[pid]=it; });
   if(counted){ const h=String(new Date().getHours()).padStart(2,"0"); hours[h]=num(hours[h])+lines.reduce((s,l)=>s+(matchProduct(l.dish)?num(l.qty):0),0); await dbSet("sales/"+today(),{items,hours}); }
   showReceipt({...bill,id});
-  billMsg=tt(`Charged ${money(bill.total)} for table ${bill.table}. The table is free again and its orders are closed.`,`Cobrado ${money(bill.total)} de la mesa ${bill.table}. La mesa quedó libre y sus órdenes cerradas.`)+(skipped?" "+tt(`${skipped} line(s) are not menu drinks, so they are not counted in module 3 · Sales.`,`${skipped} línea(s) no son bebidas del menú, así que no se cuentan en el módulo 3 · Ventas.`):"");
+  billMsg=tt(`Charged ${money(bill.total)} for table ${bill.table}. The table is free again and its orders are closed.`,`Cobrado ${money(bill.total)} de la mesa ${bill.table}. La mesa quedó libre y sus órdenes cerradas.`)+(skipped?" "+tt(`${skipped} line(s) are not menu drinks, so they are not counted in module 3 · Costs, sales & analytics.`,`${skipped} línea(s) no son bebidas del menú, así que no se cuentan en el módulo 3 · Costos, ventas y análisis.`):"");
   billTable=""; billLines=null; billTip=0; billTipPct=null; billDisc={v:0,mode:"pct",why:""}; billSplit=1;
   render();
 }
@@ -2735,7 +2735,7 @@ function wireOpex(){
   if(!opexCan()) document.querySelectorAll("#opexAdd input,#opexAdd select,#opexAdd button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
 }
 function m3(){
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Sales & analytics","Ventas y análisis"),tt("Log sales, set the cost per cup, and see revenue, margins, the most profitable drinks and the ones that sell but earn little.","Registra ventas, define el costo por vaso y mira ingresos, márgenes, las bebidas más rentables y las que se venden pero dejan poco."))}
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Costs, sales & analytics","Costos, ventas y análisis"),tt("Log sales, set the cost per cup, and see revenue, margins, the most profitable drinks and the ones that sell but earn little.","Registra ventas, define el costo por vaso y mira ingresos, márgenes, las bebidas más rentables y las que se venden pero dejan poco."))}
    <div class="grid">
     <div class="stack">
      <div class="panel"><h3>${tt("Log sales","Registrar ventas")}</h3>
