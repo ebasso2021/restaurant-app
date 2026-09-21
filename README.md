@@ -29,6 +29,9 @@ En **Recetas** hay dos botones: **📄 Nueva receta desde un documento de Word**
 
 En **Menú → Agregar al menú** hay dos botones: **📄 Importar documento** (un archivo de receta Word .docx o .txt → crea el plato o bebida con el grupo, tipo, precio y nota del formulario, guarda su receta para 1 porción y agrega los ingredientes al stock) y **🥕 Importar ingredientes** (un archivo con solo la lista de ingredientes → los agrega al stock con cantidad 0; si escribiste un nombre, también crea ese plato con esos ingredientes como receta).
 
+### Recetas en dos idiomas
+Al cambiar EN/ES cambian los nombres de los platos, los ingredientes y la preparación. Al guardar una receta, la app guarda también la versión en el otro idioma (de la receta de referencia de la app, de la versión anterior o traducida con IA). Si una receta antigua está solo en un idioma, aparece **🌐 Traducirla** para completarla.
+
 ### Módulos de Gestión con IA
 | Módulo | Funciones |
 |---|---|
@@ -86,6 +89,9 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 In **Recipes** there are two buttons: **📄 New recipe from a Word document** (creates the menu item) and, inside each recipe, **📄 Learn ingredients and preparation from a Word document**. The app reads the `.docx` file in the browser (with AI when available, otherwise with a text reader that looks for “Ingredients” and “Preparation” headings), converts the amounts to 1 portion, fills the recipe editor and adds the missing ingredients to the inventory (stock 0, already linked). Review and press **Save as the standard measure**.
 
 In **Menu → Add to the menu** there are two buttons: **📄 Import document** (a Word .docx or .txt recipe file → creates the dish or drink with the form's group, type, price and note, saves its 1-portion recipe and adds the ingredients to the stock) and **🥕 Import ingredients** (a file with just the ingredient list → adds them to the stock at quantity 0; if you typed a name, it also creates that dish with those ingredients as its recipe).
+
+### Recipes in two languages
+Switching EN/ES switches dish names, ingredients and preparation. When a recipe is saved, the app also stores the other language (from the app's reference recipe, the previous version, or translated with AI). If an older recipe is only in one language, **🌐 Translate it** fills it in.
 
 ### AI System Management modules
 | Module | Features |

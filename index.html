@@ -669,7 +669,7 @@ function recipeList(){
   if(!D.menu.length) return P.map(p=>({id:p.id,name:T(p.name),prod:p,c:p.c,item:{id:p.id,name:T(p.name),cat:p.cat||"bebida",kind:p.kind||"jugo",prodId:p.id,price:0}}));
   return D.menu.slice().sort((a,b)=>String(b.cat).localeCompare(String(a.cat))||String(a.name).localeCompare(String(b.name)))
     .map(m=>{ const prod=m.prodId?P.find(x=>x.id===m.prodId):null;
-      return {id:m.id,name:m.name,prod,c:prod?prod.c:(m.cat==="comida"?"#9A4A00":"#2F6B3A"),item:m}; });
+      return {id:m.id,name:itemName(m),prod,c:prod?prod.c:(m.cat==="comida"?"#9A4A00":"#2F6B3A"),item:m}; });
 }
 function recipeOf(itemId){ return D.recipes.find(r=>r.itemId===itemId)||null; }
 // starting values for the app's drinks and dishes: the reference batch divided by its servings
@@ -681,7 +681,73 @@ function defaultStandard(item){
     steps:(v.steps||[]).map(x=>T(x.t||x)).join("\n"),notes:p.allergen?T(p.allergen):"",fromRef:true,refName:T(v.name),refServ:s,refMl:serveTxt(v)};
 }
 // the recipe as it should be used: the saved standard, or the starting values
-function standardOf(item){ const r=recipeOf(item.id); return r&&Array.isArray(r.ingredients)?{...r,saved:true}:{...defaultStandard(item),saved:false,locked:false}; }
+function standardOf(item){ const r=recipeOf(item.id); return r&&Array.isArray(r.ingredients)?{...locRecipe(r),saved:true}:{...defaultStandard(item),saved:false,locked:false}; }
+/* ===== Bilingual recipes: a saved recipe keeps its texts in English AND Spanish (n_en/n_es, steps_en/steps_es,
+   notes_*, portionLabel_*) so switching EN/ES switches the ingredients and the preparation too. The missing language
+   comes from the app's reference recipe, from the previous saved version, or is translated with AI. ===== */
+const OTH=l=>l==="es"?"en":"es";
+const LNAME=l=>l==="es"?"Spanish":"English";
+function itemName(m){ const p=m&&m.prodId?P.find(x=>x.id===m.prodId):null; return p?T(p.name):(m&&(m["name_"+state.lang]||m.name))||""; }
+function locRecipe(r){ const l=state.lang;
+  return {...r,ingredients:(r.ingredients||[]).map(g=>({...g,n:g["n_"+l]||g.n})),steps:r["steps_"+l]!=null?r["steps_"+l]:r.steps,
+    notes:r["notes_"+l]!=null?r["notes_"+l]:r.notes,portionLabel:r["portionLabel_"+l]!=null?r["portionLabel_"+l]:r.portionLabel}; }
+// does the saved recipe lack the texts of language l?
+function lacksLang(r,l){ if(!r) return false; return (r.ingredients||[]).some(g=>!g["n_"+l]&&g.n)||(!!String(r.steps||"").trim()&&r["steps_"+l]==null); }
+// fill the `_to` fields of doc (source texts in doc.n/steps/notes/portionLabel, language `from`)
+async function fillLang(doc,item,from,to,prior,useAI){
+  const prod=item&&item.prodId?P.find(x=>x.id===item.prodId):null, v=prod?prod.variants[0]:null;
+  const refSteps=l=>v?(v.steps||[]).map(x=>(x.t||x)[l]||(x.t||x).en).join("\n"):null;
+  const need={ing:[]};
+  doc.ingredients=(doc.ingredients||[]).map((g,i)=>{ if(g["n_"+to]) return g; const src=g["n_"+from]||g.n;
+    const pm=prior&&(prior.ingredients||[]).find(x=>(x["n_"+from]||x.n)===src&&x["n_"+to]);
+    const rm=v&&v.ing.find(x=>x.n[from]===src);
+    const t=pm?pm["n_"+to]:rm?rm.n[to]:null;
+    if(t) return {...g,["n_"+to]:t}; need.ing.push(i); return g; });
+  const txt=(f,refFn)=>{ if(doc[f+"_"+to]!=null) return; const src=doc[f+"_"+from]!=null?doc[f+"_"+from]:doc[f]; if(!String(src||"").trim()){ doc[f+"_"+to]=""; return; }
+    if(prior&&(prior[f+"_"+from]!=null?prior[f+"_"+from]:prior[f])===src&&prior[f+"_"+to]!=null){ doc[f+"_"+to]=prior[f+"_"+to]; return; }
+    const r=refFn&&refFn(); if(r&&r[from]===src){ doc[f+"_"+to]=r[to]; return; } need[f]=src; };
+  txt("steps",()=>v?{en:refSteps("en"),es:refSteps("es")}:null);
+  txt("notes",()=>prod&&prod.allergen?prod.allergen:null);
+  txt("portionLabel",()=>v?{en:serveTxtL(v,"en"),es:serveTxtL(v,"es")}:null);
+  const wantName=item&&!prod&&item.name&&!item["name_"+to];
+  if((need.ing.length||need.steps!=null||need.notes!=null||need.portionLabel!=null||wantName)&&useAI&&SAMPLE){
+    const ask={ingredients:need.ing.map(i=>doc.ingredients[i]["n_"+from]||doc.ingredients[i].n)};
+    if(need.steps!=null) ask.steps=need.steps; if(need.notes!=null) ask.notes=need.notes; if(need.portionLabel!=null) ask.portionLabel=need.portionLabel; if(wantName) ask.name=item.name;
+    try{ const j=await SAMPLE.json(`Translate these restaurant recipe texts into ${LNAME(to)} for a Peruvian restaurant in Canada. If a text is already in ${LNAME(to)}, return it unchanged. Keep numbers, units and line breaks (one step per line). Keep Peruvian dish and ingredient names that have no common translation (e.g. ají amarillo, lomo saltado, chicha morada), adding nothing else.
+Reply with only JSON with the same keys: ${JSON.stringify(Object.keys(ask).reduce((o,k)=>(o[k]=k==="ingredients"?["..."]:"...",o),{}))}
+TEXTS: ${JSON.stringify(ask)}`,{cache:false,modelTier:"quick"});
+      if(j&&Array.isArray(j.ingredients)) need.ing.forEach((i,k)=>{ if(j.ingredients[k]) doc.ingredients[i]={...doc.ingredients[i],["n_"+to]:String(j.ingredients[k]).trim()}; });
+      ["steps","notes","portionLabel"].forEach(f=>{ if(need[f]!=null&&typeof j[f]==="string") doc[f+"_"+to]=j[f].trim(); });
+      if(wantName&&typeof j.name==="string"&&j.name.trim()) doc._name=j.name.trim().slice(0,60);
+    }catch(e){ console.warn("translate",e); }
+  }
+  return doc;
+}
+const serveTxtL=(v,l)=>v.serveMl?v.serveMl+" mL":(v.serveLabel?v.serveLabel[l]:(l==="es"?"1 porción":"1 portion"));
+// save a recipe (texts in the current language) with both languages
+async function saveRecipeDoc(item,d,extra){
+  const from=state.lang, to=OTH(from), prior=recipeOf(item.id);
+  let doc={itemId:item.id,item:item.name,lang:from,portionLabel:d.portionLabel||"",["portionLabel_"+from]:d.portionLabel||"",
+    ingredients:d.ingredients.map(g=>({...g,["n_"+from]:g.n})),steps:d.steps||"",["steps_"+from]:d.steps||"",notes:d.notes||"",["notes_"+from]:d.notes||"",...(extra||{})};
+  doc=await fillLang(doc,item,from,to,prior,true);
+  const nm=doc._name; delete doc._name;
+  doc.ingText=doc.ingredients.map(x=>`${x.n} ${nice(x.q)} ${x.u}${x.inv&&invItem(x.inv)?" ["+invItem(x.inv).name+"]":""}`).join("; ");
+  await dbSet("recipes/r"+item.id,doc);
+  if(nm&&DB) try{ await DB.collection("menu").doc(item.id).update({["name_"+from]:item.name,["name_"+to]:nm}); }catch(e){}
+  return doc;
+}
+// translate a saved recipe to the language on screen (older recipes saved in one language)
+async function translateSaved(item){
+  const r=recipeOf(item.id); if(!r) return;
+  const l=state.lang, from=r.lang||OTH(l);
+  const doc=await fillLang(JSON.parse(JSON.stringify(r)),item,from,l,null,true);
+  const nm=doc._name; delete doc._name; delete doc.id;
+  if(!doc.lang) doc.lang=from;
+  await dbSet("recipes/r"+item.id,doc);
+  if(nm&&DB) try{ await DB.collection("menu").doc(item.id).update({["name_"+from]:item.name,["name_"+l]:nm}); }catch(e){}
+  return !lacksLang(doc,l);
+}
+
 const invItem=id=>D.inventory.find(i=>i.id===id);
 // how many portions the current stock allows, and which ingredient runs out first
 function portionsPossible(std){
@@ -887,7 +953,7 @@ async function importDocx(file,item,say){
   let target=item;
   if(!target){
     const name=(r.name||file.name.replace(DOC_OK,"").replace(/[_-]+/g," ")).trim().slice(0,60);
-    const ex=D.menu.find(m=>dishKey(m.name)===dishKey(name));
+    const ex=menuFind(name);
     if(ex) target=ex;
     else{ const cat=r.category==="bebida"?"bebida":"comida", kinds=(MENU_KINDS[cat]||[]).map(k=>k[0]);
       const id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -909,11 +975,12 @@ function standardRecipe(item,prod){
   const ing=std.ingredients||[];
   const invOpts=sel=>`<option value="">${tt("— not linked —","— sin vincular —")}</option>`+D.inventory.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(i=>`<option value="${esc(i.id)}"${i.id===sel?" selected":""}>${esc(i.name)} (${esc(i.unit)})</option>`).join("");
   const status=std.saved&&std.locked&&!recEdit?`<span class="badge ok">✓ ${tt("Standard measure set","Medida única establecida")}</span>`:`<span class="badge warn">${recEdit?tt("Editing","Editando"):tt("Draft — not saved","Borrador — sin guardar")}</span>`;
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(item.cat==="comida"?tt("Food","Comida"):tt("Drink","Bebida"),esc(item.name),
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(item.cat==="comida"?tt("Food","Comida"):tt("Drink","Bebida"),esc(itemName(item)),
     `${esc(kindName(item.cat,item.kind))}${num(item.price)?" · "+money(item.price):""} · `+tt("The standard measure is the recipe for ONE portion. Every calculation — more portions, stock and inventory — starts from it.","La medida única es la receta para UNA porción. Todos los cálculos — más porciones, stock e inventario — parten de ella."))}
    <div class="grid">
     <div class="stack">
      <div class="panel"><h3>${tt("Standard measure · 1 portion","Medida única · 1 porción")} ${status}</h3>
+      ${std.saved&&lacksLang(recipeOf(item.id),state.lang)?`<p class="hint warnnote" id="rcLangNote">🌐 ${tt("This recipe was saved in Spanish, so some texts are not in English yet.","Esta receta se guardó en inglés, así que algunos textos aún no están en español.")} ${can?`<button type="button" class="linkbtn" id="rcTranslate">${tt("Translate it to English","Traducirla al español")}</button>`:""}</p>`:""}
       ${!std.saved&&std.fromRef?`<p class="hint warnnote">${tt(`Starting values: the reference batch “${esc(std.refName)}” (${std.refServ} portions of ${std.refMl}) divided by ${std.refServ}. Check them, link each ingredient to its inventory item and save.`,`Valores iniciales: el lote de referencia “${esc(std.refName)}” (${std.refServ} porciones de ${std.refMl}) dividido entre ${std.refServ}. Revísalos, vincula cada ingrediente con su artículo del inventario y guarda.`)}</p>`:""}
       ${field("stPortion",tt("One portion is (size or description)","Una porción es (tamaño o descripción)"),`<input id="stPortion" value="${esc(std.portionLabel||"")}" placeholder="${tt("250 mL, 1 plate, 300 g…","250 mL, 1 plato, 300 g…")}">`)}
       <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>${tt("Per portion","Por porción")}</th><th>${tt("Unit","Unidad")}</th><th>${tt("Inventory item","Artículo de inventario")}</th><th></th></tr></thead>
@@ -951,7 +1018,7 @@ function calcHTML(item){
     return `<tr><td>${esc(g.n)}</td><td class="nw">${nice(num(g.q))} ${esc(g.u)}</td><td class="nw"><b>${nice(need)} ${esc(g.u)}</b>${inU!=null&&it.unit!==g.u?`<small>= ${nice(inU)} ${esc(it.unit)}</small>`:""}</td>
       <td class="nw">${it?`${nice(num(it.qty))} ${esc(it.unit)}`:`<span class="dimtxt">—</span>`}</td>
       <td>${ok==null?"":ok?`<span class="badge ok">OK</span>`:`<span class="badge bad">${tt("short","falta")} ${nice(inU-num(it.qty))} ${esc(it.unit)}</span>`}</td></tr>`; }).join("");
-  return `<p class="dimtxt">${esc(item.name)} · <b>${n}</b> ${tt("portion(s)","porción(es)")}${std.portionLabel?" × "+esc(std.portionLabel):""}</p>
+  return `<p class="dimtxt">${esc(itemName(item))} · <b>${n}</b> ${tt("portion(s)","porción(es)")}${std.portionLabel?" × "+esc(std.portionLabel):""}</p>
    <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>1</th><th>× ${n}</th><th>${tt("In stock","En stock")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
    ${pp.linked?`<p class="capnote ${pp.best===0?"warnnote":""}">📦 ${tt(`With the current stock you can make <b>${pp.best}</b> portion(s)`,`Con el stock actual alcanzan <b>${pp.best}</b> porción(es)`)}${pp.limit?` — ${tt("first to run out","se acaba primero")}: ${esc(pp.limit)}`:""}.</p>`
      :`<p class="hint">${tt("Link the ingredients to inventory items to see how many portions your stock allows and to discount stock when a bill is paid.","Vincula los ingredientes con artículos del inventario para ver cuántas porciones alcanzan con tu stock y descontar el stock al cobrar una cuenta.")}</p>`}
@@ -959,6 +1026,10 @@ function calcHTML(item){
    ${!std.locked||recEdit?`<p class="hint">${tt("Stock is only discounted on paid bills once this measure is saved.","El stock solo se descuenta en las cuentas cobradas cuando esta medida esté guardada.")}</p>`:""}`;
 }
 function wireStandard(item){
+  const trb=document.getElementById("rcTranslate");
+  if(trb) trb.onclick=async()=>{ trb.disabled=true; trb.textContent=tt("Translating…","Traduciendo…");
+    const ok=await translateSaved(item); recSig=""; render();
+    toast(ok?tt("Recipe translated to English.","Receta traducida al español."):tt("Only part of the recipe could be translated — AI is not available here. Edit the missing texts by hand.","Solo se pudo traducir una parte — la IA no está disponible aquí. Edita a mano los textos que faltan.")); };
   const std0=recEdit||standardOf(item), locked=!!std0.locked&&!recEdit;
   const draft=()=>{
     const rows=[...main.querySelectorAll("section .dt tbody tr[data-i]")].map(tr=>({n:tr.querySelector('[data-r="n"]').value.trim(),q:r3(tr.querySelector('[data-r="q"]').value),u:tr.querySelector('[data-r="u"]').value,inv:tr.querySelector('[data-r="inv"]').value}));
@@ -987,9 +1058,8 @@ function wireStandard(item){
     const m=document.getElementById("rcMsg");
     if(!ing.length){ m.textContent=tt("Add at least one ingredient with an amount for one portion.","Agrega al menos un ingrediente con su cantidad para una porción."); return; }
     const stamp=new Date().toISOString();
-    await dbSet("recipes/r"+item.id,{itemId:item.id,item:item.name,portionLabel:d.portionLabel,ingredients:ing,
-      ingText:ing.map(x=>`${x.n} ${nice(x.q)} ${x.u}${x.inv&&invItem(x.inv)?" ["+invItem(x.inv).name+"]":""}`).join("; "),
-      steps:d.steps,notes:d.notes,locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp});
+    s.disabled=true; m.textContent=SAMPLE?tt("Saving and preparing the Spanish version…","Guardando y preparando la versión en inglés…"):"";
+    await saveRecipeDoc(item,{portionLabel:d.portionLabel,ingredients:ing,steps:d.steps,notes:d.notes},{locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp});
     recEdit=null; recSig=""; render();
     toast(tt("Saved. This is now the standard measure for one portion.","Guardado. Esta es ahora la medida única para una porción."));
   };
@@ -1931,14 +2001,16 @@ const PAYMENTS=[["cash","Cash","Efectivo"],["card","Card","Tarjeta"],["transfer"
 const payName=k=>{const x=PAYMENTS.find(p=>p[0]===k);return x?tt(x[1],x[2]):k;};
 const GST_DEFAULT=5;
 const dishKey=d=>String(d||"").trim().toLowerCase();
-const priceOf=d=>{const k=dishKey(d),m=D.menu.find(x=>dishKey(x.name)===k);return m?num(m.price):0;};
+const menuNamesOf=m=>{const p=m.prodId?P.find(x=>x.id===m.prodId):null;return [m.name,m.name_en,m.name_es,p&&p.name.en,p&&p.name.es].filter(Boolean);};
+const menuFind=d=>{const k=dishKey(d);return D.menu.find(x=>menuNamesOf(x).some(n=>dishKey(n)===k));};
+const priceOf=d=>{const m=menuFind(d);return m?num(m.price):0;};
 const taxRate=()=>{const r=D.bill&&D.bill.taxRate!=null?num(D.bill.taxRate):GST_DEFAULT;return r>=0&&r<=100?r:GST_DEFAULT;};
 const r2=n=>Math.round(num(n)*100)/100;
 // orders of a table that are not cancelled and not billed yet
 const openOrders=t=>D.orders.filter(o=>String(o.table)===String(t)&&o.status!=="cancelled"&&!o.billId);
 const tablesToBill=()=>[...new Set(D.orders.filter(o=>o.status!=="cancelled"&&!o.billId).map(o=>String(o.table)))].sort((a,b)=>num(a)-num(b));
 // the menu product a bill line matches, so paid drinks can be added to module 3
-const matchProduct=d=>{const k=dishKey(d);const m=D.menu.find(x=>dishKey(x.name)===k&&x.prodId);if(m) return m.prodId;const p=P.find(x=>dishKey(x.name.en)===k||dishKey(x.name.es)===k);return p?p.id:"";};
+const matchProduct=d=>{const k=dishKey(d);const m=menuFind(d);if(m&&m.prodId) return m.prodId;const p=P.find(x=>dishKey(x.name.en)===k||dishKey(x.name.es)===k);return p?p.id:"";};
 let billMsg=""; let billTable="", billLines=null, billTip=0, billTipPct=null, billDisc={v:0,mode:"pct",why:""}, billSplit=1, billMethod="cash", lastBill=null;
 function billTotals(){
   const lines=billLines||[];
@@ -2093,7 +2165,7 @@ async function payBill(){
     by:SESSION?SESSION.name:"",created:stamp,paid:stamp};
   // stock used: each paid line × its recipe's standard measure (only saved measures linked to inventory)
   const use=[];
-  lines.forEach(l=>{ const m=D.menu.find(x=>dishKey(x.name)===dishKey(l.dish)); const r=m?recipeOf(m.id):null;
+  lines.forEach(l=>{ const m=menuFind(l.dish); const r=m?recipeOf(m.id):null;
     if(!r||!r.locked) return; stockUseFor(r,num(l.qty)).forEach(u=>{ const f=use.find(x=>x.id===u.id); if(f) f.qty=r3(f.qty+u.qty); else use.push({...u}); }); });
   bill.stockUse=use; bill.stockText=use.map(u=>`${u.name} −${nice(u.qty)} ${u.unit}`).join("; ");
   const id="b"+today().replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7);
@@ -2142,7 +2214,7 @@ const catName=c=>{const x=MENU_CATS.find(m=>m[0]===c);return x?tt(x[1],x[2]):c;}
 const kindName=(c,k)=>{const x=(MENU_KINDS[c]||[]).find(m=>m[0]===k);return x?tt(x[1],x[2]):(k||"");};
 const menuItems=cat=>D.menu.filter(m=>!cat||m.cat===cat).sort((a,b)=>String(a.kind).localeCompare(String(b.kind))||String(a.name).localeCompare(String(b.name)));
 const menuActive=()=>D.menu.filter(m=>m.active!==false);
-const menuNames=()=>{const n=menuActive().map(m=>m.name).filter(Boolean);return n.length?n:P.map(p=>T(p.name));};
+const menuNames=()=>{const n=menuActive().map(m=>itemName(m)).filter(Boolean);return n.length?n:P.map(p=>T(p.name));};
 const dishDatalist=id=>`<datalist id="${id}">${menuNames().map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`;
 // the drinks and dishes of this app, so they can be loaded into the menu in one click (drinks → Juices, lomo saltado → Food → Main dish)
 const SEED_DRINKS=()=>P.map(p=>({name:T(p.name),cat:p.cat||"bebida",kind:p.kind||"jugo",prodId:p.id,price:0,active:true}));
@@ -2170,14 +2242,13 @@ async function ingredientsFromDoc(file){
     const typed=val("mnName");
     if(typed&&canWrite("menu")&&canWrite("recipes")){
       const name=typed.charAt(0).toUpperCase()+typed.slice(1);
-      if(D.menu.some(m=>dishKey(m.name)===dishKey(name))) extra=tt(` “${name}” is already on the menu, so no dish was created — link these ingredients in Recipes → ${name}.`,` “${name}” ya está en el menú, así que no se creó un plato — vincula estos ingredientes en Recetas → ${name}.`);
+      if(menuFind(name)) extra=tt(` “${name}” is already on the menu, so no dish was created — link these ingredients in Recipes → ${name}.`,` “${name}” ya está en el menú, así que no se creó un plato — vincula estos ingredientes en Recetas → ${name}.`);
       else{
         const cat=val("mnCat")||menuCat, kind=val("mnKind"); id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
         await dbSet("menu/"+id,{name,cat,kind,price:toCAD(val("mnPrice")),prodId:matchProduct(name),notes:val("mnNotes"),active:true});
         const keep=ingredients.filter(g=>g.n&&num(g.q)>0);
         if(keep.length){ const stamp=new Date().toISOString();
-          await dbSet("recipes/r"+id,{itemId:id,item:name,portionLabel:r.portionLabel||"",ingredients:keep,ingText:keep.map(x=>`${x.n} ${nice(x.q)} ${x.u}${x.inv&&invItem(x.inv)?" ["+invItem(x.inv).name+"]":""}`).join("; "),
-            steps:r.steps.join("\n"),notes:r.notes||"",locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp,source:file.name}); }
+          await saveRecipeDoc({id,name,prodId:matchProduct(name)},{portionLabel:r.portionLabel||"",ingredients:keep,steps:r.steps.join("\n"),notes:r.notes||""},{locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp,source:file.name}); }
         const el=document.getElementById("mnForm"); if(el){ el.reset(); document.getElementById("mnCat").value=cat; const ks=document.getElementById("mnKind"); ks.innerHTML=(MENU_KINDS[cat]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join(""); ks.value=kind; document.getElementById("mnPrice").value=0; }
         extra=keep.length?tt(` “${name}” was added to the menu with these ingredients as its recipe (1 portion${r.servingsFound?`, the file makes ${Math.max(1,num(r.servings))}`:""}).`,` “${name}” se agregó al menú con estos ingredientes como su receta (1 porción${r.servingsFound?`, el archivo rinde ${Math.max(1,num(r.servings))}`:""}).`)
           :tt(` “${name}” was added to the menu; the file has no amounts, so set its recipe in Recipes.`,` “${name}” se agregó al menú; el archivo no tiene cantidades, así que define su receta en Recetas.`);
@@ -2202,15 +2273,13 @@ async function menuFromDoc(file){
   try{
     const {r,how}=await learnFile(file,say);
     let name=(val("mnName")||r.name||file.name.replace(DOC_OK,"").replace(/[_-]+/g," ")).trim().slice(0,60); name=name.charAt(0).toUpperCase()+name.slice(1);
-    if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ say(tt(`“${name}” is already on the menu. To replace its recipe, open Recipes → ${name} → “Learn ingredients and preparation from a Word document”. Or type a different name above and try again.`,`“${name}” ya está en el menú. Para reemplazar su receta, abre Recetas → ${name} → “Aprender ingredientes y preparación de un documento de Word”. O escribe otro nombre arriba e inténtalo de nuevo.`)); return; }
+    if(menuFind(name)){ say(tt(`“${name}” is already on the menu. To replace its recipe, open Recipes → ${name} → “Learn ingredients and preparation from a Word document”. Or type a different name above and try again.`,`“${name}” ya está en el menú. Para reemplazar su receta, abre Recetas → ${name} → “Aprender ingredientes y preparación de un documento de Word”. O escribe otro nombre arriba e inténtalo de nuevo.`)); return; }
     const id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     await dbSet("menu/"+id,{name,cat,kind,price,prodId:matchProduct(name),notes:notes||r.notes||"",active:true});
     const {ingredients,created,linked,skipped,s}=await linkIngredients(r);
     const keep=ingredients.filter(g=>g.n&&num(g.q)>0), miss=ingredients.filter(g=>!(num(g.q)>0)).map(g=>g.n);
     const stamp=new Date().toISOString();
-    if(keep.length) await dbSet("recipes/r"+id,{itemId:id,item:name,portionLabel:r.portionLabel||"",ingredients:keep,
-      ingText:keep.map(x=>`${x.n} ${nice(x.q)} ${x.u}${x.inv&&invItem(x.inv)?" ["+invItem(x.inv).name+"]":""}`).join("; "),
-      steps:r.steps.join("\n"),notes:r.notes||"",locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp,source:file.name});
+    if(keep.length) await saveRecipeDoc({id,name,prodId:matchProduct(name)},{portionLabel:r.portionLabel||"",ingredients:keep,steps:r.steps.join("\n"),notes:r.notes||""},{locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp,source:file.name});
     else pendingImport={itemId:id,draft:{...defaultStandard({id,prodId:""}),saved:false,portionLabel:r.portionLabel||"",ingredients,steps:r.steps.join("\n"),notes:r.notes||""}};
     const el=document.getElementById("mnForm"); if(el){ el.reset(); document.getElementById("mnCat").value=cat; const ks=document.getElementById("mnKind"); ks.innerHTML=(MENU_KINDS[cat]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join(""); ks.value=kind; document.getElementById("mnPrice").value=0; }
     say(tt(`✅ “${name}” added to ${catName(cat)} · ${kindName(cat,kind)}${how==="ai"?" (read with AI)":""}. Recipe saved for 1 portion: ${keep.length} ingredient(s), ${r.steps.length} step(s)${r.servingsFound?` (the document makes ${s} portions)`:" (the document doesn't say how many portions — amounts kept as written)"}. Stock: ${created} new item(s), ${linked} already there${skipped?`, ${skipped} not added (your role)`:""}.${miss.length?` Without an amount, left out of the recipe: ${miss.join(", ")}.`:""}${num(price)?"":" Set its price."}`,
@@ -2257,7 +2326,7 @@ function wireMenu(){
   document.getElementById("mnForm").onsubmit=async e=>{
     e.preventDefault(); const name=val("mnName"), msg=document.getElementById("mnMsg");
     if(!name){ msg.textContent=tt("Type a name — or use “Import document” to take it from a recipe file.","Escribe un nombre — o usa “Importar documento” para tomarlo de un archivo de receta."); return; }
-    if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ msg.textContent=tt(`“${name}” is already on the menu.`,`“${name}” ya está en el menú.`); return; }
+    if(menuFind(name)){ msg.textContent=tt(`“${name}” is already on the menu.`,`“${name}” ya está en el menú.`); return; }
     const cat=val("mnCat"), kind=val("mnKind");
     const prod=matchProduct(name);
     await dbAdd("menu",{name,cat,kind,price:toCAD(val("mnPrice")),prodId:prod,notes:val("mnNotes"),active:true});
@@ -2298,7 +2367,7 @@ function listMenu(){
   if(el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT") return;
   const groups=(MENU_KINDS[menuCat]||[]).map(kd=>[kd[0],rows.filter(r=>(r.kind||"otro")===kd[0])]).filter(g=>g[1].length);
   setHTML(el,rows.length?`<div class="tablewrap"><table class="dt menutbl"><thead><tr><th>${tt("Name","Nombre")}</th><th>${tt("Price","Precio")} (${curSym()})</th><th>${tt("Note","Nota")}</th><th>${tt("On","Activo")}</th><th></th></tr></thead><tbody>
-   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(m.name)}${m.prodId?` <span class="badge ok">${tt("app recipe","receta de la app")}</span>`:""}</td>
+   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(itemName(m))}${m.prodId?` <span class="badge ok">${tt("app recipe","receta de la app")}</span>`:""}</td>
      <td><input data-f="price" type="number" min="0" step="0.01" value="${esc(inCur(m.price))}" aria-label="${tt("Price","Precio")} (${curSym()})"></td>
      <td><input class="txt" data-f="notes" value="${esc(m.notes||"")}" aria-label="${tt("Note","Nota")}"></td>
      <td><input data-f="active" type="checkbox" style="width:auto"${m.active!==false?" checked":""} aria-label="${tt("On","Activo")}"></td>
