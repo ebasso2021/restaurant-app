@@ -24,6 +24,11 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 3. **Normas AHS** — requisitos de inocuidad de Alberta Health Services.
 4. **Camino a la venta** — pasos para vender en Edmonton.
 
+### Aprender recetas de un documento de Word
+En **Recetas** hay dos botones: **📄 Nueva receta desde un documento de Word** (crea el ítem en el menú) y, dentro de cada receta, **📄 Aprender ingredientes y preparación de un documento de Word**. La app lee el archivo `.docx` en el navegador (con IA si está disponible, si no con un lector de texto que busca los títulos “Ingredientes” y “Preparación”), convierte las cantidades a 1 porción, llena el editor de la receta y agrega al inventario los ingredientes que faltan (con stock 0, ya vinculados). Revisa y pulsa **Guardar como medida única**.
+
+En **Menú → Agregar al menú** también está **📄 Agregar desde un documento de receta (Word .docx o .txt)**: usa el grupo, tipo, precio y nota del formulario, crea el plato o bebida, guarda su receta para 1 porción y agrega los ingredientes al stock (cantidad 0).
+
 ### Módulos del Sistema IA
 | Módulo | Funciones |
 |---|---|
@@ -76,6 +81,11 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 2. **AI system** — overview and 5 working modules (below).
 3. **AHS rules** — Alberta Health Services food-safety requirements.
 4. **Path to sale** — steps to sell in Edmonton.
+
+### Learn recipes from a Word document
+In **Recipes** there are two buttons: **📄 New recipe from a Word document** (creates the menu item) and, inside each recipe, **📄 Learn ingredients and preparation from a Word document**. The app reads the `.docx` file in the browser (with AI when available, otherwise with a text reader that looks for “Ingredients” and “Preparation” headings), converts the amounts to 1 portion, fills the recipe editor and adds the missing ingredients to the inventory (stock 0, already linked). Review and press **Save as the standard measure**.
+
+In **Menu → Add to the menu** there is also **📄 Add from a recipe document (Word .docx or .txt)**: it uses the form's group, type, price and note, creates the dish or drink, saves its recipe for 1 portion and adds the ingredients to the stock (quantity 0).
 
 ### AI system modules
 | Module | Features |

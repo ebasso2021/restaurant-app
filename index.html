@@ -134,6 +134,13 @@ h3.sec{font-family:var(--display);font-weight:400;font-size:22px;margin:26px 0 1
 .recipenav .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
 .recipenav button[aria-selected="true"]{background:var(--c);border-color:var(--c);color:#fff}
 ol.steps{margin:6px 0 0 18px;padding:0;font-size:14px}
+.docximp{margin-top:14px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;background:var(--sunk)}
+.docximp.top{margin:0 0 16px}
+.mnfile{grid-column:1/-1}
+#mnSubmit{white-space:nowrap}
+.mnfile input[type=file]{font:13px var(--body);padding:5px;border:1px dashed var(--line);border-radius:8px;background:var(--sunk);color:var(--ink);width:100%}
+.docximp .hint{margin:6px 0 0}
+.docximp .hint:empty{display:none}
 details.refrec{margin-top:18px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--surface)}
 details.refrec>summary{cursor:pointer;font:600 14px var(--body);color:var(--accent)}
 details.refrec[open]>summary{margin-bottom:10px}
@@ -690,17 +697,201 @@ function stockUseFor(std,portions){
 function recipesTab(){
   const list=recipeList();
   if(!list.length) return `<section>${head(tt("Recipes","Recetas"),tt("Recipes","Recetas"),tt("The menu is empty. Add dishes and drinks in the Menu tab and each one gets its own recipe here.","El menú está vacío. Agrega platos y bebidas en el tab Menú y cada uno tendrá su receta aquí."))}</section>`;
-  const prev=curRecipe&&curRecipe.id;
-  curRecipe=list.find(x=>x.id===state.recipe)||list.find(x=>x.prod&&x.prod.id===state.recipe)||list[0];
+  const prev=curRecipe&&curRecipe.id, want=pendingImport?pendingImport.itemId:state.recipe;
+  curRecipe=list.find(x=>x.id===want)||list.find(x=>x.prod&&x.prod.id===want)||list[0];
   state.recipe=curRecipe.id; if(prev!==curRecipe.id) recEdit=null;
+  if(pendingImport&&curRecipe.id===pendingImport.itemId){ recEdit=pendingImport.draft; pendingImport=null; }
   const nav=`<div class="subnav recipenav" role="tablist" aria-label="${tt("Recipes","Recetas")}">${list.map(x=>{const st=standardOf(x.item);return `<button type="button" role="tab" data-recipe="${esc(x.id)}" aria-selected="${x.id===curRecipe.id}" style="--c:${x.c}"><span class="dot"></span>${esc(x.name)}${st.locked?" ✓":""}</button>`;}).join("")}</div>`;
-  return nav+standardRecipe(curRecipe.item,curRecipe.prod);
+  return nav+docxBox(null)+standardRecipe(curRecipe.item,curRecipe.prod);
 }
 function wireRecipes(){
-  main.querySelectorAll("[data-recipe]").forEach(b=>b.onclick=()=>{ state.recipe=b.dataset.recipe; recN=1; recEdit=null; save(); render(); window.scrollTo({top:0}); });
+  wireDocx();
+  main.querySelectorAll("[data-recipe]").forEach(b=>b.onclick=()=>{ impMsg={}; state.recipe=b.dataset.recipe; recN=1; recEdit=null; save(); render(); window.scrollTo({top:0}); });
   if(!curRecipe) return;
   wireStandard(curRecipe.item);
   if(curRecipe.prod) wireProduct(curRecipe.prod);
+}
+/* ===== Learn a recipe from a Word document (.docx) =====
+   Reads the file in the browser (no upload), extracts ingredients and preparation (with AI when available,
+   otherwise with a text parser), converts the amounts to ONE portion, fills the recipe editor, and adds the
+   ingredients that are not in the inventory yet (linked to the recipe). Nothing is locked until "Save". */
+let pendingImport=null, impMsg={};
+function docxBox(item){
+  const key=item?"item":"new";
+  const can=item?canWrite("recipes"):(canWrite("menu")&&canWrite("recipes"));
+  if(!can) return "";
+  const lbl=item?tt("📄 Learn ingredients and preparation from a Word document","📄 Aprender ingredientes y preparación de un documento de Word")
+                :tt("📄 New recipe from a Word document","📄 Nueva receta desde un documento de Word");
+  const hint=item?tt("The ingredients (converted to 1 portion) and the steps replace the ones in the editor; missing ingredients are added to the inventory and linked. Check them and press Save.","Los ingredientes (convertidos a 1 porción) y los pasos reemplazan los del editor; los ingredientes que faltan se agregan al inventario y se vinculan. Revísalos y pulsa Guardar.")
+                 :tt("Creates a new menu item with the dish in the document, fills its recipe and adds its ingredients to the inventory.","Crea un ítem nuevo en el menú con el plato del documento, llena su receta y agrega sus ingredientes al inventario.");
+  return `<div class="docximp${item?"":" top"}"><label class="btn sm${item?" ghost":""}" for="docx-${key}">${lbl}</label>
+    <input id="docx-${key}" data-docx="${key}" type="file" accept=".docx,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden>
+    <p class="hint">${hint}</p><p class="hint" id="docxMsg-${key}" aria-live="polite">${impMsg[key]||""}</p></div>`;
+}
+function wireDocx(){
+  main.querySelectorAll("[data-docx]").forEach(inp=>inp.onchange=async()=>{
+    const f=inp.files[0]; inp.value=""; if(!f) return;
+    const key=inp.dataset.docx, say=t=>{impMsg[key]=t; const el=document.getElementById("docx-"+key)?.parentElement.querySelector(`#docxMsg-${key}`); if(el) el.textContent=t;};
+    if(!DOC_OK.test(f.name)){ say(DOC_BAD()); return; }
+    if(!DB) return noDb();
+    say(tt("Reading “"+f.name+"”…","Leyendo “"+f.name+"”…"));
+    try{ await importDocx(f,key==="item"&&curRecipe?curRecipe.item:null,say); }
+    catch(e){ console.warn(e); say(e&&e.msg?e.msg:tt("Could not read this document.","No se pudo leer este documento.")); }
+  });
+}
+// --- .docx → lines of text (a .docx is a zip; word/document.xml holds the text) ---
+async function docxLines(file){
+  const buf=new Uint8Array(await file.arrayBuffer()), dv=new DataView(buf.buffer);
+  const bad={msg:tt("This file is not a valid Word .docx document.","Este archivo no es un documento de Word .docx válido.")};
+  let e=buf.length-22; while(e>=0&&dv.getUint32(e,true)!==0x06054b50) e--; if(e<0) throw bad;
+  const n=dv.getUint16(e+10,true); let p=dv.getUint32(e+16,true);
+  for(let i=0;i<n;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true), nl=dv.getUint16(p+28,true), xl=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true), off=dv.getUint32(p+42,true);
+    const name=new TextDecoder().decode(buf.subarray(p+46,p+46+nl));
+    if(name==="word/document.xml"){
+      const start=off+30+dv.getUint16(off+26,true)+dv.getUint16(off+28,true), data=buf.subarray(start,start+csize);
+      let xml;
+      if(method===0) xml=new TextDecoder().decode(data);
+      else if(method===8){ if(typeof DecompressionStream==="undefined") throw {msg:tt("This browser can't open Word files. Use a recent Chrome, Edge, Safari or Firefox.","Este navegador no puede abrir archivos de Word. Usa Chrome, Edge, Safari o Firefox recientes.")};
+        xml=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text(); }
+      else throw bad;
+      return xmlLines(xml);
+    }
+    p+=46+nl+xl+cl;
+  }
+  throw bad;
+}
+function xmlLines(xml){
+  const doc=new DOMParser().parseFromString(xml,"application/xml"), out=[];
+  const txt=el=>{ let t=""; el.querySelectorAll("*").forEach(x=>{ const ln=x.localName; if(ln==="t") t+=x.textContent; else if(ln==="tab") t+="\t"; else if(ln==="br"||ln==="cr") t+=" "; }); return t; };
+  const walk=el=>{ for(const c of el.children){ const ln=c.localName;
+    if(ln==="p"){ const list=[...c.getElementsByTagNameNS("*","numPr")].length>0; const t=txt(c).trim(); if(t) out.push((list?"- ":"")+t); }
+    else if(ln==="tbl"){ for(const tr of c.children){ if(tr.localName!=="tr") continue; const cells=[...tr.children].filter(x=>x.localName==="tc").map(tc=>[...tc.getElementsByTagNameNS("*","p")].map(txt).join(" ").trim()).filter(Boolean); if(cells.length) out.push(cells.join(" \t ")); } }
+    else walk(c); } };
+  walk(doc.documentElement);
+  return out;
+}
+// --- text parser (used when AI is not available) ---
+const IMP_UNITS=[[/^(kg|kgs|kilo|kilos|kilograms?|kilogramos?)$/i,"kg",1],[/^(g|gr|grs|grams?|gramos?)$/i,"g",1],[/^(mg)$/i,"g",0.001],
+  [/^(ml|mls|milliliters?|millilitres?|mililitros?)$/i,"mL",1],[/^(l|lt|lts|liters?|litres?|litros?)$/i,"L",1],
+  [/^(tbsp|tbs|tablespoons?|cdas?|cucharadas?)$/i,"tbsp",1],[/^(tsp|teaspoons?|cdtas?|cditas?|cucharaditas?)$/i,"tsp",1],
+  [/^(cups?|tazas?)$/i,"mL",236.6],[/^(oz|ounces?|onzas?)$/i,"g",28.35],[/^(lb|lbs|pounds?|libras?)$/i,"g",453.6],
+  [/^(pcs?|pieces?|piezas?|units?|unidades?|und|u|handfuls?|puñados?|pinch(es)?|pizcas?|cloves?|dientes?|slices?|rodajas?|sprigs?|ramas?|ramitas?|bunch(es)?|atados?|cans?|latas?)$/i,"pc",1]];
+const FRAC={"½":.5,"⅓":1/3,"⅔":2/3,"¼":.25,"¾":.75,"⅛":.125};
+function impNum(s){ s=s.trim().replace(",","."); let m;
+  if((m=s.match(/^(\d+)\s*([½⅓⅔¼¾⅛])$/))) return +m[1]+FRAC[m[2]];
+  if(FRAC[s]!=null) return FRAC[s];
+  if((m=s.match(/^(\d+)\s+(\d+)\/(\d+)$/))) return +m[1]+ +m[2]/ +m[3];
+  if((m=s.match(/^(\d+)\/(\d+)$/))) return +m[1]/ +m[2];
+  if((m=s.match(/^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)$/))) return (+m[1]+ +m[2])/2;
+  return parseFloat(s);
+}
+const QTY_RE=/^((?:\d+\s+\d+\/\d+)|(?:\d+\/\d+)|(?:\d+\s*[½⅓⅔¼¾⅛])|[½⅓⅔¼¾⅛]|(?:\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)?))\s*([A-Za-zñÑáéíóú.]+)?\.?\s*(.*)$/;
+const TASTE_RE=/^(to taste|al gusto|a gusto|c\/n|cantidad necesaria|as needed)$/i;
+function impIngLine(line){
+  let t=line.replace(/^[-•*·▪◦]\s*/,"").replace(/\s*\t\s*/g," ").trim(); if(!t) return null;
+  let taste=false; const tm=t.match(/^(to taste|al gusto|a gusto)\s+(.*)$/i)||t.match(/^(.*?)[,\s]+(to taste|al gusto|a gusto)$/i);
+  if(tm){ taste=true; t=/^(to taste|al gusto|a gusto)$/i.test(tm[1])?tm[2]:tm[1]; }
+  const m=taste?null:t.match(QTY_RE);
+  if(!m) return {n:t.replace(/^(de|of)\s+/i,""),q:0,u:"pc",taste};
+  let q=impNum(m[1]), u="pc", f=1, rest=m[3]||"";
+  const w=(m[2]||"").replace(/\.$/,"");
+  const um=w?IMP_UNITS.find(x=>x[0].test(w)):null;
+  if(um){ u=um[1]; f=um[2]; } else if(w) rest=t.slice(t.indexOf(m[1])+m[1].length).trim();
+  const note=um&&u==="pc"&&!/^(pcs?|pieces?|piezas?|units?|unidades?|und|u)$/i.test(w)?w:"";
+  if(um&&um[2]!==1&&/^(cups?|tazas?)$/i.test(w)) rest=rest+" ("+m[1]+" "+w+")";
+  return {n:rest.replace(/^(de|of)\s+/i,"").trim()||w, q:(isFinite(q)?q:0)*f, u, taste:false, note};
+}
+function parseRecipeText(lines){
+  const L=lines.map(x=>x.replace(/[  ]+/g," ").trim()).filter(Boolean);
+  const strip=x=>x.replace(/^[#*\s]+|[*:\s]+$/g,"").replace(/[🍽️🇪🇸🇺🇸]/gu,"").trim();
+  const ingH=/^(ingredients?|ingredientes)\b/i, stepH=/^(instructions?|method|directions|preparation|steps|procedure|preparaci[oó]n|pasos|procedimiento|modo de preparaci[oó]n|elaboraci[oó]n)\b/i;
+  const stopH=/^(sources?|fuentes?|notes?|notas?|tips?|consejos?|nutrition|nutrici[oó]n|english version|versi[oó]n en)\b/i;
+  const heads=[]; L.forEach((x,i)=>{ const h=strip(x); if(h.length<45&&ingH.test(h)) heads.push({i,type:"ing",es:/ingredientes/i.test(h)}); else if(h.length<45&&stepH.test(h)) heads.push({i,type:"step",es:/preparaci|pasos|procedimiento|elaboraci/i.test(h)}); else if(h.length<45&&stopH.test(h)) heads.push({i,type:"stop"}); });
+  const es=state.lang==="es";
+  const pick=type=>{ const all=heads.filter(h=>h.type===type); return all.find(h=>h.es===es)||all[0]; };
+  const body=h=>{ if(!h) return []; const nx=heads.find(x=>x.i>h.i); return L.slice(h.i+1,nx?nx.i:L.length); };
+  const ingL=body(pick("ing")), stepL=body(pick("step"));
+  // join "500 g" + "Beef sirloin" and "To taste" + "Salt" lines
+  const qtyOnly=x=>{const m=x.match(QTY_RE); return (m&&!m[3]&&(!m[2]||IMP_UNITS.some(u=>u[0].test(m[2].replace(/\.$/,"")))))||TASTE_RE.test(x);};
+  const ings=[]; for(let i=0;i<ingL.length;i++){ let x=ingL[i]; if(qtyOnly(x)&&ingL[i+1]){ x=TASTE_RE.test(x)?ingL[i+1]+" to taste":x+" "+ingL[i+1]; i++; } const g=impIngLine(x); if(g&&g.n) ings.push(g); }
+  const steps=[]; for(let i=0;i<stepL.length;i++){ let x=stepL[i]; if(/^\d+[.)]?$/.test(x)&&stepL[i+1]){ x=stepL[i+1]; i++; } x=x.replace(/^(\d+[.)]|[-•*·]|paso \d+[:.]?|step \d+[:.]?)\s*/i,"").trim(); if(x) steps.push(x); }
+  const all=L.join("\n"); let serv=0, m;
+  if((m=all.match(/\b(?:serves|servings|yield|makes|porciones|raciones|rinde|para)\s*:?\s*(\d+)/i))||(m=all.match(/\b(\d+)\s*(?:servings|portions|porciones|raciones|personas|people)\b/i))) serv=+m[1];
+  let name=strip(L[0]||"").split(/\s[—–-]\s|\s\(/)[0].replace(/\b(recipe|receta)\b/ig,"").trim();
+  const drink=/\b(jugo|juice|chicha|drink|bebida|refresco|batido|shake|smoothie|limonada|lemonade|emoliente|infusi[oó]n|t[eé]|tea|caf[eé]|coffee|c[oó]ctel|cocktail|pisco sour)\b/i.test(name);
+  return {name,category:drink?"bebida":"comida",kind:drink?"jugo":"fondo",servings:serv||1,servingsFound:!!serv,portionLabel:"",ingredients:ings.map(g=>({name:g.n,qty:g.q,unit:g.u,note:g.taste?tt("to taste","al gusto"):g.note||""})),steps,notes:""};
+}
+// --- AI extraction (Claude in the app, or the API key on the website) ---
+async function aiRecipe(lines,fname){
+  const text=lines.join("\n").slice(0,16000);
+  const prompt=`Extract the recipe from this Word document for a restaurant app. Use ONLY what the document says; never invent ingredients, amounts or steps.
+If the document has the recipe in several languages, use the ${state.lang==="es"?"Spanish":"English"} version for names and steps (use the other version only to fill amounts that are missing).
+Rules: "servings" = number of portions the amounts make (1 if the document does not say). Amounts are for the WHOLE recipe as written. "unit" must be one of g, kg, mL, L, pc, tbsp, tsp — convert cups to mL (1 cup = 236.6 mL), oz to g (28.35), lb to g (453.6); pieces, handfuls, cloves, cans → pc and put the original words in "note". "To taste" or no amount → qty 0 and note "${tt("to taste","al gusto")}". Steps: one short sentence or paragraph each, in order, without numbering. "category": "comida" for food/dishes/desserts, "bebida" for drinks. "kind": for comida one of entrada, fondo, postre, otro; for bebida one of jugo, gaseosa, alcohol, caliente, otro. "notes": allergens or serving notes stated in the document, else "".
+Reply with only JSON: {"name":"dish name","category":"comida","kind":"fondo","servings":4,"portionLabel":"1 plate","ingredients":[{"name":"...","qty":500,"unit":"g","note":""}],"steps":["..."],"notes":""}
+FILE: ${fname}
+DOCUMENT:
+${text}`;
+  const j=await SAMPLE.json(prompt,{cache:false});
+  if(!j||!Array.isArray(j.ingredients)) throw {code:"invalid_json"};
+  return {name:String(j.name||""),category:j.category==="bebida"?"bebida":"comida",kind:String(j.kind||""),servings:num(j.servings)||1,servingsFound:true,portionLabel:String(j.portionLabel||""),
+    ingredients:j.ingredients.filter(g=>g&&g.name).map(g=>({name:String(g.name).trim(),qty:num(g.qty),unit:RUNITS.includes(g.unit)?g.unit:(g.unit==="ml"?"mL":g.unit==="l"?"L":"pc"),note:String(g.note||"")})),
+    steps:(Array.isArray(j.steps)?j.steps:[]).map(x=>String(x).trim()).filter(Boolean),notes:String(j.notes||"")};
+}
+const normName=x=>String(x||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\(.*?\)/g,"").replace(/[^a-z0-9ñ ]+/g," ").replace(/\s+/g," ").trim();
+const invUnitFor=u=>u==="mL"||u==="tbsp"||u==="tsp"?"ml":u==="L"?"L":u==="kg"?"kg":u==="pc"?"pc":"g";
+const DOC_OK=/\.(docx|txt|md)$/i;
+const DOC_BAD=()=>tt("Choose a Word document (.docx) or a text file (.txt). Old .doc files: open them in Word and “Save as” .docx. PDF is not supported yet.","Elige un documento de Word (.docx) o un archivo de texto (.txt). Los .doc antiguos: ábrelos en Word y “Guardar como” .docx. PDF aún no es compatible.");
+// read a recipe document → {r (whole-recipe amounts), how:"ai"|"text"}
+async function learnFile(file,say){
+  const lines=/\.docx$/i.test(file.name)?await docxLines(file):(await file.text()).split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(!lines.length) throw {msg:tt("The document has no text.","El documento no tiene texto.")};
+  let r=null, how="";
+  if(SAMPLE){ say&&say(tt("Reading the recipe with AI…","Leyendo la receta con IA…")); try{ r=await aiRecipe(lines,file.name); how="ai"; }catch(e){ console.warn("ai",e); r=null; } }
+  if(!r||!r.ingredients.length){ r=parseRecipeText(lines); how="text"; }
+  if(!r.ingredients.length&&!r.steps.length) throw {msg:tt("I couldn't find an “Ingredients” list or preparation steps in this document. Put them under headings like “Ingredients” / “Ingredientes” and “Preparation” / “Preparación”.","No encontré una lista de “Ingredientes” ni pasos de preparación en este documento. Ponlos bajo títulos como “Ingredientes” / “Ingredients” y “Preparación” / “Preparation”.")};
+  return {r,how};
+}
+// ingredients per ONE portion, linked to inventory (existing item with the same name, or a new one with stock 0)
+async function linkIngredients(r){
+  const s=Math.max(1,num(r.servings)||1);
+  let created=0, linked=0, skipped=0; const invCan=canWrite("inventory"), made={}, ingredients=[];
+  for(const g of r.ingredients){
+    const key=normName(g.name); let inv="";
+    const water=/^(water|agua|ice|hielo|hot water|agua caliente|cold water|agua fria|agua potable)\b/i.test(key);
+    const ex=D.inventory.find(i=>normName(i.name)===key)||made[key];
+    if(ex){ inv=ex.id; linked++; }
+    else if(!water&&invCan&&key){ const id="i"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      const doc={name:g.name.split(" (")[0].slice(0,60),unit:invUnitFor(g.unit),qty:0,min:0,par:0,cost:0,supplier:"",updated:new Date().toISOString()};
+      await dbSet("inventory/"+id,doc); made[key]={id,...doc}; inv=id; created++; }
+    else if(!water) skipped++;
+    ingredients.push({n:g.note?`${g.name} (${g.note})`:g.name,q:r3(num(g.qty)/s),u:normU(g.unit),inv});
+  }
+  return {ingredients,created,linked,skipped,s};
+}
+async function importDocx(file,item,say){
+  const {r,how}=await learnFile(file,say);
+  // new menu item when importing from the top button
+  let target=item;
+  if(!target){
+    const name=(r.name||file.name.replace(DOC_OK,"").replace(/[_-]+/g," ")).trim().slice(0,60);
+    const ex=D.menu.find(m=>dishKey(m.name)===dishKey(name));
+    if(ex) target=ex;
+    else{ const cat=r.category==="bebida"?"bebida":"comida", kinds=(MENU_KINDS[cat]||[]).map(k=>k[0]);
+      const id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      target={id,name:name.charAt(0).toUpperCase()+name.slice(1),cat,kind:kinds.includes(r.kind)?r.kind:(cat==="comida"?"fondo":"jugo"),price:0,prodId:matchProduct(name),notes:"",active:true};
+      const {id:_,...doc}=target; await dbSet("menu/"+id,doc); }
+  }
+  const {ingredients,created,linked,skipped,s}=await linkIngredients(r);
+  const draft={...standardOf(target),saved:!!recipeOf(target.id),portionLabel:r.portionLabel||standardOf(target).portionLabel||"",ingredients,
+    steps:r.steps.join("\n"),notes:r.notes||standardOf(target).notes||"",fromRef:false};
+  const zero=ingredients.filter(g=>!num(g.q)).length;
+  const msg=tt(`Learned from “${file.name}”${how==="ai"?" (with AI)":""}: ${ingredients.length} ingredient(s) and ${r.steps.length} step(s), converted to 1 portion${r.servingsFound?` (the document makes ${s})`:" — the document doesn't say how many portions it makes, so the amounts were kept as written"}. Inventory: ${created} new item(s) added, ${linked} linked to existing items${skipped?`, ${skipped} not added (your role can't change the inventory)`:""}.${zero?` ${zero} ingredient(s) have no amount — fill them in or they will be left out.`:""} Check everything and press “Save as the standard measure”.`,
+    `Aprendido de “${file.name}”${how==="ai"?" (con IA)":""}: ${ingredients.length} ingrediente(s) y ${r.steps.length} paso(s), convertidos a 1 porción${r.servingsFound?` (el documento rinde ${s})`:" — el documento no dice cuántas porciones rinde, así que las cantidades quedaron como están escritas"}. Inventario: ${created} artículo(s) nuevo(s) agregado(s), ${linked} vinculado(s) a artículos existentes${skipped?`, ${skipped} sin agregar (tu rol no puede cambiar el inventario)`:""}.${zero?` ${zero} ingrediente(s) no tienen cantidad — complétalos o quedarán fuera.`:""} Revisa todo y pulsa “Guardar como medida única”.`);
+  impMsg={item:msg};
+  pendingImport={itemId:target.id,draft}; state.recipe=target.id; recN=1; save(); render();
+  toast(tt("Recipe learned — review it and press Save.","Receta aprendida — revísala y pulsa Guardar."));
 }
 function standardRecipe(item,prod){
   const std=recEdit||standardOf(item), locked=!!std.locked&&!recEdit, can=canWrite("recipes");
@@ -721,6 +912,7 @@ function standardRecipe(item,prod){
         <td><select data-r="inv" class="invsel" aria-label="${tt("Inventory item","Artículo de inventario")}">${invOpts(g.inv)}</select>${g.inv&&invItem(g.inv)&&convQty(1,g.u,invItem(g.inv).unit)==null?`<small class="alltxt">${tt("units don't match","unidades no compatibles")}</small>`:""}</td>
         <td><button type="button" class="btn sm ghost" data-rrm="${i}" aria-label="${tt("Remove","Quitar")}">✕</button></td></tr>`).join("")||`<tr><td colspan="5" class="dimtxt">${tt("No ingredients yet.","Aún no hay ingredientes.")}</td></tr>`}</tbody></table></div>
       <div class="acts"><button type="button" class="btn sm ghost" id="rcAdd">+ ${tt("Add ingredient","Agregar ingrediente")}</button></div>
+      ${docxBox(item)}
       <div class="f full" style="margin-top:12px"><label for="rcSteps">${tt("Preparation (one step per line)","Preparación (un paso por línea)")}</label><textarea id="rcSteps" rows="6">${esc(std.steps||"")}</textarea></div>
       <div class="f full"><label for="rcNotes">${tt("Notes, allergens, plating","Notas, alérgenos, emplatado")}</label><input id="rcNotes" value="${esc(std.notes||"")}"></div>
       <div class="acts">${locked?`<button type="button" class="btn ghost" id="rcEdit">✎ ${tt("Change the standard measure","Modificar la medida única")}</button>`
@@ -1949,7 +2141,36 @@ async function seedMenuDrinks(){
   }
   return added;
 }
-let menuCat="comida", menuSeeded=false;
+let menuCat="comida", menuSeeded=false, mnDocMsg="";
+// Menu → new dish or drink straight from a recipe document: menu item + saved recipe (1 portion) + stock items
+async function menuFromDoc(file){
+  const box=document.getElementById("mnDocMsg"), say=t=>{ mnDocMsg=esc(t); if(box) box.innerHTML=mnDocMsg; };
+  if(!DOC_OK.test(file.name)){ say(DOC_BAD()); return; }
+  if(!DB) return noDb();
+  if(!canWrite("menu")||!canWrite("recipes")){ say(tt("Only an administrator can add dishes from a document.","Solo un administrador puede agregar platos desde un documento.")); return; }
+  const cat=val("mnCat")||menuCat, kind=val("mnKind"), price=toCAD(val("mnPrice")), notes=val("mnNotes");
+  say(tt("Reading “"+file.name+"”…","Leyendo “"+file.name+"”…"));
+  try{
+    const {r,how}=await learnFile(file,say);
+    let name=(val("mnName")||r.name||file.name.replace(DOC_OK,"").replace(/[_-]+/g," ")).trim().slice(0,60); name=name.charAt(0).toUpperCase()+name.slice(1);
+    if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ say(tt(`“${name}” is already on the menu. To replace its recipe, open Recipes → ${name} → “Learn ingredients and preparation from a Word document”. Or type a different name above and try again.`,`“${name}” ya está en el menú. Para reemplazar su receta, abre Recetas → ${name} → “Aprender ingredientes y preparación de un documento de Word”. O escribe otro nombre arriba e inténtalo de nuevo.`)); return; }
+    const id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    await dbSet("menu/"+id,{name,cat,kind,price,prodId:matchProduct(name),notes:notes||r.notes||"",active:true});
+    const {ingredients,created,linked,skipped,s}=await linkIngredients(r);
+    const keep=ingredients.filter(g=>g.n&&num(g.q)>0), miss=ingredients.filter(g=>!(num(g.q)>0)).map(g=>g.n);
+    const stamp=new Date().toISOString();
+    if(keep.length) await dbSet("recipes/r"+id,{itemId:id,item:name,portionLabel:r.portionLabel||"",ingredients:keep,
+      ingText:keep.map(x=>`${x.n} ${nice(x.q)} ${x.u}${x.inv&&invItem(x.inv)?" ["+invItem(x.inv).name+"]":""}`).join("; "),
+      steps:r.steps.join("\n"),notes:r.notes||"",locked:true,lockedAt:stamp,lockedBy:SESSION?SESSION.name:"",updated:stamp,source:file.name});
+    else pendingImport={itemId:id,draft:{...defaultStandard({id,prodId:""}),saved:false,portionLabel:r.portionLabel||"",ingredients,steps:r.steps.join("\n"),notes:r.notes||""}};
+    const el=document.getElementById("mnForm"); if(el){ el.reset(); document.getElementById("mnCat").value=cat; const ks=document.getElementById("mnKind"); ks.innerHTML=(MENU_KINDS[cat]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join(""); ks.value=kind; document.getElementById("mnPrice").value=0; }
+    say(tt(`✅ “${name}” added to ${catName(cat)} · ${kindName(cat,kind)}${how==="ai"?" (read with AI)":""}. Recipe saved for 1 portion: ${keep.length} ingredient(s), ${r.steps.length} step(s)${r.servingsFound?` (the document makes ${s} portions)`:" (the document doesn't say how many portions — amounts kept as written)"}. Stock: ${created} new item(s), ${linked} already there${skipped?`, ${skipped} not added (your role)`:""}.${miss.length?` Without an amount, left out of the recipe: ${miss.join(", ")}.`:""}${num(price)?"":" Set its price."}`,
+      `✅ “${name}” agregado a ${catName(cat)} · ${kindName(cat,kind)}${how==="ai"?" (leído con IA)":""}. Receta guardada para 1 porción: ${keep.length} ingrediente(s), ${r.steps.length} paso(s)${r.servingsFound?` (el documento rinde ${s} porciones)`:" (el documento no dice cuántas porciones rinde — cantidades como están escritas)"}. Stock: ${created} artículo(s) nuevo(s), ${linked} ya existían${skipped?`, ${skipped} sin agregar (tu rol)`:""}.${miss.length?` Sin cantidad, quedaron fuera de la receta: ${miss.join(", ")}.`:""}${num(price)?"":" Ponle precio."}`));
+    if(box) box.insertAdjacentHTML("beforeend",` <button type="button" class="linkbtn" data-openrec="${esc(id)}">${tt("Open its recipe","Abrir su receta")} →</button>`);
+    mnDocMsg=box?box.innerHTML:mnDocMsg;
+    toast(tt(`“${name}” added with its recipe and ingredients.`,`“${name}” agregado con su receta e ingredientes.`));
+  }catch(e){ console.warn(e); say(e&&e.msg?e.msg:tt("Could not read this document.","No se pudo leer este documento.")); }
+}
 function menuView(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Menu","Menú"),tt("Menu","Menú"),tt("The restaurant's menu in two groups: Food and Drinks. Prices here are the ones the billing module uses, and the names are the ones the order form suggests.","La carta del restaurante en dos grupos: Comidas y Bebidas. Los precios de aquí son los que usa el módulo de facturación, y los nombres son los que sugiere el formulario de órdenes."))}
    <div class="kpis" id="mnKpis"></div>
@@ -1957,13 +2178,18 @@ function menuView(){
    <div class="stack">
     <div class="panel"><h3>${tt("Add to the menu","Agregar al menú")}</h3>
      <form id="mnForm" class="fgrid">
-      ${field("mnName",tt("Name","Nombre"),`<input id="mnName" required maxlength="60">`)}
+      ${field("mnName",tt("Name","Nombre"),`<input id="mnName" maxlength="60" placeholder="${tt("or taken from the file","o se toma del archivo")}">`)}
       ${field("mnCat",tt("Group","Grupo"),`<select id="mnCat">${MENU_CATS.map(c=>`<option value="${c[0]}"${menuCat===c[0]?" selected":""}>${tt(c[1],c[2])}</option>`).join("")}</select>`)}
       ${field("mnKind",tt("Type","Tipo"),`<select id="mnKind">${(MENU_KINDS[menuCat]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join("")}</select>`)}
       ${field("mnPrice",tt("Price","Precio")+" ("+curSym()+")",`<input id="mnPrice" type="number" min="0" step="0.01" value="0">`)}
       ${field("mnNotes",tt("Note (allergens, size…)","Nota (alérgenos, tamaño…)"),`<input id="mnNotes" maxlength="120">`)}
-      <button class="btn" type="submit">${tt("Add","Agregar")}</button>
-     </form><p class="hint" id="mnMsg" aria-live="polite"></p>
+      <div class="f mnfile"><label for="mnDoc">📄 ${tt("Recipe / ingredients file (optional)","Archivo de receta / ingredientes (opcional)")}</label>
+       <input id="mnDoc" type="file" accept=".docx,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"></div>
+      <button class="btn" type="submit" id="mnSubmit">${tt("Add","Agregar")}</button>
+     </form>
+     <div id="mnDocBox"><p class="hint">${tt("With a file (Word .docx or .txt), “Add” also reads its ingredients and preparation: it saves the recipe for 1 portion and adds the ingredients to the stock (quantity 0, ready for “+ Stock”). Without a name, the dish name in the file is used.","Con un archivo (Word .docx o .txt), “Agregar” también lee sus ingredientes y preparación: guarda la receta para 1 porción y agrega los ingredientes al stock (cantidad 0, listos para “+ Stock”). Sin nombre, se usa el nombre del plato del archivo.")}</p>
+      <div class="hint" id="mnDocMsg" aria-live="polite">${mnDocMsg}</div></div>
+     <p class="hint" id="mnMsg" aria-live="polite"></p>
      <div class="acts"><button type="button" class="btn sm ghost" id="mnSeed">${tt(`Load this app's ${P.length} drinks and dishes into the menu`,`Cargar las ${P.length} bebidas y platos de esta app al menú`)}</button></div>
      <p class="hint">${tt("Only an administrator can change the menu. An item that is off stays in the list but is not suggested in orders or bills.","Solo un administrador puede cambiar el menú. Un ítem apagado queda en la lista pero no se sugiere en órdenes ni cuentas.")}</p></div>
     <div class="panel"><h3 id="mnTitle"></h3><div id="mnList"></div></div>
@@ -1974,15 +2200,21 @@ function wireMenu(){
   const kindSel=()=>{const c=document.getElementById("mnCat").value;
     document.getElementById("mnKind").innerHTML=(MENU_KINDS[c]||[]).map(k=>`<option value="${k[0]}">${tt(k[1],k[2])}</option>`).join("");};
   document.getElementById("mnCat").onchange=kindSel;
+  let docLbl=()=>{};
   document.getElementById("mnForm").onsubmit=async e=>{
     e.preventDefault(); const name=val("mnName"), msg=document.getElementById("mnMsg");
-    if(!name) return;
+    const fi=document.getElementById("mnDoc"), file=fi&&fi.files[0];
+    if(file){ msg.textContent=""; const btn=document.getElementById("mnSubmit"); btn.disabled=true; try{ await menuFromDoc(file); }finally{ btn.disabled=false; if(fi) fi.value=""; docLbl(); } return; }
+    if(!name){ msg.textContent=tt("Type a name, or choose a recipe file.","Escribe un nombre, o elige un archivo de receta."); return; }
     if(D.menu.some(m=>dishKey(m.name)===dishKey(name))){ msg.textContent=tt(`“${name}” is already on the menu.`,`“${name}” ya está en el menú.`); return; }
     const cat=val("mnCat"), kind=val("mnKind");
     const prod=matchProduct(name);
     await dbAdd("menu",{name,cat,kind,price:toCAD(val("mnPrice")),prodId:prod,notes:val("mnNotes"),active:true});
     msg.textContent=""; e.target.reset(); document.getElementById("mnCat").value=cat; kindSel(); document.getElementById("mnPrice").value=0; document.getElementById("mnName").focus();
   };
+  const md=document.getElementById("mnDoc"); docLbl=()=>{ const b=document.getElementById("mnSubmit"); if(b) b.textContent=md&&md.files[0]?tt("Add with recipe and ingredients","Agregar con receta e ingredientes"):tt("Add","Agregar"); };
+  if(md) md.onchange=()=>{ const f=md.files[0]; document.getElementById("mnMsg").textContent=""; if(f&&!DOC_OK.test(f.name)){ md.value=""; document.getElementById("mnDocMsg").textContent=DOC_BAD(); } docLbl(); };
+  document.getElementById("mnDocBox").onclick=e=>{ const b=e.target.closest("[data-openrec]"); if(!b) return; state.tab="recipes"; state.recipe=b.dataset.openrec; impMsg={}; mnDocMsg=""; save(); render(); window.scrollTo({top:0}); };
   document.getElementById("mnSeed").onclick=async()=>{
     const n=await seedMenuDrinks();
     document.getElementById("mnMsg").textContent=n?tt(`${n} item(s) added to the menu. Set their prices.`,`${n} producto(s) agregado(s) al menú. Ponles precio.`):tt("They are already on the menu.","Ya están en el menú.");
@@ -1999,7 +2231,7 @@ function wireMenu(){
   list.addEventListener("click",async e=>{ const b=e.target.closest("[data-mndel]"); if(!b) return;
     const it=D.menu.find(x=>x.id===b.dataset.mndel);
     if(it&&confirm(tt(`Delete “${it.name}” from the menu?`,`¿Borrar “${it.name}” del menú?`))) await dbDel("menu",it.id); });
-  if(!canWrite("menu")) main.querySelectorAll("#mnForm input,#mnForm select,#mnForm button,#mnSeed").forEach(el=>{el.disabled=true;el.classList.add("ro");el.title=tt("Only an administrator can change the menu","Solo un administrador puede cambiar el menú");});
+  if(!canWrite("menu")) main.querySelectorAll("#mnForm input,#mnForm select,#mnForm button,#mnSeed,#mnDoc").forEach(el=>{el.disabled=true;el.classList.add("ro");el.title=tt("Only an administrator can change the menu","Solo un administrador puede cambiar el menú");});
 }
 function listMenu(){
   const k=document.getElementById("mnKpis"); if(!k) return;
