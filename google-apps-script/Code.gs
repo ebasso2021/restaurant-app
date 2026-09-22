@@ -17,7 +17,7 @@
  *         cocinero = full Kitchen & inventory; everything else read only
  *         mesero   = only Customers (bookings), Tables layout, orders and billing by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
- * Kardex columns: Artículo · Costo por kg / L / paquete · Por g / mL / und · Valor del stock · Fecha de movimiento ·
+ * Kardex columns: Artículo · Costo promedio ponderado · Por g / mL / und · Valor del stock · Fecha de movimiento · Registro (fecha y hora) ·
  * Tipo (Entrada / Salida) · Cantidad · Costo unitario · Saldo actualizado · Proveedor · Lote · Caducidad (+ technical columns).
  * Kardex: the tab "Kardex" (created automatically) logs every stock movement — purchases from the app (+ Stock)
  * and from the "Compras" tab, sales from paid bills, waste and stock counts — with unit cost, balance and
@@ -41,7 +41,7 @@ const FIELDS = {
   menu: [["name","Nombre"],["cat","Grupo"],["kind","Tipo"],["price","Precio"],["notes","Nota"],["prodId","ID bebida app"],["active","Activo"]],
   bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["stockText","Descuento de stock"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
   recipes: [["item","Plato"],["portionLabel","Porción (medida única)"],["ingText","Ingredientes por 1 porción"],["steps","Preparación"],["notes","Notas"],["locked","Establecida"],["lockedAt","Establecida el"],["lockedBy","Por"],["itemId","ID del menú"],["updated","Actualizada"]],
-  kardex: [["item","Artículo"],["costPkg","Costo por kg / L / paquete"],["perSub","Por g / mL / und"],["stockVal","Valor del stock"],["date","Fecha de movimiento"],["dir","Tipo"],["qty","Cantidad"],["unitCost","Costo unitario"],["balQty","Saldo actualizado"],["supplier","Proveedor"],["lot","Lote"],["expiry","Caducidad"],
+  kardex: [["item","Artículo"],["costPkg","Costo promedio ponderado"],["perSub","Por g / mL / und"],["stockVal","Valor del stock"],["date","Fecha de movimiento"],["created","Registro (fecha y hora)"],["dir","Tipo"],["qty","Cantidad"],["unitCost","Costo unitario"],["balQty","Saldo actualizado"],["supplier","Proveedor"],["lot","Lote"],["expiry","Caducidad"],
            ["unit","Unidad"],["reason","Motivo"],["type","Movimiento"],["total","Total"],["avgCost","Costo promedio"],["ref","Referencia"],["by","Usuario"],["when","Fecha y hora"],["itemId","ID artículo"],["pack","Piezas por paquete"]],
   sales: [], settings: []
 };
@@ -475,7 +475,7 @@ function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by, extr
     dir: kxDir_(type, qty), qty: r3_(qty), unitCost: rc_(it.unit, unitCost), balQty: r3_(balQty),
     supplier: extra.supplier != null ? String(extra.supplier) : (type === "in" ? String(it.supplier || "") : ""), lot: String(extra.lot || ""), expiry: String(extra.expiry || ""),
     unit: it.unit || "", reason: reason, type: type, total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), avgCost: rc_(it.unit, avgCost), balValue: sn.stockVal,
-    ref: ref || "", by: by || "", when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
+    ref: ref || "", by: by || "", created: Utilities.formatDate(now, tz_(), "yyyy-MM-dd HH:mm:ss"), when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
 }
 // Only erases every row of the "Kardex" tab (keeps the headers). It reads nothing else; from then on the Kardex
 // is fed by purchases. Menu Taste of Peru → Reiniciar Kardex, or run it from the editor.
@@ -488,7 +488,7 @@ function reiniciarKardex() {
     try { ss.toast("Kardex limpio", "Taste of Peru"); } catch (e) {}
   } finally { lock.releaseLock(); }
 }
-// Puts the "Kardex" tab in the new column order (Artículo, Costo por kg / L / paquete, Por g / mL / und, Valor del stock,
+// Puts the "Kardex" tab in the new column order (Artículo, Costo promedio ponderado, Por g / mL / und, Valor del stock,
 // Fecha de movimiento, Tipo, Cantidad, Costo unitario, Saldo actualizado, Proveedor, Lote, Caducidad …) keeping every row.
 // Runs from instalarFormulas; it does nothing when the tab already has these columns.
 function formatoKardex() {

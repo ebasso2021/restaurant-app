@@ -289,12 +289,14 @@ table.dt.opex tfoot th{padding-top:10px}
 table.dt.opex select{font:14px var(--body);padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink)}
 tr.staffrow td{background:var(--sunk)}
 table.dt.kx td small{display:block;color:var(--muted);font-size:11.5px}
-table.dt.kx{font-size:13px}
-table.dt.kx th{white-space:normal;vertical-align:bottom;line-height:1.25;padding:6px 4px}
-table.dt.kx td{padding:6px 4px}
-table.dt.kx td.kname{min-width:104px;max-width:150px;font-weight:600}
-table.dt.kx td.ktype small{white-space:normal;max-width:120px}
+table.dt.kx{font-size:12.5px}
+table.dt.kx th{white-space:normal;vertical-align:bottom;line-height:1.25;padding:6px 3px;font-size:11.5px}
+table.dt.kx td{padding:6px 3px}
+table.dt.kx td.kname{min-width:96px;max-width:130px;font-weight:600}
+table.dt.kx td.ktype small{white-space:normal;max-width:96px}
 table.dt.kx td.kqty{font-weight:600}
+table.dt.kx td.klot{word-break:break-all;max-width:64px}
+table.dt.kx td.kts{font-variant-numeric:tabular-nums;color:var(--muted)}
 .kxhint{display:none;margin:0 0 4px}@media (max-width:1060px){.kxhint{display:block}}
 .editpanel{outline:2px solid var(--accent);outline-offset:-2px}
 table.dt.kx tr.editing td{background:var(--sunk)}
@@ -2433,6 +2435,9 @@ const kxReason=k=>KX_REASON[k]?tt(KX_REASON[k][0],KX_REASON[k][1]):k;
 const fmtQ=v=>(Math.round(num(v)*1000)/1000).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{maximumFractionDigits:3});   // Kardex quantities: exact, up to 3 decimals
 // Kardex order key: local date + time, so a movement's date and its order always agree
 const kxStamp=(d=new Date())=>{ const z=(n,l=2)=>String(n).padStart(l,"0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}.${z(d.getMilliseconds(),3)}`; };
+// timestamp shown in the Kardex: when the movement was recorded (older rows: their order key)
+const kxTsFmt=v=>{ v=String(v||""); if(!v) return ""; if(/Z$|[+-]\d\d:\d\d$/.test(v)){ const d=new Date(v); if(!isNaN(d)) v=kxStamp(d); } return v.slice(0,19).replace("T"," "); };
+const kxTs=k=>{ const t=kxTsFmt(k.created||k.when); return t?`${esc(t.slice(0,10))}<small>${esc(t.slice(11))}</small>`:"—"; };
 function kxSnap(k){ const s={unit:k.unit,pack:num(k.pack)||1,qty:num(k.balQty),cost:num(k.avgCost)};
   return {costPkg:cost2(k.unit==="pc"?s.cost*packOf(s):s.cost),perSub:Math.round(perUnit(s)*10000)/10000,stockVal:cost2(stockValue(s))}; }
 const kxDir=k=>k.type==="in"||(k.type==="adj"&&num(k.qty)>0)?"Entrada":k.type==="out"||(k.type==="adj"&&num(k.qty)<0)?"Salida":"Costo";
@@ -2453,7 +2458,7 @@ async function kardexMove(it,m){
   const date=m.date&&/^\d{4}-\d{2}-\d{2}$/.test(m.date)?m.date:today(), snap=kxSnap({unit:it.unit,pack:packOf(it),balQty:q1,avgCost:c1});
   await dbSet("kardex/"+id,{item:it.name,costPkg:snap.costPkg,perSub:snap.perSub,stockVal:snap.stockVal,date,dir:kxDir({type,qty}),qty:r3(qty),unitCost:uc,balQty:q1,
     supplier:String(m.supplier!=null?m.supplier:(type==="in"?it.supplier||"":"")).slice(0,60),lot:String(m.lot||"").slice(0,40),expiry:m.expiry&&/^\d{4}-\d{2}-\d{2}$/.test(m.expiry)?m.expiry:"",
-    when:date+kxStamp().slice(10),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type,reason:m.reason||type,total:cost2(B(qty)*uc),
+    created:kxStamp(),when:date+kxStamp().slice(10),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type,reason:m.reason||type,total:cost2(B(qty)*uc),
     avgCost:c1,balValue:snap.stockVal,ref:m.ref||"",by:SESSION?(SESSION.name||SESSION.user):""});
   return {q1,c1};
 }
@@ -2657,7 +2662,7 @@ function listM2(){
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.min)}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.par)}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
      <td><input data-f="supplier" data-id="${i.id}" class="txt" value="${esc(i.supplier)}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
-     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}" aria-label="${tt("Add stock","Agregar stock")} ${esc(i.name)}">+ ${tt("Stock","Stock")}</button> <button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
+     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
   const po=poLines(), poBox=document.getElementById("poBox");
   poBox.innerHTML=po.length?`<p>${tt("Items at or below their alert level, ordered up to the maximum quantity:","Artículos en o bajo su nivel de alerta, pedidos hasta la cantidad máxima:")}</p><ul class="rows">${po.map(l=>`<li><div><b>${esc(l.name)}</b>: ${+l.order.toFixed(2)} ${esc(l.unit)}<small>${esc(l.supplier||tt("No supplier","Sin proveedor"))}${l.cost?" · ≈ "+money(l.est):""}</small></div></li>`).join("")}</ul><p><b>${tt("Estimated total","Total estimado")}: ${money(po.reduce((s,l)=>s+l.est,0))}</b></p><button class="btn" id="poCopy">${tt("Copy order","Copiar orden")}</button>`
@@ -2690,15 +2695,15 @@ function listKardex(){
   const rows=kardexRows(), ins=rows.filter(k=>k.type==="in"||(k.type==="adj"&&num(k.qty)>0)), outs=rows.filter(k=>k.type==="out"||(k.type==="adj"&&num(k.qty)<0));
   const it=kxItem?invItem(kxItem):null;
   setHTML(el,rows.length?`${it?`<p class="dimtxt">${esc(it.name)} · ${tt("stock","stock")} <b>${num(it.qty)} ${esc(unitLbl(it.unit))}</b> · ${tt("average cost","costo promedio")} <b>${it.unit==="pc"?money4(it.cost):money2(it.cost)}</b> / ${esc(costPerLbl(it.unit,it))} (${fmtSub(subCost(it))} / ${subUnit(it.unit)}) · ${tt("value","valor")} <b>${money2(stockValue(it))}</b></p>`:""}
-   <table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("Cost per kg / L / package","Costo por kg / L / paquete")} (${curSym()})</th><th>${tt("Per g / mL / piece","Por g / mL / und")}</th><th>${tt("Stock value","Valor del stock")}</th><th>${tt("Movement date","Fecha de movimiento")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit cost","Costo unitario")}</th><th>${tt("Updated balance","Saldo actualizado")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Lot","Lote")}</th><th>${tt("Expiry","Caducidad")}</th></tr></thead><tbody>
+   <table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th title="${tt("Per kg / L / package","Por kg / L / paquete")}">${tt("Weighted average cost","Costo promedio ponderado")} (${curSym()})</th><th>${tt("Per g / mL / piece","Por g / mL / und")}</th><th>${tt("Stock value","Valor del stock")}</th><th>${tt("Movement date","Fecha de movimiento")}</th><th title="${tt("Date and time the movement was recorded","Fecha y hora en que se registró el movimiento")}">${tt("Timestamp","Registro (fecha y hora)")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit cost","Costo unitario")}</th><th>${tt("Updated balance","Saldo actualizado")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Lot","Lote")}</th><th>${tt("Expiry","Caducidad")}</th></tr></thead><tbody>
    ${rows.slice(0,300).map(k=>{const q=num(k.qty), d=k.dir||kxDir(k), sn=kxSnap(k), u=esc(unitLbl(k.unit)), pc=k.unit==="pc", ex=String(k.expiry||""), exC=ex&&ex<today()?"kout":ex&&ex<=addDays(today(),7)?"kwarn":"";
      return `<tr><td class="kname">${esc(k.item)}</td><td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(k.unit))}</small></td>
        <td class="nw">${pc?money4(sn.perSub):fmtSub(sn.perSub)}<small>/ ${u}</small></td><td class="nw"><b>${money2(sn.stockVal)}</b></td>
-       <td class="nw">${esc(String(k.date||String(k.when||"").slice(0,10)))}</td>
+       <td class="nw">${esc(String(k.date||String(k.when||"").slice(0,10)))}</td><td class="nw kts">${kxTs(k)}${k.edited?`<small title="${esc(kxTsFmt(k.edited))}">✏ ${tt("edited","editado")}</small>`:""}</td>
        <td class="ktype ${d==="Entrada"?"kin":d==="Salida"?"kout":""}" title="${esc([kxReason(k.reason),k.ref,k.by].filter(Boolean).join(" · "))}">${kxDirLbl(d)}<small>${esc(kxReason(k.reason))}${k.ref&&k.reason!=="initial"?" · "+esc(String(k.ref).slice(0,40)):""}</small></td>
        <td class="nw kqty ${d==="Entrada"?"kin":d==="Salida"?"kout":""}">${q?(d==="Salida"?"−":"+")+fmtQ(Math.abs(q))+" "+u:"—"}</td>
        <td class="nw">${pc?money4(k.unitCost):money2(k.unitCost)}<small>/ ${pc?tt("pc","und"):esc(costPerLbl(k.unit))}</small></td>
-       <td class="nw"><b>${fmtQ(num(k.balQty))}</b> ${u}</td><td>${esc(k.supplier||"")||"—"}</td><td class="nw">${esc(k.lot||"")||"—"}</td><td class="nw ${exC}">${esc(ex)||"—"}</td></tr>`;}).join("")}
+       <td class="nw"><b>${fmtQ(num(k.balQty))}</b> ${u}</td><td>${esc(k.supplier||"")||"—"}</td><td class="klot">${esc(k.lot||"")||"—"}</td><td class="nw ${exC}">${esc(ex)||"—"}</td></tr>`;}).join("")}
    </tbody></table>${rows.length>300?`<p class="hint">${tt("Showing the latest 300 — export CSV for all.","Se muestran los últimos 300 — exporta el CSV para ver todos.")}</p>`:""}
    <p class="hint">${tt("In this period","En este periodo")}: ${ins.length} ${tt("entries","entradas")} (${money2(ins.reduce((s,k)=>s+Math.abs(num(k.total)),0))}) · ${outs.length} ${tt("exits","salidas")} (${money2(outs.reduce((s,k)=>s+Math.abs(num(k.total)),0))})</p>`
    :`<p class="empty">${tt("No movements yet. They appear when you add stock, register a movement here, charge a bill, log waste or correct a stock count.","Aún no hay movimientos. Aparecen al agregar stock, registrar un movimiento aquí, cobrar una cuenta, registrar merma o corregir un conteo de stock.")}</p>`);
@@ -2870,7 +2875,7 @@ function m3(){
       <button class="btn" type="submit">${tt("Save movement","Guardar movimiento")}</button>
      </div></form>
     <p class="hint kxhint">↔ ${tt("Swipe the table sideways to see every column; the item name stays fixed.","Desliza la tabla hacia los lados para ver todas las columnas; el nombre del artículo queda fijo.")}</p><div class="tablewrap kxscroll" id="kxBox"></div>
-    <p class="hint">${tt("Every purchase (+ Stock or “Register movement”), sale (paid bill), waste and stock count is recorded here with cost per kg / L / package, cost per g / mL / piece, stock value, movement date, type (in / out), quantity, unit cost, updated balance, supplier, lot and expiry. Expired lots show in red, lots expiring within 7 days in amber. On the website it is saved in the “Kardex” tab of the Google Sheet.","Aquí se registra cada compra (+ Stock o “Registrar movimiento”), venta (cuenta cobrada), merma y conteo de stock con costo por kg / L / paquete, costo por g / mL / und, valor del stock, fecha de movimiento, tipo (entrada / salida), cantidad, costo unitario, saldo actualizado, proveedor, lote y caducidad. Los lotes vencidos se ven en rojo y los que vencen en 7 días o menos, en ámbar. En la web se guarda en la pestaña “Kardex” de la hoja de Google.")}</p>
+    <p class="hint">${tt("Every purchase (+ Stock or “Register movement”), sale (paid bill), waste and stock count is recorded here with weighted average cost (per kg / L / package), cost per g / mL / piece, stock value, movement date, timestamp, type (in / out), quantity, unit cost, updated balance, supplier, lot and expiry. Expired lots show in red, lots expiring within 7 days in amber. On the website it is saved in the “Kardex” tab of the Google Sheet.","Aquí se registra cada compra (+ Stock o “Registrar movimiento”), venta (cuenta cobrada), merma y conteo de stock con costo promedio ponderado (por kg / L / paquete), costo por g / mL / und, valor del stock, fecha de movimiento, registro (fecha y hora), tipo (entrada / salida), cantidad, costo unitario, saldo actualizado, proveedor, lote y caducidad. Los lotes vencidos se ven en rojo y los que vencen en 7 días o menos, en ámbar. En la web se guarda en la pestaña “Kardex” de la hoja de Google.")}</p>
    </div>
 `;
   else if(m3Sub==="costs") body=`
@@ -2943,7 +2948,7 @@ function wireM3(){
       if(pcEdit){ const k=D.kardex.find(x=>x.id===pcEdit); if(!k){ pcEdit=null; return render(); }
         const date=/^\d{4}-\d{2}-\d{2}$/.test(g("pcDate").value)?g("pcDate").value:k.date, tpart=/^T\d\d:\d\d/.test(String(k.when||"").slice(10))?String(k.when).slice(10,23):"T12:00:00.000";
         const patch={id:k.id,qty:r3(q),unitCost:costR(it,pc?toCAD(c)/packOf(it):toCAD(c)),date,when:date+tpart,supplier:g("pcSup").value.trim().slice(0,60),lot:g("pcLot").value.trim().slice(0,40),expiry:g("pcExp").value,
-          edited:new Date().toISOString(),editedBy:SESSION?(SESSION.name||SESSION.user):""};
+          edited:kxStamp(),editedBy:SESSION?(SESSION.name||SESSION.user):""};
         if(k.reason!=="initial") patch.ref=g("pcRef").value.trim().slice(0,60);
         const r=await kardexRecalcItem(k.itemId,patch); if(!r) return;
         pcEdit=null; toast(tt(`Purchase updated and Kardex recalculated. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)} · average ${money2(pc?r.c*packOf(it):r.c)}`,`Compra actualizada y Kardex recalculado. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)} · promedio ${money2(pc?r.c*packOf(it):r.c)}`)); render(); return; }
@@ -2971,7 +2976,7 @@ function wireM3(){
   document.getElementById("kxItem").onchange=e=>{ kxItem=e.target.value; listKardex(); };
   document.getElementById("kxDays").onchange=e=>{ kxDays=num(e.target.value); listKardex(); };
   document.getElementById("kxCsv").onclick=()=>{ const rows=kardexRows(); if(!rows.length) return toast(tt("No movements to export.","No hay movimientos para exportar."));
-    saveFile("kardex-"+today()+".csv",toCSV(rows.map(k=>({...k,...kxSnap(k),dir:kxDirLbl(k.dir||kxDir(k)),reason:kxReason(k.reason)})),["item","costPkg","perSub","stockVal","date","dir","qty","unit","unitCost","balQty","supplier","lot","expiry","reason","ref","by"])); };
+    saveFile("kardex-"+today()+".csv",toCSV(rows.map(k=>({...k,...kxSnap(k),dir:kxDirLbl(k.dir||kxDir(k)),ts:kxTsFmt(k.created||k.when),edited:kxTsFmt(k.edited),reason:kxReason(k.reason)})),["item","costPkg","perSub","stockVal","date","ts","dir","qty","unit","unitCost","balQty","supplier","lot","expiry","reason","ref","by","edited"])); };
   let kxArm=0; if(g("kxReset")) g("kxReset").onclick=async e=>{ const b=e.currentTarget;
     if(Date.now()-kxArm>6000){ kxArm=Date.now(); b.textContent=tt("Sure? Click again to erase","¿Seguro? Clic otra vez para borrar"); setTimeout(()=>{ if(b.isConnected) b.textContent="↺ "+tt("Restart Kardex","Reiniciar Kardex"); },6000); return; }
     kxArm=0; b.disabled=true; b.textContent=tt("Restarting…","Reiniciando…");
