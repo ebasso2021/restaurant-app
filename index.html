@@ -292,6 +292,7 @@ table.dt.kx td small{display:block;color:var(--muted);font-size:12px}
 table.dt.kx td.kin{color:var(--ok)} table.dt.kx td.kout{color:var(--bad)}
 small.packf{display:block;margin-top:4px;color:var(--muted);font-size:12px}
 small.packf input{width:56px!important;padding:2px 4px!important;font-size:12px!important}
+.flexrow{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end}
 .costgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .gen{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px}
 .gen small{color:var(--muted);font-size:13px}
@@ -2464,15 +2465,6 @@ function m2(){
     <div class="tablewrap" id="invTable"></div>
     <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces, but the cost is always per kg (g and kg), per L (mL and L) or per package, with 2 decimals. Pieces are bought and entered by the package: cost per piece = package price ÷ pieces in the package (e.g. a box of 30 eggs at CA$9.00 = CA$0.30 per egg). Stock value = stock converted to kg / L × cost, = the “per g / mL / piece” column × on hand (for pieces: cost per piece × pieces per package) (e.g. 4,500 g at CA$8.50/kg = 4.5 kg × 8.50 = CA$38.25). The “per g / mL” column is the cost ÷ 1,000. Each purchase updates the cost with the weighted average: (current stock in kg/L × current cost + kg/L bought × purchase cost) ÷ new stock in kg/L.","El stock puede estar en gramos, kilos, mililitros, litros o unidades, pero el costo siempre es por kg (g y kg), por L (mL y L) o por paquete, con 2 decimales. Las unidades se compran y se anotan por paquete: costo por unidad = precio del paquete ÷ piezas del paquete (p. ej. caja de 30 huevos a CA$9,00 = CA$0,30 por huevo). Valor del stock = stock convertido a kg / L × costo, = columna “por g / mL / und” × stock (para unidades: costo por unidad × piezas por paquete) (p. ej. 4.500 g a CA$8,50/kg = 4,5 kg × 8,50 = CA$38,25). La columna “por g / mL” es el costo ÷ 1.000. Cada compra actualiza el costo con el promedio ponderado: (stock actual en kg/L × costo actual + kg/L comprados × costo de compra) ÷ stock nuevo en kg/L.")}</p>
    </div>
-   <div class="panel" style="margin-top:20px" id="kxPanel"><h3>📒 Kardex</h3>
-    <div class="fgrid" style="margin-bottom:10px">
-     ${field("kxItem",tt("Item","Artículo"),`<select id="kxItem"></select>`)}
-     ${field("kxDays",tt("Period","Periodo"),`<select id="kxDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===kxDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
-     <div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxCsv">⬇ ${tt("Export CSV","Exportar CSV")}</button></div>
-    </div>
-    <div class="tablewrap" id="kxBox"></div>
-    <p class="hint">${tt("Every purchase (+ Stock), sale (paid bill), waste and stock count is recorded here with its unit cost, the running balance and the average cost. On the website it is saved in the “Kardex” tab of the Google Sheet.","Aquí se registra cada compra (+ Stock), venta (cuenta cobrada), merma y conteo de stock con su costo unitario, el saldo y el costo promedio. En la web se guarda en la pestaña “Kardex” de la hoja de Google.")}</p>
-   </div>
    <div class="grid" style="margin-top:20px">
     <div class="stack">
      <div class="panel"><h3>${tt("Portions possible with current stock","Porciones posibles con el stock actual")}</h3><div id="ppBox"></div>
@@ -2529,7 +2521,7 @@ function wireM2(){
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
   document.getElementById("invTable").addEventListener("click",async e=>{
     const b=e.target.closest("[data-del]"); if(b) await dbDel("inventory",b.dataset.del);
-    const k=e.target.closest("[data-kx]"); if(k){ kxItem=k.dataset.kx; const s=document.getElementById("kxItem"); if(s) s.value=kxItem; listKardex(); document.getElementById("kxPanel").scrollIntoView({behavior:"smooth",block:"start"}); return; }
+    const k=e.target.closest("[data-kx]"); if(k){ kxItem=k.dataset.kx; state.aiView="m3"; m3Sub="kardex"; save(); render(); window.scrollTo({top:0}); return; }
     const a=e.target.closest("[data-add]"); if(a){ document.getElementById("asItem").value=a.dataset.add; asForm(); document.getElementById("addStockForm").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asQty").focus({preventScroll:true}); }
   });
   document.getElementById("addStockForm").onsubmit=async e=>{
@@ -2551,10 +2543,6 @@ function wireM2(){
     document.getElementById("wQty").value="";
   };
   document.getElementById("poBox").addEventListener("click",e=>{if(e.target.closest("#poCopy")) copyText(poText());});
-  document.getElementById("kxItem").onchange=e=>{ kxItem=e.target.value; listKardex(); };
-  document.getElementById("kxDays").onchange=e=>{ kxDays=num(e.target.value); listKardex(); };
-  document.getElementById("kxCsv").onclick=()=>{ const rows=kardexRows(); if(!rows.length) return toast(tt("No movements to export.","No hay movimientos para exportar."));
-    saveFile("kardex-"+today()+".csv",toCSV(rows.map(k=>({...k,reason:kxReason(k.reason)})),["date","item","type","reason","qty","unit","unitCost","total","balQty","avgCost","balValue","ref","by"])); };
   document.getElementById("fcAI").onclick=forecastAI;
 }
 function invStatus(i){ if(i.min>0&&i.qty<=i.min) return ["bad",tt("Low","Bajo")]; if(i.par>0&&i.qty>i.par) return ["warn",tt("Overstock","Exceso")]; return ["ok","OK"]; }
@@ -2599,8 +2587,6 @@ function listM2(){
     :`<p class="empty">${tt("No waste logged in the last 30 days.","No hay merma registrada en los últimos 30 días.")}</p>`;
   document.getElementById("wBox").onclick=async e=>{const b=e.target.closest("[data-wdel]"); if(b) await dbDel("waste",b.dataset.wdel);};
   document.getElementById("fcBox").innerHTML=forecastHTML();
-  const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
-  listKardex();
 }
 // + Stock: pieces are received as packages (packages × pieces per package) and priced per package → unit cost per piece
 function asPurchase(it){ if(!it) return null; const n=num(val("asQty")), cost=val("asCost");
@@ -2734,8 +2720,46 @@ function wireOpex(){
     msg.textContent=""; e.target.reset(); document.getElementById("oxFreq").value="month"; };
   if(!opexCan()) document.querySelectorAll("#opexAdd input,#opexAdd select,#opexAdd button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
 }
+let m3Sub="sales";
+const M3SUBS=[["kardex","📒 Kardex","📒 Kardex"],["costs","Costs","Costos"],["sales","Sales","Ventas"],["analysis","Analysis & projection","Análisis y proyección"]];
 function m3(){
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Costs, sales & analytics","Costos, ventas y análisis"),tt("Log sales, set the cost per cup, and see revenue, margins, the most profitable drinks and the ones that sell but earn little.","Registra ventas, define el costo por vaso y mira ingresos, márgenes, las bebidas más rentables y las que se venden pero dejan poco."))}
+  if(!M3SUBS.some(x=>x[0]===m3Sub)) m3Sub="sales";
+  const nav=`<div class="subnav" role="tablist" aria-label="${tt("Costs, sales & analytics","Costos, ventas y análisis")}" style="margin-top:4px">${M3SUBS.map(x=>`<button type="button" role="tab" data-m3sub="${x[0]}" aria-selected="${m3Sub===x[0]}">${tt(x[1],x[2])}</button>`).join("")}</div>`;
+  const period=`<div class="panel"><div class="flexrow">
+      <div><h3>${tt("Period","Periodo")}</h3><div class="variants" id="rangeBtns">${[7,14,30].map(r=>`<button type="button" data-range="${r}" aria-pressed="${r===range}">${r} ${tt("days","días")}</button>`).join("")}</div>
+      <label class="f inline"><span>${tt("Target margin %","Margen objetivo %")}</span><input id="tMargin" type="number" min="0" max="100" value="${num(D.costs._target)||60}"></label></div>
+</div></div>`;
+  let body="";
+  if(m3Sub==="kardex") body=`
+   <div class="panel" id="kxPanel"><h3>📒 Kardex</h3>
+    <div class="fgrid" style="margin-bottom:10px">
+     ${field("kxItem",tt("Item","Artículo"),`<select id="kxItem"></select>`)}
+     ${field("kxDays",tt("Period","Periodo"),`<select id="kxDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===kxDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
+     <div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxCsv">⬇ ${tt("Export CSV","Exportar CSV")}</button></div>
+    </div>
+    <div class="tablewrap" id="kxBox"></div>
+    <p class="hint">${tt("Every purchase (+ Stock), sale (paid bill), waste and stock count is recorded here with its unit cost, the running balance and the average cost. On the website it is saved in the “Kardex” tab of the Google Sheet.","Aquí se registra cada compra (+ Stock), venta (cuenta cobrada), merma y conteo de stock con su costo unitario, el saldo y el costo promedio. En la web se guarda en la pestaña “Kardex” de la hoja de Google.")}</p>
+   </div>
+`;
+  else if(m3Sub==="costs") body=`
+   <div class="grid">
+    <div class="stack">
+     <div class="panel"><h3>${tt("Cost per cup","Costo por vaso")}</h3><div id="costBox"></div><p class="hint">${tt("Use the recipe calculators and your supplier prices to work out each cost.","Usa las calculadoras de receta y los precios de tus proveedores para calcular cada costo.")}</p></div>
+    </div>
+    <div class="stack"><div class="panel"><h3>${tt("Stock value","Valor del stock")}</h3><div id="m3Stock"></div></div></div>
+   </div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
+    <p class="hint" style="margin:0 0 10px">${tt("Enter each cost as you pay it — per week, per month or per year. The app converts everything to a monthly amount, subtracts it from the gross margin of the period and shows your net profit and break-even point. Amounts in","Ingresa cada costo como lo pagas — por semana, por mes o por año. La app lo convierte todo a un monto mensual, lo resta del margen bruto del periodo y muestra tu utilidad neta y punto de equilibrio. Montos en")} ${curSym()}.</p>
+    <div id="opexBox"></div>
+    <form id="opexAdd" class="fgrid" style="margin-top:12px">
+     ${field("oxName",tt("Other cost (name)","Otro costo (nombre)"),`<input id="oxName" maxlength="60" placeholder="${tt("Internet, POS, cleaning…","Internet, POS, limpieza…")}">`)}
+     ${field("oxAmt",tt("Amount","Monto")+" ("+curSym()+")",`<input id="oxAmt" type="number" min="0" step="0.01">`)}
+     ${field("oxFreq",tt("Paid","Se paga"),`<select id="oxFreq">${OPEX_FREQ.map(f=>`<option value="${f[0]}"${f[0]==="month"?" selected":""}>${tt(f[1],f[2])}</option>`).join("")}</select>`)}
+     <button class="btn ghost" type="submit">+ ${tt("Add cost","Agregar costo")}</button>
+    </form><p class="hint" id="opexMsg" aria-live="polite"></p>
+   </div>
+`;
+  else if(m3Sub==="sales") body=`
    <div class="grid">
     <div class="stack">
      <div class="panel"><h3>${tt("Log sales","Registrar ventas")}</h3>
@@ -2747,33 +2771,26 @@ function m3(){
        ${field("sPrice",tt("Price per cup","Precio por vaso")+" ("+curSym()+")",`<input id="sPrice" type="number" min="0" step="0.01" required>`)}
        <button class="btn" type="submit">${tt("Add","Agregar")}</button>
       </form><p class="hint">${tt("Entries add up: logging 10 cups twice on the same day gives 20.","Las entradas se suman: registrar 10 vasos dos veces el mismo día da 20.")}</p></div>
-     <div class="panel"><h3>${tt("Cost per cup","Costo por vaso")}</h3><div id="costBox"></div><p class="hint">${tt("Use the recipe calculators and your supplier prices to work out each cost.","Usa las calculadoras de receta y los precios de tus proveedores para calcular cada costo.")}</p></div>
     </div>
-    <div class="stack">
-     <div class="panel"><h3>${tt("Period","Periodo")}</h3><div class="variants" id="rangeBtns">${[7,14,30].map(r=>`<button type="button" data-range="${r}" aria-pressed="${r===range}">${r} ${tt("days","días")}</button>`).join("")}</div>
-      <label class="f inline"><span>${tt("Target margin %","Margen objetivo %")}</span><input id="tMargin" type="number" min="0" max="100" value="${num(D.costs._target)||60}"></label></div>
-    </div>
+    <div class="stack">${period}</div>
    </div>
    <div class="kpis" id="sKpis" style="margin-top:20px"></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Daily revenue","Ingresos diarios")}</h3><div id="sChart" class="chartbox"></div></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("By drink","Por bebida")}</h3><div class="tablewrap" id="sTable"></div></div>
-   <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
-    <p class="hint" style="margin:0 0 10px">${tt("Enter each cost as you pay it — per week, per month or per year. The app converts everything to a monthly amount, subtracts it from the gross margin of the period and shows your net profit and break-even point. Amounts in","Ingresa cada costo como lo pagas — por semana, por mes o por año. La app lo convierte todo a un monto mensual, lo resta del margen bruto del periodo y muestra tu utilidad neta y punto de equilibrio. Montos en")} ${curSym()}.</p>
-    <div id="opexBox"></div>
-    <form id="opexAdd" class="fgrid" style="margin-top:12px">
-     ${field("oxName",tt("Other cost (name)","Otro costo (nombre)"),`<input id="oxName" maxlength="60" placeholder="${tt("Internet, POS, cleaning…","Internet, POS, limpieza…")}">`)}
-     ${field("oxAmt",tt("Amount","Monto")+" ("+curSym()+")",`<input id="oxAmt" type="number" min="0" step="0.01">`)}
-     ${field("oxFreq",tt("Paid","Se paga"),`<select id="oxFreq">${OPEX_FREQ.map(f=>`<option value="${f[0]}"${f[0]==="month"?" selected":""}>${tt(f[1],f[2])}</option>`).join("")}</select>`)}
-     <button class="btn ghost" type="submit">+ ${tt("Add cost","Agregar costo")}</button>
-    </form><p class="hint" id="opexMsg" aria-live="polite"></p>
-   </div>
+`;
+  else body=`${period}
+   <div class="kpis" id="sKpis" style="margin-top:20px"></div>
    <div class="grid" style="margin-top:20px">
     <div class="panel"><h3>${tt("Projection","Proyección")}</h3><div id="sProj"></div></div>
     <div class="panel"><h3>${tt("AI analysis","Análisis con IA")}</h3><button class="btn" id="sAI" data-needs-ai>${tt("Explain my numbers","Explicar mis números")}</button><div id="sAIout" class="aiout"></div></div>
-   </div></section>`;
+   </div>`;
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Costs, sales & analytics","Costos, ventas y análisis"),tt("Log sales, set the cost per cup, and see revenue, margins, the most profitable drinks and the ones that sell but earn little.","Registra ventas, define el costo por vaso y mira ingresos, márgenes, las bebidas más rentables y las que se venden pero dejan poco."))}
+   ${nav}${body}</section>`;
 }
 function wireM3(){
-  document.getElementById("sForm").onsubmit=async e=>{
+  main.querySelectorAll("[data-m3sub]").forEach(b=>b.onclick=()=>{ m3Sub=b.dataset.m3sub; render(); });
+  const g=id=>document.getElementById(id);
+  if(g("sForm")) g("sForm").onsubmit=async e=>{
     e.preventDefault(); const d=val("sDate"), pid=val("sProd"), cups=Math.round(num(val("sCups"))), price=toCAD(val("sPrice")), h=val("sHour");
     if(!d||cups<=0) return;
     const cur=D.sales.find(s=>s.id===d)||{items:{},hours:{}};
@@ -2781,13 +2798,19 @@ function wireM3(){
     const it=items[pid]||{cups:0,revenue:0}; it.cups=num(it.cups)+cups; it.revenue=num(it.revenue)+cups*price; items[pid]=it;
     if(h) hours[h]=num(hours[h])+cups;
     await dbSet("sales/"+d,{items,hours});
-    document.getElementById("sCups").value="";
+    g("sCups").value="";
   };
-  document.getElementById("rangeBtns").onclick=e=>{const b=e.target.closest("[data-range]"); if(!b) return; range=+b.dataset.range; render();};
-  document.getElementById("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
-  document.getElementById("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
-  document.getElementById("sAI").onclick=salesAI;
-  wireOpex();
+  if(g("rangeBtns")) g("rangeBtns").onclick=e=>{const b=e.target.closest("[data-range]"); if(!b) return; range=+b.dataset.range; render();};
+  if(g("tMargin")) g("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
+  if(g("costBox")) g("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
+  if(g("sAI")) g("sAI").onclick=salesAI;
+  if(g("opexBox")) wireOpex();
+  if(g("kxItem")){
+  document.getElementById("kxItem").onchange=e=>{ kxItem=e.target.value; listKardex(); };
+  document.getElementById("kxDays").onchange=e=>{ kxDays=num(e.target.value); listKardex(); };
+  document.getElementById("kxCsv").onclick=()=>{ const rows=kardexRows(); if(!rows.length) return toast(tt("No movements to export.","No hay movimientos para exportar."));
+    saveFile("kardex-"+today()+".csv",toCSV(rows.map(k=>({...k,reason:kxReason(k.reason)})),["date","item","type","reason","qty","unit","unitCost","total","balQty","avgCost","balValue","ref","by"])); };
+  }
 }
 function prodStats(n){
   const days=salesDays(n), st={};
@@ -2796,28 +2819,35 @@ function prodStats(n){
   return Object.entries(st).map(([pid,s])=>{const c=num(D.costs[pid]);const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0};});
 }
 function listM3(){
-  const cb=document.getElementById("costBox"); if(!cb) return;
+  if(m3Sub==="kardex"){
+  const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
+    listKardex(); return; }
+  const cb=document.getElementById("costBox");
+  const st0=document.getElementById("m3Stock");
+  if(st0){ const inv=[...D.inventory].sort((a,b)=>stockValue(b)-stockValue(a)); const tot=inv.reduce((s,i)=>s+stockValue(i),0);
+    setHTML(st0,inv.length?`<div class="kpi"><div class="big">${money(tot)}</div><div class="lbl">${tt("total stock value","valor total del stock")}</div></div><ul class="rows">${inv.slice(0,8).map(i=>`<li><div>${esc(i.name)}<small>${num(i.qty)} ${esc(unitLbl(i.unit))}</small></div><b>${money2(stockValue(i))}</b></li>`).join("")}</ul><p class="hint">${tt("From 2 · Kitchen & inventory. The Kardex tab has every movement.","Desde 2 · Cocina e inventario. La pestaña Kardex tiene cada movimiento.")}</p>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`); }
   const ob=document.getElementById("opexBox"); if(ob&&!ob.contains(document.activeElement)) setHTML(ob,opexHTML());
-  if(document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`;
+  if(cb&&document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`;
   const days=salesDays(range), tot=days.map(dayTotals);
   const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
   const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
-  document.getElementById("sKpis").innerHTML=[[money(rev),tt("revenue","ingresos")],[cups,tt("cups sold","vasos vendidos")],[cups?money(rev/cups):"—",tt("average price","precio promedio")],
+  const kp=document.getElementById("sKpis"); if(kp) kp.innerHTML=[[money(rev),tt("revenue","ingresos")],[cups,tt("cups sold","vasos vendidos")],[cups?money(rev/cups):"—",tt("average price","precio promedio")],
     [costKnown&&rev?money(rev-cost):"—",tt("gross margin","margen bruto")],[costKnown&&rev?Math.round((rev-cost)/rev*100)+"%":"—",tt("margin %","margen %")],
     ...(opexMonthly()>0?[[money(opexDaily()*range),tt("operating costs","costos operativos")],
       [costKnown&&rev?money(rev-cost-opexDaily()*range):"—",tt("net profit","utilidad neta"),costKnown&&rev?(rev-cost-opexDaily()*range<0?"bad":"okk"):""]]:[])]
     .map(k=>`<div class="kpi${k[2]?" "+k[2]:""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]} · ${range} ${tt("days","días")}</div></div>`).join("")
     +(opexMonthly()>0&&costKnown&&cups&&rev>cost?`<p class="hint" style="grid-column:1/-1">⚖ ${tt("Break-even","Punto de equilibrio")}: ${tt(`about <b>${Math.ceil(opexDaily()/((rev-cost)/cups))}</b> cups a day (${money(opexMonthly())} of operating costs per month ÷ ${money((rev-cost)/cups)} average margin per cup). You sold ${Math.round(cups/range)} a day in this period.`,`unos <b>${Math.ceil(opexDaily()/((rev-cost)/cups))}</b> vasos al día (${money(opexMonthly())} de costos operativos al mes ÷ ${money((rev-cost)/cups)} de margen promedio por vaso). En este periodo vendiste ${Math.round(cups/range)} al día.`)}</p>`:"")+(!costKnown&&rev?`<p class="hint" style="grid-column:1/-1">${tt("Enter the cost per cup of every drink sold to see margins.","Ingresa el costo por vaso de cada bebida vendida para ver márgenes.")}</p>`:"");
-  document.getElementById("sChart").innerHTML=rev?barChart(days.map((d,i)=>({x:d.date,y:tot[i].rev})),document.getElementById("sChart").clientWidth):`<p class="empty">${tt("No sales in this period yet.","Aún no hay ventas en este periodo.")}</p>`;
+  const sc=document.getElementById("sChart"); if(sc) sc.innerHTML=rev?barChart(days.map((d,i)=>({x:d.date,y:tot[i].rev})),sc.clientWidth):`<p class="empty">${tt("No sales in this period yet.","Aún no hay ventas en este periodo.")}</p>`;
   const target=num(D.costs._target)||60, sold=st.filter(s=>s.cups>0), avgCups=sold.length?sold.reduce((a,s)=>a+s.cups,0)/sold.length:0;
   const rows=[...st].sort((a,b)=>b.margin-a.margin);
-  document.getElementById("sTable").innerHTML=`<table class="dt"><thead><tr><th>${tt("Drink","Bebida")}</th><th>${tt("Cups","Vasos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th><th>${tt("Note","Nota")}</th></tr></thead><tbody>${rows.map((s,i)=>{
+  const stb=document.getElementById("sTable"); if(stb) stb.innerHTML=`<table class="dt"><thead><tr><th>${tt("Drink","Bebida")}</th><th>${tt("Cups","Vasos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th><th>${tt("Note","Nota")}</th></tr></thead><tbody>${rows.map((s,i)=>{
      let note=""; if(s.cups&&!s.hasCost) note=`<span class="badge warn">${tt("No cost set","Sin costo")}</span>`;
      else if(s.cups>=avgCups&&s.cups>0&&s.pct<target) note=`<span class="badge bad">${tt("Sells well, low margin","Se vende bien, margen bajo")}</span>`;
      else if(i===0&&s.margin>0) note=`<span class="badge ok">${tt("Most profitable","Más rentable")}</span>`;
      return `<tr><td>${esc(pname(s.pid))}</td><td>${s.cups}</td><td>${money(s.rev)}</td><td>${s.hasCost?money(s.cost):"—"}</td><td>${s.hasCost?money(s.margin):"—"}</td><td>${s.hasCost&&s.rev?Math.round(s.pct)+"%":"—"}</td><td>${note}</td></tr>`;}).join("")}</tbody></table>`;
   const f=weekdayForecast();
-  document.getElementById("sProj").innerHTML=f?`<ul class="rows">${f.map(r=>`<li><div>${DOWN[state.lang][dow(r.date)]} ${r.date.slice(5)}</div><b>${Math.round(r.cups)} ${tt("cups","vasos")} · ${money(r.rev)}</b></li>`).join("")}</ul><p><b>${tt("Next 7 days","Próximos 7 días")}: ${Math.round(f.reduce((s,r)=>s+r.cups,0))} ${tt("cups","vasos")} · ${money(f.reduce((s,r)=>s+r.rev,0))}</b></p><p class="hint">${tt("Average of the same weekday over the last 4 weeks.","Promedio del mismo día de la semana en las últimas 4 semanas.")}</p>`
+  const sp=document.getElementById("sProj"); if(sp) sp.innerHTML=f?`<ul class="rows">${f.map(r=>`<li><div>${DOWN[state.lang][dow(r.date)]} ${r.date.slice(5)}</div><b>${Math.round(r.cups)} ${tt("cups","vasos")} · ${money(r.rev)}</b></li>`).join("")}</ul><p><b>${tt("Next 7 days","Próximos 7 días")}: ${Math.round(f.reduce((s,r)=>s+r.cups,0))} ${tt("cups","vasos")} · ${money(f.reduce((s,r)=>s+r.rev,0))}</b></p><p class="hint">${tt("Average of the same weekday over the last 4 weeks.","Promedio del mismo día de la semana en las últimas 4 semanas.")}</p>`
     :`<p class="empty">${tt("Needs at least 7 days of sales.","Necesita al menos 7 días de ventas.")}</p>`;
 }
 function barChart(pts,W0){
