@@ -2455,7 +2455,7 @@ const kxDirLbl=d=>d==="Entrada"?tt("In","Entrada"):d==="Salida"?tt("Out","Salida
 /* Kardex: every stock movement (in, out, adjustment) with the unit cost, running balance and weighted average cost.
    Saved in the "kardex" collection (Google Sheet tab "Kardex" on the website; the app's database in Claude). */
 async function kardexMove(it,m){
-  const kt=kxTotals()[it.id], q0=kt?kt.q:0, c0=kt?kt.c:(m.type==="in"?0:costR(it,it.cost)), stamp=new Date().toISOString();   // the balance comes from the Kardex itself
+  const kt=m.base||kxTotals()[it.id], q0=kt?kt.q:0, c0=kt?kt.c:(m.type==="in"?0:costR(it,it.cost)), stamp=new Date().toISOString();   // the balance comes from the Kardex itself
   let qty=num(m.qty), uc=c0, q1=q0, c1=c0, type=m.type;
   const B=q=>toBaseI(q,it);
   if(type==="in"){ uc=m.unitCost!=null&&m.unitCost!==""?costR(it,m.unitCost):c0; q1=r3(q0+qty); c1=q1>0?costR(it,(B(q0)*c0+B(qty)*uc)/B(q1)):uc; }
@@ -2504,14 +2504,39 @@ function listPurchases(){
       <td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(k.unit))}</small></td><td>${esc(k.supplier||"")||"—"}</td><td class="nw">${esc(k.lot||"")||"—"}</td><td class="nw">${esc(k.expiry||"")||"—"}</td><td>${esc(k.reason==="initial"?"":k.ref||"")||"—"}</td>
       <td class="nw">${canWrite("kardex")?`<button type="button" class="btn sm ghost" data-pcedit="${esc(k.id)}" aria-label="${tt("Edit purchase","Editar compra")} ${esc(k.item)} ${esc(k.date||"")}">✏ ${tt("Edit","Editar")}</button>`:""}</td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No purchases in this period.","No hay compras en este periodo.")}</p>`);
-  const T=kxTotals(), inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name))), kt=document.getElementById("kxTot");
-  setHTML(kt,inv.length?`<table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("Kardex in","Entradas Kardex")}</th><th>${tt("Kardex out","Salidas Kardex")}</th><th>${tt("Kardex balance","Saldo Kardex")}</th><th>${tt("Weighted average cost","Costo promedio ponderado")}</th><th>${tt("Kardex value","Valor Kardex")}</th><th>${tt("Inventory","Inventario")}</th><th></th></tr></thead><tbody>
-    ${inv.map(i=>{const t=T[i.id], u=esc(unitLbl(i.unit)), pc=i.unit==="pc"; if(!t) return `<tr><td>${esc(i.name)}</td><td colspan="5" class="dimtxt">${tt("No Kardex movements","Sin movimientos en el Kardex")}</td><td class="nw">${fmtQ(num(i.qty))} ${u}</td><td><span class="badge warn">${tt("Not in Kardex","Fuera del Kardex")}</span></td></tr>`;
-      const sn=kxSnap({unit:i.unit,pack:packOf(i),balQty:t.q,avgCost:t.c}), ok=r3(num(i.qty))===t.q&&costR(i,i.cost)===t.c;
-      return `<tr><td>${esc(i.name)}</td><td class="nw kin">+${fmtQ(t.ins)} ${u}</td><td class="nw kout">−${fmtQ(t.outs)} ${u}</td><td class="nw"><b>${fmtQ(t.q)}</b> ${u}</td>
-       <td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(i.unit))}</small></td><td class="nw">${money2(sn.stockVal)}</td><td class="nw">${fmtQ(num(i.qty))} ${u}</td>
-       <td>${ok?`<span class="badge ok">✓</span>`:`<span class="badge warn">${tt("Differs — rebuild","Difiere — recalcular")}</span>`}</td></tr>`;}).join("")}</tbody></table>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`);
+  const T=kxTotals(), inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name))), kt=document.getElementById("kxTot"); if(!kt) return;
+  if(ktEdit&&!invItem(ktEdit)){ ktEdit=null; ktDraft={}; }
+  const ae=document.activeElement; if(ae&&kt.contains(ae)&&ae.matches("input")) return;   // don't redraw while typing
+  const canK=canWrite("kardex"), dv=(f,d)=>ktDraft[f]!=null?ktDraft[f]:d;
+  const btns=i=>canK?`<button type="button" class="btn sm ghost" data-ktedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> <button type="button" class="btn sm ghost" data-ktdel="${i.id}" title="${tt("Delete Kardex movements","Eliminar movimientos del Kardex")}" aria-label="${tt("Delete Kardex movements of","Eliminar movimientos del Kardex de")} ${esc(i.name)}">🗑</button>`:"";
+  setHTML(kt,inv.length?`<table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("Kardex in","Entradas Kardex")}</th><th>${tt("Kardex out","Salidas Kardex")}</th><th>${tt("Kardex balance","Saldo Kardex")}</th><th>${tt("Weighted average cost","Costo promedio ponderado")}</th><th>${tt("Kardex value","Valor Kardex")}</th><th>${tt("Inventory","Inventario")}</th><th></th><th></th></tr></thead><tbody>
+    ${inv.map(i=>{const t=T[i.id], u=esc(unitLbl(i.unit)), pc=i.unit==="pc", pk=packOf(i), per=pc?tt("package","paquete"):esc(costPerLbl(i.unit));
+      if(i.id===ktEdit){ const q0=t?t.q:num(i.qty), c0=t?t.c:num(i.cost);
+        return `<tr class="editing"><td class="kname">${esc(i.name)}</td><td class="nw kin">${t?"+"+fmtQ(t.ins)+" "+u:"—"}</td><td class="nw kout">${t?"−"+fmtQ(t.outs)+" "+u:"—"}</td>
+         <td class="nw"><input data-kt="qty" type="number" step="any" min="0" value="${esc(dv("qty",r3(q0)))}" aria-label="${tt("Kardex balance","Saldo Kardex")} ${esc(i.name)}"> ${u}</td>
+         <td class="nw">${curSym()} <input data-kt="cost" type="number" step="0.01" min="0.01" value="${esc(dv("cost",inCur(pc?c0*pk:c0).toFixed(2)))}" aria-label="${tt("Weighted average cost","Costo promedio ponderado")} ${esc(i.name)}"><small>/ ${per}</small></td>
+         <td class="dimtxt">—</td><td class="nw">${fmtQ(num(i.qty))} ${u}</td><td></td>
+         <td class="nw"><button type="button" class="btn sm" data-ktsave="${i.id}">✓ ${tt("Save","Guardar")}</button> <button type="button" class="btn sm ghost" data-ktcancel="1">${tt("Cancel","Cancelar")}</button></td></tr>`; }
+      if(!t) return `<tr><td class="kname">${esc(i.name)}</td><td colspan="5" class="dimtxt">${tt("No Kardex movements","Sin movimientos en el Kardex")}</td><td class="nw">${fmtQ(num(i.qty))} ${u}</td><td><span class="badge warn">${tt("Not in Kardex","Fuera del Kardex")}</span></td><td class="nw">${canK?`<button type="button" class="btn sm ghost" data-ktedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button>`:""}</td></tr>`;
+      const sn=kxSnap({unit:i.unit,pack:pk,balQty:t.q,avgCost:t.c}), ok=r3(num(i.qty))===t.q&&costR(i,i.cost)===t.c;
+      return `<tr><td class="kname">${esc(i.name)}</td><td class="nw kin">+${fmtQ(t.ins)} ${u}</td><td class="nw kout">−${fmtQ(t.outs)} ${u}</td><td class="nw"><b>${fmtQ(t.q)}</b> ${u}</td>
+       <td class="nw">${money2(sn.costPkg)}<small>/ ${per}</small></td><td class="nw">${money2(sn.stockVal)}</td><td class="nw">${fmtQ(num(i.qty))} ${u}</td>
+       <td>${ok?`<span class="badge ok">✓</span>`:`<span class="badge warn">${tt("Differs — rebuild","Difiere — recalcular")}</span>`}</td><td class="nw">${btns(i)}</td></tr>`;}).join("")}</tbody></table>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`);
 }
+/* Inventory = Kardex totals: ✓ Save writes the difference to the Kardex (count for the balance, cost change for the average cost);
+   🗑 erases that ingredient's Kardex movements, so its inventory goes to 0 */
+async function ktSave(id){ const it=invItem(id); if(!it) return; const kt=document.getElementById("kxTot"), el=f=>kt.querySelector(`[data-kt="${f}"]`);
+  const bad=[]; [["qty",tt("Kardex balance","Saldo Kardex")],["cost",tt("Weighted average cost","Costo promedio ponderado")]].forEach(([f,l])=>{ const x=el(f), v=String(x.value||"").trim(), ok=v!==""&&num(v)>0; x.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(l); });
+  if(bad.length) return toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
+  if(!DB) return noDb();
+  const pc=it.unit==="pc", pk=packOf(it), nq=r3(num(el("qty").value)), nc=costR(it,pc?toCAD(el("cost").value)/pk:toCAD(el("cost").value)), t=kxTotals()[id], ref=tt("Edited in Inventory = Kardex totals","Editado en Inventario = totales del Kardex");
+  if(!t){ await kardexMove(it,{type:"in",reason:"initial",qty:nq,unitCost:nc,ref}); }
+  else { let base={q:t.q,c:t.c};   // chain the two movements so the second starts from the first one's result
+         if(nq!==t.q){ const r=await kardexMove(it,{type:"adj",reason:"adjust",newQty:nq,ref,base}); if(r) base={q:r.q1,c:r.c1}; }
+         if(nc!==base.c) await kardexMove(it,{type:"cost",reason:"cost",unitCost:nc,ref,base}); }
+  ktEdit=null; ktDraft={}; toast(tt(`“${it.name}” saved in the Kardex.`,`“${it.name}” guardado en el Kardex.`)); listPurchases(); }
+async function kxItemClear(id){ if(!DB) return noDb(); const rows=D.kardex.filter(k=>k.itemId===id); for(const k of rows) await dbDel("kardex",k.id);
+  await dbUpd("inventory",id,{qty:0,cost:0,updated:new Date().toISOString()}); return rows.length; }
 /* Recalculate one ingredient's whole Kardex (weighted average cost, in date order) after a purchase is edited,
    then update every later row (balance, average cost, value; exits take the new average cost) and the inventory */
 async function kardexRecalcItem(itemId,patch){
@@ -2535,7 +2560,7 @@ async function kardexRecalcItem(itemId,patch){
   if(short.length) setTimeout(()=>toast(tt(`Warning: on ${short.join(", ")} an exit is larger than the stock at that date (balance set to 0). Check the movements.`,`Atención: el ${short.join(", ")} hay una salida mayor que el stock a esa fecha (el saldo quedó en 0). Revisa los movimientos.`)),2600);
   return {q,c,short};
 }
-let kxItem="", kxDays=30, pcDays=30, pcEdit=null, kxEdit=null;
+let kxItem="", kxDays=30, pcDays=30, pcEdit=null, kxEdit=null, ktEdit=null, ktDraft={};
 const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
@@ -3022,6 +3047,17 @@ function wireM3(){
       const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:pc?toCAD(c)/packOf(it):toCAD(c),date:g("pcDate").value,supplier:g("pcSup").value.trim(),lot:g("pcLot").value.trim(),expiry:g("pcExp").value,ref:g("pcRef").value.trim()}); if(!r) return;
       toast(tt(`Purchase saved. ${it.name}: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`,`Compra guardada. ${it.name}: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`));
       ["pcQty","pcCost","pcLot","pcExp","pcRef"].forEach(id=>g(id).value=""); render(); };
+  }
+  if(g("kxTot")){ const kt=g("kxTot");
+    kt.addEventListener("input",e=>{ const x=e.target.closest("[data-kt]"); if(!x) return; ktDraft[x.dataset.kt]=x.value; if(x.getAttribute("aria-invalid")==="true") x.setAttribute("aria-invalid","false"); });
+    kt.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.closest("[data-kt]")&&ktEdit){ e.preventDefault(); ktSave(ktEdit); } });
+    kt.addEventListener("click",async e=>{
+      const ed=e.target.closest("[data-ktedit]"); if(ed){ ktEdit=ed.dataset.ktedit; ktDraft={}; if(document.activeElement) document.activeElement.blur(); listPurchases(); const q=kt.querySelector('[data-kt="qty"]'); if(q) q.focus(); return; }
+      if(e.target.closest("[data-ktcancel]")){ ktEdit=null; ktDraft={}; if(document.activeElement) document.activeElement.blur(); listPurchases(); return; }
+      const sv=e.target.closest("[data-ktsave]"); if(sv){ if(document.activeElement) document.activeElement.blur(); await ktSave(sv.dataset.ktsave); return; }
+      const dl=e.target.closest("[data-ktdel]"); if(dl){ const it=invItem(dl.dataset.ktdel); if(!it) return; const n=D.kardex.filter(k=>k.itemId===it.id).length;
+        const ok=await askConfirm(tt(`Delete the Kardex of “${it.name}”?`,`¿Eliminar el Kardex de “${it.name}”?`),tt(`Its ${n} Kardex movements will be erased and its inventory will go to 0. The item stays in Kitchen & inventory. This can't be undone.`,`Se borrarán sus ${n} movimientos del Kardex y su inventario quedará en 0. El artículo se mantiene en Cocina e inventario. No se puede deshacer.`),tt("Delete","Eliminar"));
+        if(!ok) return; const m=await kxItemClear(it.id); if(m==null) return; if(ktEdit===it.id){ ktEdit=null; ktDraft={}; } toast(tt(`${m} movements of “${it.name}” deleted.`,`${m} movimientos de “${it.name}” eliminados.`)); render(); } });
   }
   if(g("kxRebuild")) g("kxRebuild").onclick=async e=>{ e.currentTarget.disabled=true; const n=await kardexRebuild(); if(n==null) return; toast(tt(`Inventory rebuilt from the Kardex: ${n} items updated.`,`Inventario recalculado desde el Kardex: ${n} artículos actualizados.`)); render(); };
   if(g("sForm")) g("sForm").onsubmit=async e=>{
