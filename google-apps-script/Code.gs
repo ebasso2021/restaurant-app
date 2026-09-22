@@ -17,6 +17,8 @@
  *         cocinero = full Kitchen & inventory; everything else read only
  *         mesero   = only Customers (bookings), Tables layout, orders and billing by table
  * Passwords are stored only as salted SHA-256 hashes. Sessions last 6 hours.
+ * Kardex columns: Artículo · Costo por kg / L / paquete · Por g / mL / und · Valor del stock · Fecha de movimiento ·
+ * Tipo (Entrada / Salida) · Cantidad · Costo unitario · Saldo actualizado · Proveedor · Lote · Caducidad (+ technical columns).
  * Kardex: the tab "Kardex" (created automatically) logs every stock movement — purchases from the app (+ Stock)
  * and from the "Compras" tab, sales from paid bills, waste and stock counts — with unit cost, balance and
  * weighted average cost. Stock may be in g, kg, ml, L or pieces; the cost is ALWAYS per kg, per L or per piece
@@ -39,13 +41,14 @@ const FIELDS = {
   menu: [["name","Nombre"],["cat","Grupo"],["kind","Tipo"],["price","Precio"],["notes","Nota"],["prodId","ID bebida app"],["active","Activo"]],
   bills: [["date","Fecha"],["table","Mesa"],["guests","Comensales"],["linesText","Detalle"],["currency","Moneda"],["rate","Cambio"],["totalCur","Total moneda"],["subtotal","Subtotal"],["discount","Descuento"],["discountReason","Motivo descuento"],["taxRate","GST %"],["tax","GST"],["tip","Propina"],["total","Total"],["split","División"],["per","Por persona"],["method","Pago"],["stockText","Descuento de stock"],["status","Estado"],["by","Cobrado por"],["created","Creada"],["paid","Pagada"]],
   recipes: [["item","Plato"],["portionLabel","Porción (medida única)"],["ingText","Ingredientes por 1 porción"],["steps","Preparación"],["notes","Notas"],["locked","Establecida"],["lockedAt","Establecida el"],["lockedBy","Por"],["itemId","ID del menú"],["updated","Actualizada"]],
-  kardex: [["date","Fecha"],["item","Artículo"],["type","Movimiento"],["reason","Motivo"],["qty","Cantidad"],["unit","Unidad"],["unitCost","Costo unitario"],["total","Total"],["balQty","Saldo cantidad"],["avgCost","Costo promedio"],["balValue","Saldo valor"],["ref","Referencia"],["by","Usuario"],["when","Fecha y hora"],["itemId","ID artículo"]],
+  kardex: [["item","Artículo"],["costPkg","Costo por kg / L / paquete"],["perSub","Por g / mL / und"],["stockVal","Valor del stock"],["date","Fecha de movimiento"],["dir","Tipo"],["qty","Cantidad"],["unitCost","Costo unitario"],["balQty","Saldo actualizado"],["supplier","Proveedor"],["lot","Lote"],["expiry","Caducidad"],
+           ["unit","Unidad"],["reason","Motivo"],["type","Movimiento"],["total","Total"],["avgCost","Costo promedio"],["ref","Referencia"],["by","Usuario"],["when","Fecha y hora"],["itemId","ID artículo"],["pack","Piezas por paquete"]],
   sales: [], settings: []
 };
-const NUM = ["pack","unitCost","balQty","avgCost","balValue","qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
+const NUM = ["costPkg","perSub","stockVal","pack","unitCost","balQty","avgCost","balValue","qty","min","par","cost","party","reach","likes","comments","saves","stars","num","seats","table","guests","price","subtotal","discount","taxRate","tax","tip","total","split","per","portions","rate","totalCur"];
 const BOOL = ["replied","active","occupied","locked"];
-const MONEY = ["cost","unitCost","total","avgCost","balValue","price","subtotal","discount","tax","tip","per","totalCur"]; // always 2 decimals
-const DATES = ["date"];
+const MONEY = ["costPkg","stockVal","cost","unitCost","total","avgCost","balValue","price","subtotal","discount","tax","tip","per","totalCur"]; // always 2 decimals
+const DATES = ["date", "expiry"];
 const PRODUCTS = { quinoa: "Jugo de quinua", chicha: "Chicha morada", maca: "Jugo de maca", mazamorra: "Mazamorra morada", lucuma: "Jugo de lúcuma", chirimoya: "Jugo de chirimoya", lomo: "Lomo saltado" };
 
 /* ---------------- users, roles and sessions ---------------- */
@@ -352,7 +355,7 @@ function write_(col, id, data) {
     if (DATES.indexOf(k) >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
       const p = String(v).split("-"); row.push(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12, 0, 0)); fmts.push("yyyy-mm-dd"); return;
     }
-    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(["cost","unitCost","avgCost"].indexOf(k) >= 0 ? "#,##0.00##" : MONEY.indexOf(k) >= 0 ? "#,##0.00" : Number.isInteger(v) ? "0" : "0.000"); return; }
+    if (NUM.indexOf(k) >= 0 && v !== "" && !isNaN(Number(v))) { v = Number(v); row.push(v); fmts.push(["cost","unitCost","avgCost","perSub"].indexOf(k) >= 0 ? "#,##0.00##" : MONEY.indexOf(k) >= 0 ? "#,##0.00" : Number.isInteger(v) ? "0" : "0.000"); return; }
     if (BOOL.indexOf(k) >= 0) { row.push(!!v); fmts.push("@"); return; }
     v = String(v); if (/^[=+]/.test(v)) v = "'" + v;
     row.push(v); fmts.push("@");
@@ -418,7 +421,7 @@ function applyPurchase_(sh, r) {
   // keep the hidden json in step
   data.qty = q1; data.cost = c1; data.costPer = baseOf_(u); data.updated = now;
   inv.getRange(row, 2).setValue(JSON.stringify(data));
-  kardex_({ id: String(v[2]), name: data.name || v[1], unit: data.unit || v[3], pack: data.pack }, "in", "purchase", qty, uc, q1, c1, "Compras fila " + r, "Compras");
+  kardex_({ id: String(v[2]), name: data.name || v[1], unit: data.unit || v[3], pack: data.pack, supplier: data.supplier }, "in", "purchase", qty, uc, q1, c1, "Compras fila " + r, "Compras");
   sh.getRange(r, 11).setValue(Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm"));
 }
 
@@ -453,11 +456,44 @@ const rc_ = function (u, n) { return u === "pc" ? r4_(n) : r2_(n); }; // cost pe
 const baseOf_ = function (u) { return u === "g" || u === "kg" ? "kg" : (u === "ml" || u === "mL" || u === "L" || u === "l") ? "L" : "pc"; };
 // pieces are bought by the package but costed per piece (unit cost = package price ÷ pieces) → value = pieces × unit cost
 const toBase_ = function (q, u) { return (u === "g" || u === "ml" || u === "mL") ? Number(q || 0) / 1000 : Number(q || 0); };
-// one row in the "Kardex" tab: every purchase, sale (paid bill), waste and adjustment, with running balance and average cost
-function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by) {
+// Kardex row with the same rules as the app's stock table:
+//   cost per kg / L / package · per g / mL / piece · stock value
+//   pieces: per piece = package cost ÷ on hand, stock value = per piece × pieces per package
+function kxSnap_(unit, pack, balQty, avgCost) {
+  const pk = unit === "pc" && Number(pack) > 0 ? Number(pack) : 1, q = Number(balQty || 0), c = Number(avgCost || 0);
+  const per = unit === "pc" ? (q > 0 ? c * pk / q : 0) : c / ((unit === "g" || unit === "ml" || unit === "mL") ? 1000 : 1);
+  return { costPkg: r2_(unit === "pc" ? c * pk : c), perSub: r4_(per), stockVal: r2_(unit === "pc" ? per * pk : per * q) };
+}
+function kxDir_(type, qty) { return type === "in" || (type === "adj" && qty > 0) ? "Entrada" : type === "out" || (type === "adj" && qty < 0) ? "Salida" : "Costo"; }
+// one row in the "Kardex" tab: every purchase, sale (paid bill), waste and adjustment, with the updated balance
+function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by, extra) {
+  extra = extra || {};
   const now = new Date(), id = "k" + now.getTime().toString(36) + Math.random().toString(36).slice(2, 6);
-  write_("kardex", id, { date: Utilities.formatDate(now, tz_(), "yyyy-MM-dd"), when: now.toISOString(), itemId: it.id, item: it.name || "", unit: it.unit || "",
-    costPer: baseOf_(it.unit), pack: Number(it.pack) > 0 ? Number(it.pack) : 1, type: type, reason: reason, qty: r3_(qty), unitCost: rc_(it.unit, unitCost), total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), balQty: r3_(balQty), avgCost: rc_(it.unit, avgCost), balValue: r2_(toBase_(balQty, it.unit, it.pack) * avgCost), ref: ref || "", by: by || "" });
+  const pk = Number(it.pack) > 0 ? Number(it.pack) : 1, sn = kxSnap_(it.unit, pk, balQty, rc_(it.unit, avgCost));
+  write_("kardex", id, { item: it.name || "", costPkg: sn.costPkg, perSub: sn.perSub, stockVal: sn.stockVal, date: Utilities.formatDate(now, tz_(), "yyyy-MM-dd"),
+    dir: kxDir_(type, qty), qty: r3_(qty), unitCost: rc_(it.unit, unitCost), balQty: r3_(balQty),
+    supplier: extra.supplier != null ? String(extra.supplier) : (type === "in" ? String(it.supplier || "") : ""), lot: String(extra.lot || ""), expiry: String(extra.expiry || ""),
+    unit: it.unit || "", reason: reason, type: type, total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), avgCost: rc_(it.unit, avgCost), balValue: sn.stockVal,
+    ref: ref || "", by: by || "", when: now.toISOString(), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
+}
+// Puts the "Kardex" tab in the new column order (Artículo, Costo por kg / L / paquete, Por g / mL / und, Valor del stock,
+// Fecha de movimiento, Tipo, Cantidad, Costo unitario, Saldo actualizado, Proveedor, Lote, Caducidad …) keeping every row.
+// Runs from instalarFormulas; it does nothing when the tab already has these columns.
+function formatoKardex() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), sh = ss.getSheetByName(SHEETS.kardex); if (!sh) return;
+  const want = ["ID", "json"].concat(FIELDS.kardex.map(function (f) { return f[1]; }));
+  const have = sh.getRange(1, 1, 1, Math.max(2, sh.getLastColumn())).getDisplayValues()[0];
+  if (want.every(function (h, i) { return have[i] === h; })) return;
+  const docs = list_("kardex");
+  sh.clear(); sh.getRange(1, 1, 1, want.length).setValues([want]); sh.setFrozenRows(1); sh.hideColumns(2);
+  docs.forEach(function (d) {
+    const k = d.data, sn = kxSnap_(k.unit, k.pack, k.balQty, k.avgCost);
+    if (k.costPkg == null || k.costPkg === "") k.costPkg = sn.costPkg;
+    if (k.perSub == null || k.perSub === "") k.perSub = sn.perSub;
+    if (k.stockVal == null || k.stockVal === "") k.stockVal = sn.stockVal;
+    if (!k.dir) k.dir = kxDir_(k.type, Number(k.qty || 0));
+    write_("kardex", d.id, k);
+  });
 }
 function useStock_(uses, ref, by) {
   const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
@@ -478,6 +514,7 @@ function useStock_(uses, ref, by) {
 /* ---------------- formulas (run once) ---------------- */
 function instalarFormulas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  formatoKardex(); // Kardex tab → new column order (keeps every row)
   const put = function (tab, a1, f) { const sh = ss.getSheetByName(tab); if (sh) sh.getRange(a1).setFormula(f); };
   const clear = function (tab, a1) { const sh = ss.getSheetByName(tab); if (sh) sh.getRange(a1).clearContent(); };
   const d30 = '">="&(TODAY()-30)';
