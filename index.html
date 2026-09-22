@@ -64,6 +64,7 @@ main{padding-top:22px}
 .factor{font:500 13px var(--mono);color:var(--muted);margin-left:auto}
 .factor b{color:var(--ink);font-weight:500}
 .tablewrap{overflow-x:auto}
+input[aria-invalid="true"],select[aria-invalid="true"]{border-color:var(--bad)!important;box-shadow:0 0 0 2px var(--bad-bg)!important}
 table.ing{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 table.ing td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
 table.ing tr:last-child td{border-bottom:0}
@@ -295,6 +296,9 @@ table.dt.kx td{padding:6px 3px}
 table.dt.kx td.kname{min-width:96px;max-width:130px;font-weight:600}
 table.dt.kx td.ktype small{white-space:normal;max-width:96px}
 table.dt.kx td.kqty{font-weight:600}
+table.dt.kx td.kact{white-space:nowrap;padding-left:2px}
+table.dt.kx td.kact .btn{padding:3px 6px;min-width:0}
+table.dt.kx td.kact .btn.armed{background:var(--bad);color:#fff;border-color:var(--bad)}
 table.dt.kx td.klot{word-break:break-all;max-width:64px}
 table.dt.kx td.kts{font-variant-numeric:tabular-nums;color:var(--muted)}
 .kxhint{display:none;margin:0 0 4px}@media (max-width:1060px){.kxhint{display:block}}
@@ -2506,24 +2510,26 @@ function listPurchases(){
    then update every later row (balance, average cost, value; exits take the new average cost) and the inventory */
 async function kardexRecalcItem(itemId,patch){
   if(!DB) return noDb();
-  const it=invItem(itemId), rows=D.kardex.filter(k=>k.itemId===itemId).map(k=>patch&&k.id===patch.id?{...k,...patch}:{...k})
+  const del=patch&&patch.__del, it=invItem(itemId), rows=D.kardex.filter(k=>k.itemId===itemId&&!(del&&k.id===patch.id)).map(k=>patch&&!del&&k.id===patch.id?{...k,...patch}:{...k})
     .sort((a,b)=>String(a.when||a.date).localeCompare(String(b.when||b.date)));
   const unit=it?it.unit:(rows[0]||{}).unit, u={unit}, pack=it?packOf(it):num((rows[0]||{}).pack)||1, B=x=>toBaseI(x,u);
-  let q=0,c=0;
+  let q=0,c=0; const short=[];
   for(const k of rows){ const qty=num(k.qty); let uc=num(k.unitCost);
     if(k.type==="in"){ uc=costR(u,uc); const q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
-    else if(k.type==="out"){ uc=c; q=r3(Math.max(0,q-qty)); }
+    else if(k.type==="out"){ uc=c; if(qty>q+1e-9) short.push(k.date||""); q=r3(Math.max(0,q-qty)); }
     else if(k.type==="adj"){ uc=c; q=r3(Math.max(0,q+qty)); }
     else if(k.type==="cost"){ c=costR(u,uc); }
     const sn=kxSnap({unit,pack,balQty:q,avgCost:c});
     const upd={balQty:q,avgCost:c,costPkg:sn.costPkg,perSub:sn.perSub,stockVal:sn.stockVal,balValue:sn.stockVal,unitCost:uc,total:cost2(B(qty)*uc),dir:kxDir(k)};
     const orig=D.kardex.find(x=>x.id===k.id)||{};
-    const ch=patch&&k.id===patch.id?{...patch,...upd}:Object.fromEntries(Object.entries(upd).filter(([f,v])=>orig[f]!==v));
+    const ch=patch&&!del&&k.id===patch.id?{...patch,...upd}:Object.fromEntries(Object.entries(upd).filter(([f,v])=>orig[f]!==v));
     delete ch.id; if(Object.keys(ch).length) await dbUpd("kardex",k.id,ch); }
+  if(del) await dbDel("kardex",patch.id);
   if(it) await dbUpd("inventory",itemId,{qty:q,cost:c,costPer:baseOf(it.unit),updated:new Date().toISOString()});
-  return {q,c};
+  if(short.length) setTimeout(()=>toast(tt(`Warning: on ${short.join(", ")} an exit is larger than the stock at that date (balance set to 0). Check the movements.`,`Atención: el ${short.join(", ")} hay una salida mayor que el stock a esa fecha (el saldo quedó en 0). Revisa los movimientos.`)),2600);
+  return {q,c,short};
 }
-let kxItem="", kxDays=30, pcDays=30, pcEdit=null;
+let kxItem="", kxDays=30, pcDays=30, pcEdit=null, kxEdit=null;
 const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
@@ -2580,9 +2586,21 @@ function m2(){
     </div>
    </div></section>`;
 }
+/* Kitchen & inventory: no blank fields and no 0 / 0.00 values. fields = [id, label, "text" | "pos"] */
+function reqCheck(fields){ const bad=[];
+  fields.forEach(([id,lbl,k])=>{ const el=document.getElementById(id); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:(v!==""&&num(v)>0);
+    el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(lbl); });
+  if(!bad.length) return true;
+  toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
+  const f=document.querySelector('[aria-invalid="true"]'); if(f) f.focus(); return false; }
 function wireM2(){
+  main.querySelectorAll("#invForm,#addStockForm,#wForm").forEach(f=>{ f.noValidate=true; f.addEventListener("input",e=>{ if(e.target.getAttribute("aria-invalid")==="true") e.target.setAttribute("aria-invalid","false"); }); });
   document.getElementById("invForm").onsubmit=async e=>{
-    e.preventDefault(); if(!val("iName")) return;
+    e.preventDefault();
+    const pc0=val("iUnit")==="pc";
+    if(!reqCheck([["iName",tt("Item","Artículo"),"text"],["iQty",tt("On hand","En stock"),"pos"],["iMin",tt("Alert below","Alerta bajo"),"pos"],["iPar",tt("Maximum quantity","Cantidad máxima"),"pos"],
+      ...(pc0?[["iPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["iCost",tt("Cost","Costo"),"pos"],["iSup",tt("Supplier","Proveedor"),"text"]])) return;
+    if(num(val("iPar"))<num(val("iMin"))){ document.getElementById("iPar").setAttribute("aria-invalid","true"); return toast(tt("Maximum quantity must be at least the alert level.","La cantidad máxima debe ser mayor o igual a la alerta.")); }
     if(!DB) return noDb();
     const pcs=val("iUnit")==="pc", pk=pcs?Math.max(1,Math.round(num(val("iPack"))||1)):1;
     const id="i"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), q=Math.max(0,num(val("iQty"))), c=pcs?Math.round(toCAD(val("iCost"))/pk*10000)/10000:cost2(toCAD(val("iCost")));
@@ -2604,6 +2622,9 @@ function wireM2(){
   };
   document.getElementById("invTable").addEventListener("change",async e=>{
     const inp=e.target.closest("[data-f]"); if(!inp) return; const f=inp.dataset.f, it=invItem(inp.dataset.id); if(!it) return;
+    { const v=String(inp.value||"").trim(), ok=f==="supplier"?!!v:(v!==""&&num(v)>0);
+      if(!ok){ inp.value=f==="supplier"?(it.supplier||""):f==="pack"?packOf(it):num(it[f]); inp.setAttribute("aria-invalid","true"); setTimeout(()=>inp.setAttribute("aria-invalid","false"),2500);
+        return toast(tt("Blank or 0 is not allowed — the previous value was kept.","No se permite vacío ni 0 — se mantuvo el valor anterior.")); } }
     if(f==="qty") return kardexMove(it,{type:"adj",reason:"adjust",newQty:inp.value,ref:tt("Edited in the stock table","Editado en la tabla de stock")});
     // pieces: the table shows the PACKAGE price → cost per piece = package price ÷ pieces per package
     if(f==="cost") return kardexMove(it,{type:"cost",reason:"cost",unitCost:it.unit==="pc"?toCAD(inp.value)/packOf(it):toCAD(inp.value),ref:it.unit==="pc"?tt(`Package price ${inp.value} ÷ ${packOf(it)} pieces`,`Precio del paquete ${inp.value} ÷ ${packOf(it)} piezas`):tt("Edited in the stock table","Editado en la tabla de stock")});
@@ -2620,7 +2641,10 @@ function wireM2(){
   });
   document.getElementById("addStockForm").onsubmit=async e=>{
     e.preventDefault(); const it=D.inventory.find(i=>i.id===val("asItem")); const p=asPurchase(it);
-    if(!it||!p||p.q<=0) return; const q=p.q, uc=p.uc;
+    if(!it) return toast(tt("Choose an item.","Elige un artículo."));
+    if(!reqCheck([["asQty",it.unit==="pc"?tt("Packages received","Paquetes recibidos"):tt("Quantity received","Cantidad recibida"),"pos"],...(it.unit==="pc"?[["asPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),
+      ["asCost",it.unit==="pc"?tt("Price per package","Precio por paquete"):tt("Purchase cost","Costo de compra"),"pos"],["asSup",tt("Supplier","Proveedor"),"text"]])) return;
+    if(!p||p.q<=0) return; const q=p.q, uc=p.uc;
     if(it.unit==="pc"&&p.pk!==packOf(it)) await dbUpd("inventory",it.id,{pack:p.pk});
     const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef"),supplier:val("asSup"),lot:val("asLot"),expiry:val("asExp")}); if(!r) return;
     document.getElementById("asMsg").textContent=tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${it.unit==="pc"?money4(r.c1):money2(r.c1)} per ${costPerLbl(it.unit,it)} · value ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} per ${subUnit(it.unit)}).`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${it.unit==="pc"?money4(r.c1):money2(r.c1)} por ${costPerLbl(it.unit,it)} · valor ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} por ${subUnit(it.unit)}).`);
@@ -2630,7 +2654,9 @@ function wireM2(){
   ["asQty","asPack","asCost"].forEach(id=>document.getElementById(id).addEventListener("input",asCalc));
   asForm();
   document.getElementById("wForm").onsubmit=async e=>{
-    e.preventDefault(); const it=D.inventory.find(i=>i.id===val("wItem")); if(!it||!num(val("wQty"))) return;
+    e.preventDefault(); const it=D.inventory.find(i=>i.id===val("wItem")); if(!it) return toast(tt("Choose an item.","Elige un artículo."));
+    if(!reqCheck([["wQty",tt("Quantity","Cantidad"),"pos"],["wDate",tt("Date","Fecha"),"text"]])) return;
+    if(num(val("wQty"))>num(it.qty)){ document.getElementById("wQty").setAttribute("aria-invalid","true"); return toast(tt(`Only ${num(it.qty)} ${unitLbl(it.unit)} in stock.`,`Solo hay ${num(it.qty)} ${unitLbl(it.unit)} en stock.`)); }
     const wq=num(val("wQty"));
     await dbAdd("waste",{itemId:it.id,item:it.name,unit:it.unit,qty:wq,cost:cost2(toBaseI(wq,it)*num(it.cost)),reason:val("wReason"),date:val("wDate")||today()});
     await kardexMove(it,{type:"out",reason:"waste",qty:wq,ref:tt(...(REASONS.find(r=>r[0]===val("wReason"))||REASONS[4]).slice(1))});
@@ -2639,7 +2665,7 @@ function wireM2(){
   document.getElementById("poBox").addEventListener("click",e=>{if(e.target.closest("#poCopy")) copyText(poText());});
   document.getElementById("fcAI").onclick=forecastAI;
 }
-function invStatus(i){ if(i.min>0&&i.qty<=i.min) return ["bad",tt("Low","Bajo")]; if(i.par>0&&i.qty>i.par) return ["warn",tt("Overstock","Exceso")]; return ["ok","OK"]; }
+function invStatus(i){ if(!(num(i.min)>0)||!(num(i.par)>0)||!String(i.supplier||"").trim()) return ["warn",tt("Missing data","Faltan datos")]; if(i.min>0&&i.qty<=i.min) return ["bad",tt("Low","Bajo")]; if(i.par>0&&i.qty>i.par) return ["warn",tt("Overstock","Exceso")]; return ["ok","OK"]; }
 function poLines(){ return D.inventory.filter(i=>i.min>0&&i.qty<=i.min&&i.par>i.qty).map(i=>({...i,order:i.par-i.qty,est:toBaseI(i.par-i.qty,i)*num(i.cost)})); }
 function poText(){ const L=poLines(); const by={}; L.forEach(l=>{(by[l.supplier||tt("No supplier","Sin proveedor")] ||= []).push(l);});
   return tt("PURCHASE ORDER","ORDEN DE COMPRA")+" — "+today()+"\n"+Object.entries(by).map(([s,ls])=>`\n${s}\n`+ls.map(l=>`• ${l.name}: ${+l.order.toFixed(2)} ${l.unit}`).join("\n")).join("\n"); }
@@ -2695,15 +2721,15 @@ function listKardex(){
   const rows=kardexRows(), ins=rows.filter(k=>k.type==="in"||(k.type==="adj"&&num(k.qty)>0)), outs=rows.filter(k=>k.type==="out"||(k.type==="adj"&&num(k.qty)<0));
   const it=kxItem?invItem(kxItem):null;
   setHTML(el,rows.length?`${it?`<p class="dimtxt">${esc(it.name)} · ${tt("stock","stock")} <b>${num(it.qty)} ${esc(unitLbl(it.unit))}</b> · ${tt("average cost","costo promedio")} <b>${it.unit==="pc"?money4(it.cost):money2(it.cost)}</b> / ${esc(costPerLbl(it.unit,it))} (${fmtSub(subCost(it))} / ${subUnit(it.unit)}) · ${tt("value","valor")} <b>${money2(stockValue(it))}</b></p>`:""}
-   <table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th title="${tt("Per kg / L / package","Por kg / L / paquete")}">${tt("Weighted average cost","Costo promedio ponderado")} (${curSym()})</th><th>${tt("Per g / mL / piece","Por g / mL / und")}</th><th>${tt("Stock value","Valor del stock")}</th><th>${tt("Movement date","Fecha de movimiento")}</th><th title="${tt("Date and time the movement was recorded","Fecha y hora en que se registró el movimiento")}">${tt("Timestamp","Registro (fecha y hora)")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit cost","Costo unitario")}</th><th>${tt("Updated balance","Saldo actualizado")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Lot","Lote")}</th><th>${tt("Expiry","Caducidad")}</th></tr></thead><tbody>
+   <table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th title="${tt("Per kg / L / package","Por kg / L / paquete")}">${tt("Weighted average cost","Costo promedio ponderado")} (${curSym()})</th><th>${tt("Per g / mL / piece","Por g / mL / und")}</th><th>${tt("Stock value","Valor del stock")}</th><th>${tt("Movement date","Fecha de movimiento")}</th><th title="${tt("Date and time the movement was recorded","Fecha y hora en que se registró el movimiento")}">${tt("Timestamp","Registro (fecha y hora)")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit cost","Costo unitario")}</th><th>${tt("Updated balance","Saldo actualizado")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Lot","Lote")}</th><th>${tt("Expiry","Caducidad")}</th>${canWrite("kardex")?"<th></th>":""}</tr></thead><tbody>
    ${rows.slice(0,300).map(k=>{const q=num(k.qty), d=k.dir||kxDir(k), sn=kxSnap(k), u=esc(unitLbl(k.unit)), pc=k.unit==="pc", ex=String(k.expiry||""), exC=ex&&ex<today()?"kout":ex&&ex<=addDays(today(),7)?"kwarn":"";
-     return `<tr><td class="kname">${esc(k.item)}</td><td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(k.unit))}</small></td>
+     return `<tr${k.id===kxEdit?' class="editing"':""}><td class="kname">${esc(k.item)}</td><td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(k.unit))}</small></td>
        <td class="nw">${pc?money4(sn.perSub):fmtSub(sn.perSub)}<small>/ ${u}</small></td><td class="nw"><b>${money2(sn.stockVal)}</b></td>
        <td class="nw">${esc(String(k.date||String(k.when||"").slice(0,10)))}</td><td class="nw kts">${kxTs(k)}${k.edited?`<small title="${esc(kxTsFmt(k.edited))}">✏ ${tt("edited","editado")}</small>`:""}</td>
        <td class="ktype ${d==="Entrada"?"kin":d==="Salida"?"kout":""}" title="${esc([kxReason(k.reason),k.ref,k.by].filter(Boolean).join(" · "))}">${kxDirLbl(d)}<small>${esc(kxReason(k.reason))}${k.ref&&k.reason!=="initial"?" · "+esc(String(k.ref).slice(0,40)):""}</small></td>
        <td class="nw kqty ${d==="Entrada"?"kin":d==="Salida"?"kout":""}">${q?(d==="Salida"?"−":"+")+fmtQ(Math.abs(q))+" "+u:"—"}</td>
        <td class="nw">${pc?money4(k.unitCost):money2(k.unitCost)}<small>/ ${pc?tt("pc","und"):esc(costPerLbl(k.unit))}</small></td>
-       <td class="nw"><b>${fmtQ(num(k.balQty))}</b> ${u}</td><td>${esc(k.supplier||"")||"—"}</td><td class="klot">${esc(k.lot||"")||"—"}</td><td class="nw ${exC}">${esc(ex)||"—"}</td></tr>`;}).join("")}
+       <td class="nw"><b>${fmtQ(num(k.balQty))}</b> ${u}</td><td>${esc(k.supplier||"")||"—"}</td><td class="klot">${esc(k.lot||"")||"—"}</td><td class="nw ${exC}">${esc(ex)||"—"}</td>${canWrite("kardex")?`<td class="kact">${k.type==="cost"?"":`<button type="button" class="btn sm ghost" data-kxedit="${esc(k.id)}" title="${tt("Edit","Editar")}" aria-label="${tt("Edit movement","Editar movimiento")} ${esc(k.item)} ${esc(k.date||"")}">✏</button>`}<button type="button" class="btn sm ghost" data-kxdel="${esc(k.id)}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete movement","Eliminar movimiento")} ${esc(k.item)} ${esc(k.date||"")}">🗑</button></td>`:""}</tr>`;}).join("")}
    </tbody></table>${rows.length>300?`<p class="hint">${tt("Showing the latest 300 — export CSV for all.","Se muestran los últimos 300 — exporta el CSV para ver todos.")}</p>`:""}
    <p class="hint">${tt("In this period","En este periodo")}: ${ins.length} ${tt("entries","entradas")} (${money2(ins.reduce((s,k)=>s+Math.abs(num(k.total)),0))}) · ${outs.length} ${tt("exits","salidas")} (${money2(outs.reduce((s,k)=>s+Math.abs(num(k.total)),0))})</p>`
    :`<p class="empty">${tt("No movements yet. They appear when you add stock, register a movement here, charge a bill, log waste or correct a stock count.","Aún no hay movimientos. Aparecen al agregar stock, registrar un movimiento aquí, cobrar una cuenta, registrar merma o corregir un conteo de stock.")}</p>`);
@@ -2824,6 +2850,9 @@ function m3(){
       <label class="f inline"><span>${tt("Target margin %","Margen objetivo %")}</span><input id="tMargin" type="number" min="0" max="100" value="${num(D.costs._target)||60}"></label></div>
 </div></div>`;
   let body="";
+  const ke=kxEdit?D.kardex.find(k=>k.id===kxEdit&&k.type!=="cost"):null; if(!ke) kxEdit=null;
+  const keDir=ke?((ke.type==="in"||(ke.type==="adj"&&num(ke.qty)>0))?"in":"out"):"", keIt=ke?(invItem(ke.itemId)||{unit:ke.unit,pack:ke.pack}):null, kePk=ke&&ke.unit==="pc"?packOf(keIt):1;
+  const keQty=ke?r3(Math.abs(num(ke.qty))/(keDir==="in"?kePk:1)):"", keCost=ke?inCur(num(ke.unitCost)*kePk).toFixed(2):"";
   const pe=pcEdit?D.kardex.find(k=>k.id===pcEdit):null; if(!pe) pcEdit=null;
   const peIt=pe?(invItem(pe.itemId)||{unit:pe.unit,pack:pe.pack}):null, pePk=pe&&pe.unit==="pc"?packOf(peIt):1;
   const pv=f=>pe?` value="${esc(String(f==="qty"?r3(num(pe.qty)/pePk):f==="cost"?inCur(num(pe.unitCost)*pePk).toFixed(2):pe[f]||""))}"`:"";
@@ -2834,8 +2863,8 @@ function m3(){
      ${field("pcItem",tt("Item","Artículo"),`<select id="pcItem" required></select>`)}
      ${field("pcDate",tt("Purchase date","Fecha de compra"),`<input id="pcDate" type="date" value="${pe?esc(pe.date||today()):today()}" max="${today()}" required>`)}
      <div class="f"><label for="pcQty" id="pcQtyL">${tt("Quantity","Cantidad")}</label><input id="pcQty" type="number" step="any" min="0" required${pv("qty")}></div>
-     <div class="f"><label for="pcCost" id="pcCostL">${tt("Cost","Costo")}</label><input id="pcCost" type="number" step="0.01" min="0" required placeholder="0.00"${pv("cost")}></div>
-     ${field("pcSup",tt("Supplier","Proveedor"),`<input id="pcSup" maxlength="60"${pv("supplier")}>`)}
+     <div class="f"><label for="pcCost" id="pcCostL">${tt("Cost","Costo")}</label><input id="pcCost" type="number" step="0.01" min="0.01" required placeholder="0.00"${pv("cost")}></div>
+     ${field("pcSup",tt("Supplier","Proveedor"),`<input id="pcSup" maxlength="60" required${pv("supplier")}>`)}
      ${field("pcLot",tt("Lot","Lote"),`<input id="pcLot" maxlength="40"${pv("lot")}>`)}
      ${field("pcExp",tt("Expiry","Caducidad"),`<input id="pcExp" type="date"${pv("expiry")}>`)}
      ${field("pcRef",tt("Invoice (optional)","Factura (opcional)"),`<input id="pcRef" maxlength="60"${pe&&pe.reason!=="initial"?pv("ref"):""}>`)}
@@ -2861,18 +2890,19 @@ function m3(){
      <div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxCsv">⬇ ${tt("Export CSV","Exportar CSV")}</button></div>
      ${canWrite("kardex")&&(MODE!=="sheet"||["admin","chef"].includes(SESSION&&SESSION.role))?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxReset" title="${tt("Only erases every movement in the Kardex database. After that, the Kardex is fed by purchases.","Solo borra todos los movimientos de la base de datos del Kardex. Después, el Kardex se alimenta de las compras.")}">↺ ${tt("Restart Kardex","Reiniciar Kardex")}</button></div>`:""}
     </div>
-    <form id="kmForm" class="addstock"><h4 class="minih">${tt("Register movement","Registrar movimiento")}</h4>
+    <form id="kmForm" class="addstock${ke?" editpanel":""}"><h4 class="minih">${ke?`✏ ${tt("Edit movement","Editar movimiento")} — ${esc(ke.item)}`:tt("Register movement","Registrar movimiento")}</h4>
+     ${ke?`<p class="hint">${tt("When you save, this item's whole Kardex is recalculated in date order (balances, weighted average cost, value and the cost of later exits) and the inventory is updated.","Al guardar, se recalcula todo el Kardex de este artículo en orden de fecha (saldos, costo promedio ponderado, valor y costo de las salidas posteriores) y se actualiza el inventario.")}</p>`:""}
      <div class="fgrid">
       ${field("kmItem",tt("Item","Artículo"),`<select id="kmItem" required></select>`)}
-      ${field("kmDate",tt("Movement date","Fecha de movimiento"),`<input id="kmDate" type="date" value="${today()}" max="${today()}" required>`)}
-      ${field("kmType",tt("Type","Tipo"),`<select id="kmType"><option value="in">${tt("In","Entrada")}</option><option value="out">${tt("Out","Salida")}</option></select>`)}
-      <div class="f"><label for="kmQty" id="kmQtyL">${tt("Quantity","Cantidad")}</label><input id="kmQty" type="number" step="any" min="0" required></div>
-      <div class="f" id="kmCostF"><label for="kmCost" id="kmCostL">${tt("Unit cost","Costo unitario")}</label><input id="kmCost" type="number" step="0.01" min="0" placeholder="${tt("blank = current cost","vacío = costo actual")}"></div>
-      ${field("kmSup",tt("Supplier","Proveedor"),`<input id="kmSup" maxlength="60">`)}
-      <div class="f" id="kmLotF"><label for="kmLot">${tt("Lot","Lote")}</label><input id="kmLot" maxlength="40"></div>
-      <div class="f" id="kmExpF"><label for="kmExp">${tt("Expiry","Caducidad")}</label><input id="kmExp" type="date"></div>
-      ${field("kmRef",tt("Note / invoice (optional)","Nota / factura (opcional)"),`<input id="kmRef" maxlength="60">`)}
-      <button class="btn" type="submit">${tt("Save movement","Guardar movimiento")}</button>
+      ${field("kmDate",tt("Movement date","Fecha de movimiento"),`<input id="kmDate" type="date" value="${ke?esc(ke.date||today()):today()}" max="${today()}" required>`)}
+      ${field("kmType",tt("Type","Tipo"),`<select id="kmType"><option value="in">${tt("In","Entrada")}</option><option value="out"${ke&&keDir==="out"?" selected":""}>${tt("Out","Salida")}</option></select>`)}
+      <div class="f"><label for="kmQty" id="kmQtyL">${tt("Quantity","Cantidad")}</label><input id="kmQty" type="number" step="any" min="0" required${ke?` value="${keQty}"`:""}></div>
+      <div class="f" id="kmCostF"><label for="kmCost" id="kmCostL">${tt("Unit cost","Costo unitario")}</label><input id="kmCost" type="number" step="0.01" min="0.01" placeholder="0.00"${ke&&keDir==="in"?` value="${keCost}"`:""}></div>
+      ${field("kmSup",tt("Supplier","Proveedor"),`<input id="kmSup" maxlength="60"${ke?` value="${esc(ke.supplier||"")}"`:""}>`)}
+      <div class="f" id="kmLotF"><label for="kmLot">${tt("Lot","Lote")}</label><input id="kmLot" maxlength="40"${ke?` value="${esc(ke.lot||"")}"`:""}></div>
+      <div class="f" id="kmExpF"><label for="kmExp">${tt("Expiry","Caducidad")}</label><input id="kmExp" type="date"${ke?` value="${esc(ke.expiry||"")}"`:""}></div>
+      ${field("kmRef",tt("Note / invoice (optional)","Nota / factura (opcional)"),`<input id="kmRef" maxlength="60"${ke?` value="${esc(ke.ref||"")}"`:""}>`)}
+      <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="btn" type="submit">${ke?tt("Save changes","Guardar cambios"):tt("Save movement","Guardar movimiento")}</button>${ke?`<button class="btn ghost" type="button" id="kmCancel">${tt("Cancel","Cancelar")}</button>`:""}</div>
      </div></form>
     <p class="hint kxhint">↔ ${tt("Swipe the table sideways to see every column; the item name stays fixed.","Desliza la tabla hacia los lados para ver todas las columnas; el nombre del artículo queda fijo.")}</p><div class="tablewrap kxscroll" id="kxBox"></div>
     <p class="hint">${tt("Every purchase (+ Stock or “Register movement”), sale (paid bill), waste and stock count is recorded here with weighted average cost (per kg / L / package), cost per g / mL / piece, stock value, movement date, timestamp, type (in / out), quantity, unit cost, updated balance, supplier, lot and expiry. Expired lots show in red, lots expiring within 7 days in amber. On the website it is saved in the “Kardex” tab of the Google Sheet.","Aquí se registra cada compra (+ Stock o “Registrar movimiento”), venta (cuenta cobrada), merma y conteo de stock con costo promedio ponderado (por kg / L / paquete), costo por g / mL / und, valor del stock, fecha de movimiento, registro (fecha y hora), tipo (entrada / salida), cantidad, costo unitario, saldo actualizado, proveedor, lote y caducidad. Los lotes vencidos se ven en rojo y los que vencen en 7 días o menos, en ámbar. En la web se guarda en la pestaña “Kardex” de la hoja de Google.")}</p>
@@ -2942,8 +2972,12 @@ function wireM3(){
     g("pcDays").onchange=e=>{ pcDays=num(e.target.value); listPurchases(); };
     if(g("pcCancel")) g("pcCancel").onclick=()=>{ pcEdit=null; render(); };
     g("pcBox").addEventListener("click",e=>{ const b=e.target.closest("[data-pcedit]"); if(!b) return; pcEdit=b.dataset.pcedit; render(); const p=document.getElementById("pcPanel"); if(p) p.scrollIntoView({behavior:"smooth",block:"start"}); const q=document.getElementById("pcQty"); if(q) q.focus({preventScroll:true}); });
-    g("pcForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("pcItem").value); if(!it) return; const n=num(g("pcQty").value), c=g("pcCost").value;
-      if(!(n>0)||c==="") return toast(tt("Enter quantity and cost.","Ingresa cantidad y costo."));
+    g("pcForm").noValidate=true; g("pcForm").addEventListener("input",e=>{ if(e.target.getAttribute("aria-invalid")==="true") e.target.setAttribute("aria-invalid","false"); });
+    g("pcForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("pcItem").value); if(!it){ g("pcItem").setAttribute("aria-invalid","true"); return toast(tt("Choose an item.","Elige un artículo.")); }
+      const pcu=it.unit==="pc";
+      if(!reqCheck([["pcDate",tt("Purchase date","Fecha de compra"),"text"],["pcQty",pcu?tt("Packages","Paquetes"):tt("Quantity","Cantidad"),"pos"],["pcCost",pcu?tt("Price per package","Precio por paquete"):tt("Cost","Costo"),"pos"],["pcSup",tt("Supplier","Proveedor"),"text"]])) return;
+      if(g("pcDate").value>today()){ g("pcDate").setAttribute("aria-invalid","true"); return toast(tt("The purchase date can't be in the future.","La fecha de compra no puede ser futura.")); }
+      const n=num(g("pcQty").value), c=g("pcCost").value;
       const pc=it.unit==="pc", q=pc?n*packOf(it):n;
       if(pcEdit){ const k=D.kardex.find(x=>x.id===pcEdit); if(!k){ pcEdit=null; return render(); }
         const date=/^\d{4}-\d{2}-\d{2}$/.test(g("pcDate").value)?g("pcDate").value:k.date, tpart=/^T\d\d:\d\d/.test(String(k.when||"").slice(10))?String(k.when).slice(10,23):"T12:00:00.000";
@@ -2986,11 +3020,30 @@ function wireM3(){
     g("kmQtyL").textContent=pc&&inn?tt("Packages","Paquetes"):tt(`Quantity (${it?unitLbl(it.unit):"—"})`,`Cantidad (${it?unitLbl(it.unit):"—"})`);
     g("kmCostL").textContent=(pc?tt(`Price per package (${packOf(it)} pieces)`,`Precio por paquete (${packOf(it)} piezas)`):tt(`Unit cost per ${it?costPerLbl(it.unit):"kg / L"}`,`Costo unitario por ${it?costPerLbl(it.unit):"kg / L"}`))+` (${curSym()})`;
     ["kmCostF","kmLotF","kmExpF"].forEach(id=>g(id).hidden=!inn);
-    if(it&&document.activeElement!==g("kmSup")) g("kmSup").value=inn?(it.supplier||""):""; };
+    if(it&&!kxEdit&&document.activeElement!==g("kmSup")) g("kmSup").value=inn?(it.supplier||""):""; };
   g("kmItem").onchange=kmSet; g("kmType").onchange=kmSet; kmSet();
-  g("kmForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("kmItem").value); if(!it) return;
-    const inn=g("kmType").value==="in", n=num(g("kmQty").value); if(!(n>0)) return toast(tt("Enter a quantity.","Ingresa una cantidad."));
-    const q=it.unit==="pc"&&inn?n*packOf(it):n, c=g("kmCost").value;
+  g("kmForm").noValidate=true; g("kmForm").addEventListener("input",e=>{ if(e.target.getAttribute("aria-invalid")==="true") e.target.setAttribute("aria-invalid","false"); });
+  if(g("kmCancel")) g("kmCancel").onclick=()=>{ kxEdit=null; render(); };
+  g("kxBox").addEventListener("click",async e=>{
+    const ed=e.target.closest("[data-kxedit]"); if(ed){ kxEdit=ed.dataset.kxedit; render(); const f=document.getElementById("kmForm"); if(f) f.scrollIntoView({behavior:"smooth",block:"start"}); return; }
+    const dl=e.target.closest("[data-kxdel]"); if(!dl) return;
+    if(!dl.classList.contains("armed")){ dl.classList.add("armed"); dl.textContent=tt("Delete?","¿Eliminar?"); setTimeout(()=>{ if(dl.isConnected){ dl.classList.remove("armed"); dl.textContent="🗑"; } },5000); return; }
+    const k=D.kardex.find(x=>x.id===dl.dataset.kxdel); if(!k) return; dl.disabled=true;
+    const r=await kardexRecalcItem(k.itemId,{id:k.id,__del:true}); if(!r) return; if(kxEdit===k.id) kxEdit=null;
+    toast(tt(`Movement deleted and Kardex recalculated. ${k.item}: ${fmtQ(r.q)} ${unitLbl(k.unit)}`,`Movimiento eliminado y Kardex recalculado. ${k.item}: ${fmtQ(r.q)} ${unitLbl(k.unit)}`)); render(); });
+  g("kmForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("kmItem").value); if(!it) return toast(tt("Choose an item.","Elige un artículo."));
+    const inn=g("kmType").value==="in";
+    if(!reqCheck([["kmDate",tt("Movement date","Fecha de movimiento"),"text"],["kmQty",tt("Quantity","Cantidad"),"pos"],...(inn?[["kmCost",tt("Unit cost","Costo unitario"),"pos"]]:[])])) return;
+    if(g("kmDate").value>today()){ g("kmDate").setAttribute("aria-invalid","true"); return toast(tt("The date can't be in the future.","La fecha no puede ser futura.")); }
+    const n=num(g("kmQty").value), q=it.unit==="pc"&&inn?n*packOf(it):n, c=g("kmCost").value;
+    if(kxEdit){ const k=D.kardex.find(x=>x.id===kxEdit); if(!k){ kxEdit=null; return render(); }
+      const date=g("kmDate").value, tpart=/^T\d\d:\d\d/.test(String(k.when||"").slice(10))?String(k.when).slice(10,23):"T12:00:00.000", type=inn?"in":"out";
+      const patch={id:k.id,type,qty:r3(q),date,when:date+tpart,supplier:g("kmSup").value.trim().slice(0,60),lot:inn?g("kmLot").value.trim().slice(0,40):"",expiry:inn?g("kmExp").value:"",ref:g("kmRef").value.trim().slice(0,60),
+        edited:kxStamp(),editedBy:SESSION?(SESSION.name||SESSION.user):""};
+      if(k.type==="adj") patch.reason=inn?"manual_in":"manual_out";
+      if(inn) patch.unitCost=costR(it,it.unit==="pc"?toCAD(c)/packOf(it):toCAD(c));
+      const r=await kardexRecalcItem(k.itemId,patch); if(!r) return;
+      kxEdit=null; toast(tt(`Movement updated and Kardex recalculated. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)}`,`Movimiento actualizado y Kardex recalculado. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)}`)); render(); return; }
     if(!inn&&q>num(it.qty)) return toast(tt(`Only ${num(it.qty)} ${unitLbl(it.unit)} in stock.`,`Solo hay ${num(it.qty)} ${unitLbl(it.unit)} en stock.`));
     const r=await kardexMove(it,{type:inn?"in":"out",reason:inn?"manual_in":"manual_out",qty:q,unitCost:inn&&c!==""?(it.unit==="pc"?toCAD(c)/packOf(it):toCAD(c)):null,
       date:g("kmDate").value,supplier:g("kmSup").value.trim(),lot:inn?g("kmLot").value.trim():"",expiry:inn?g("kmExp").value:"",ref:g("kmRef").value.trim()}); if(!r) return;
@@ -3013,7 +3066,8 @@ function listM3(){
   if(m3Sub==="kardex"){
   const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
   const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
-  const km=document.getElementById("kmItem"); if(km&&document.activeElement!==km){ const cur=km.value||kxItem; km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
+  const km=document.getElementById("kmItem"); const ke=kxEdit?D.kardex.find(k=>k.id===kxEdit):null; if(km) km.disabled=!!ke;
+  if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
     listKardex(); return; }
   const cb=document.getElementById("costBox");
   const st0=document.getElementById("m3Stock");
