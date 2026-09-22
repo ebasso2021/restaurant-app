@@ -475,7 +475,7 @@ function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by, extr
     dir: kxDir_(type, qty), qty: r3_(qty), unitCost: rc_(it.unit, unitCost), balQty: r3_(balQty),
     supplier: extra.supplier != null ? String(extra.supplier) : (type === "in" ? String(it.supplier || "") : ""), lot: String(extra.lot || ""), expiry: String(extra.expiry || ""),
     unit: it.unit || "", reason: reason, type: type, total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), avgCost: rc_(it.unit, avgCost), balValue: sn.stockVal,
-    ref: ref || "", by: by || "", when: now.toISOString(), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
+    ref: ref || "", by: by || "", when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
 }
 // Erases every row of the "Kardex" tab and writes one opening row per item of "Inventario"
 // (stock and cost of Kitchen & inventory). Menu Taste of Peru → Reiniciar Kardex, or run it from the editor.
@@ -493,7 +493,7 @@ function reiniciarKardex() {
       write_("kardex", "k" + now.getTime().toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 5), {
         item: it.name || "", costPkg: sn.costPkg, perSub: sn.perSub, stockVal: sn.stockVal, date: date, dir: "Entrada", qty: q, unitCost: c, balQty: q,
         supplier: String(it.supplier || ""), lot: "", expiry: "", unit: u, reason: "initial", type: "in", total: r2_(toBase_(q, u) * c), avgCost: c, balValue: sn.stockVal,
-        ref: "Kardex inicial desde Inventario", by: "Hoja", when: now.toISOString(), itemId: d.id, costPer: baseOf_(u), pack: pk });
+        ref: "Kardex inicial desde Inventario", by: "Hoja", when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: d.id, costPer: baseOf_(u), pack: pk });
     });
     try { ss.toast(inv.length + " filas iniciales en Kardex", "Taste of Peru"); } catch (e) {}
   } finally { lock.releaseLock(); }

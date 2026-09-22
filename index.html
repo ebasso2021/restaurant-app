@@ -296,6 +296,8 @@ table.dt.kx td.kname{min-width:104px;max-width:150px;font-weight:600}
 table.dt.kx td.ktype small{white-space:normal;max-width:120px}
 table.dt.kx td.kqty{font-weight:600}
 .kxhint{display:none;margin:0 0 4px}@media (max-width:1060px){.kxhint{display:block}}
+.editpanel{outline:2px solid var(--accent);outline-offset:-2px}
+table.dt.kx tr.editing td{background:var(--sunk)}
 .kxscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .kxscroll table.dt.kx th:first-child,.kxscroll table.dt.kx td:first-child{position:sticky;left:0;background:var(--surface);z-index:1;box-shadow:1px 0 0 var(--line)}
 table.dt.kx td.kin{color:var(--ok)} table.dt.kx td.kout{color:var(--bad)} table.dt.kx td.kwarn{color:var(--warn,#b7791f)}
@@ -2429,6 +2431,8 @@ const kxReason=k=>KX_REASON[k]?tt(KX_REASON[k][0],KX_REASON[k][1]):k;
 /* Kardex row snapshot with the same rules as the stock table:
    cost per kg / L / package · per g / mL / piece · stock value (pieces: per piece = package cost ÷ on hand, value = per piece × pieces per package) */
 const fmtQ=v=>(Math.round(num(v)*1000)/1000).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{maximumFractionDigits:3});   // Kardex quantities: exact, up to 3 decimals
+// Kardex order key: local date + time, so a movement's date and its order always agree
+const kxStamp=(d=new Date())=>{ const z=(n,l=2)=>String(n).padStart(l,"0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}.${z(d.getMilliseconds(),3)}`; };
 function kxSnap(k){ const s={unit:k.unit,pack:num(k.pack)||1,qty:num(k.balQty),cost:num(k.avgCost)};
   return {costPkg:cost2(k.unit==="pc"?s.cost*packOf(s):s.cost),perSub:Math.round(perUnit(s)*10000)/10000,stockVal:cost2(stockValue(s))}; }
 const kxDir=k=>k.type==="in"||(k.type==="adj"&&num(k.qty)>0)?"Entrada":k.type==="out"||(k.type==="adj"&&num(k.qty)<0)?"Salida":"Costo";
@@ -2449,7 +2453,7 @@ async function kardexMove(it,m){
   const date=m.date&&/^\d{4}-\d{2}-\d{2}$/.test(m.date)?m.date:today(), snap=kxSnap({unit:it.unit,pack:packOf(it),balQty:q1,avgCost:c1});
   await dbSet("kardex/"+id,{item:it.name,costPkg:snap.costPkg,perSub:snap.perSub,stockVal:snap.stockVal,date,dir:kxDir({type,qty}),qty:r3(qty),unitCost:uc,balQty:q1,
     supplier:String(m.supplier!=null?m.supplier:(type==="in"?it.supplier||"":"")).slice(0,60),lot:String(m.lot||"").slice(0,40),expiry:m.expiry&&/^\d{4}-\d{2}-\d{2}$/.test(m.expiry)?m.expiry:"",
-    when:date===today()?stamp:date+stamp.slice(10),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type,reason:m.reason||type,total:cost2(B(qty)*uc),
+    when:date+kxStamp().slice(10),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type,reason:m.reason||type,total:cost2(B(qty)*uc),
     avgCost:c1,balValue:snap.stockVal,ref:m.ref||"",by:SESSION?(SESSION.name||SESSION.user):""});
   return {q1,c1};
 }
@@ -2462,7 +2466,7 @@ async function kardexReset(){
     const q=r3(Math.max(0,num(it.qty))), c=costR(it,it.cost), sn=kxSnap({unit:it.unit,pack:packOf(it),balQty:q,avgCost:c});
     const id="k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     await dbSet("kardex/"+id,{item:it.name,costPkg:sn.costPkg,perSub:sn.perSub,stockVal:sn.stockVal,date:today(),dir:"Entrada",qty:q,unitCost:c,balQty:q,supplier:it.supplier||"",lot:"",expiry:"",
-      when:stamp,itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type:"in",reason:"initial",total:cost2(toBaseI(q,it)*c),avgCost:c,balValue:sn.stockVal,
+      when:kxStamp(),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type:"in",reason:"initial",total:cost2(toBaseI(q,it)*c),avgCost:c,balValue:sn.stockVal,
       ref:tt("Opening Kardex from Kitchen & inventory","Kardex inicial desde Cocina e inventario"),by}); n++; }
   return {del:old.length,n};
 }
@@ -2485,10 +2489,11 @@ function listPurchases(){
   const buys=rows.filter(k=>k.reason!=="initial"), tot=buys.reduce((s,k)=>s+Math.abs(num(k.total)),0), sup={};
   buys.forEach(k=>{ const n=k.supplier||tt("No supplier","Sin proveedor"); sup[n]=(sup[n]||0)+Math.abs(num(k.total)); });
   setHTML(document.getElementById("pcKpis"),`<p class="dimtxt">${tt("Purchased in this period","Comprado en este periodo")}: <b>${money2(tot)}</b> · ${buys.length} ${tt("purchases","compras")}${Object.keys(sup).length?" · "+Object.entries(sup).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`${esc(n)} ${money2(v)}`).join(" · "):""}</p>`);
-  setHTML(box,rows.length?`<table class="dt kx"><thead><tr><th>${tt("Date","Fecha")}</th><th>${tt("Item","Artículo")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit cost","Costo unitario")}</th><th>${tt("Total","Total")}</th><th>${tt("Average cost after","Costo promedio después")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Lot","Lote")}</th><th>${tt("Expiry","Caducidad")}</th><th>${tt("Invoice","Factura")}</th></tr></thead><tbody>
-    ${rows.slice(0,300).map(k=>{const pc=k.unit==="pc", sn=kxSnap(k); return `<tr><td class="nw">${esc(k.date||"")}</td><td>${esc(k.item)}</td><td>${esc(kxReason(k.reason))}</td><td class="nw kin">+${fmtQ(num(k.qty))} ${esc(unitLbl(k.unit))}</td>
+  setHTML(box,rows.length?`<table class="dt kx"><thead><tr><th>${tt("Date","Fecha")}</th><th>${tt("Item","Artículo")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Quantity","Cantidad")}</th><th>${tt("Unit cost","Costo unitario")}</th><th>${tt("Total","Total")}</th><th>${tt("Average cost after","Costo promedio después")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Lot","Lote")}</th><th>${tt("Expiry","Caducidad")}</th><th>${tt("Invoice","Factura")}</th><th></th></tr></thead><tbody>
+    ${rows.slice(0,300).map(k=>{const pc=k.unit==="pc", sn=kxSnap(k); return `<tr${k.id===pcEdit?' class="editing"':""}><td class="nw">${esc(k.date||"")}</td><td>${esc(k.item)}</td><td>${esc(kxReason(k.reason))}</td><td class="nw kin">+${fmtQ(num(k.qty))} ${esc(unitLbl(k.unit))}</td>
       <td class="nw">${pc?money4(k.unitCost):money2(k.unitCost)}<small>/ ${pc?tt("pc","und"):esc(costPerLbl(k.unit))}</small></td><td class="nw"><b>${money2(Math.abs(num(k.total)))}</b></td>
-      <td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(k.unit))}</small></td><td>${esc(k.supplier||"")||"—"}</td><td class="nw">${esc(k.lot||"")||"—"}</td><td class="nw">${esc(k.expiry||"")||"—"}</td><td>${esc(k.reason==="initial"?"":k.ref||"")||"—"}</td></tr>`;}).join("")}</tbody></table>`
+      <td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(k.unit))}</small></td><td>${esc(k.supplier||"")||"—"}</td><td class="nw">${esc(k.lot||"")||"—"}</td><td class="nw">${esc(k.expiry||"")||"—"}</td><td>${esc(k.reason==="initial"?"":k.ref||"")||"—"}</td>
+      <td class="nw">${canWrite("kardex")?`<button type="button" class="btn sm ghost" data-pcedit="${esc(k.id)}" aria-label="${tt("Edit purchase","Editar compra")} ${esc(k.item)} ${esc(k.date||"")}">✏ ${tt("Edit","Editar")}</button>`:""}</td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No purchases in this period.","No hay compras en este periodo.")}</p>`);
   const T=kxTotals(), inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name))), kt=document.getElementById("kxTot");
   setHTML(kt,inv.length?`<table class="dt kx"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("Kardex in","Entradas Kardex")}</th><th>${tt("Kardex out","Salidas Kardex")}</th><th>${tt("Kardex balance","Saldo Kardex")}</th><th>${tt("Weighted average cost","Costo promedio ponderado")}</th><th>${tt("Kardex value","Valor Kardex")}</th><th>${tt("Inventory","Inventario")}</th><th></th></tr></thead><tbody>
@@ -2498,7 +2503,28 @@ function listPurchases(){
        <td class="nw">${money2(sn.costPkg)}<small>/ ${pc?tt("package","paquete"):esc(costPerLbl(i.unit))}</small></td><td class="nw">${money2(sn.stockVal)}</td><td class="nw">${fmtQ(num(i.qty))} ${u}</td>
        <td>${ok?`<span class="badge ok">✓</span>`:`<span class="badge warn">${tt("Differs — rebuild","Difiere — recalcular")}</span>`}</td></tr>`;}).join("")}</tbody></table>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`);
 }
-let kxItem="", kxDays=30, pcDays=30;
+/* Recalculate one ingredient's whole Kardex (weighted average cost, in date order) after a purchase is edited,
+   then update every later row (balance, average cost, value; exits take the new average cost) and the inventory */
+async function kardexRecalcItem(itemId,patch){
+  if(!DB) return noDb();
+  const it=invItem(itemId), rows=D.kardex.filter(k=>k.itemId===itemId).map(k=>patch&&k.id===patch.id?{...k,...patch}:{...k})
+    .sort((a,b)=>String(a.when||a.date).localeCompare(String(b.when||b.date)));
+  const unit=it?it.unit:(rows[0]||{}).unit, u={unit}, pack=it?packOf(it):num((rows[0]||{}).pack)||1, B=x=>toBaseI(x,u);
+  let q=0,c=0;
+  for(const k of rows){ const qty=num(k.qty); let uc=num(k.unitCost);
+    if(k.type==="in"){ uc=costR(u,uc); const q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
+    else if(k.type==="out"){ uc=c; q=r3(Math.max(0,q-qty)); }
+    else if(k.type==="adj"){ uc=c; q=r3(Math.max(0,q+qty)); }
+    else if(k.type==="cost"){ c=costR(u,uc); }
+    const sn=kxSnap({unit,pack,balQty:q,avgCost:c});
+    const upd={balQty:q,avgCost:c,costPkg:sn.costPkg,perSub:sn.perSub,stockVal:sn.stockVal,balValue:sn.stockVal,unitCost:uc,total:cost2(B(qty)*uc),dir:kxDir(k)};
+    const orig=D.kardex.find(x=>x.id===k.id)||{};
+    const ch=patch&&k.id===patch.id?{...patch,...upd}:Object.fromEntries(Object.entries(upd).filter(([f,v])=>orig[f]!==v));
+    delete ch.id; if(Object.keys(ch).length) await dbUpd("kardex",k.id,ch); }
+  if(it) await dbUpd("inventory",itemId,{qty:q,cost:c,costPer:baseOf(it.unit),updated:new Date().toISOString()});
+  return {q,c};
+}
+let kxItem="", kxDays=30, pcDays=30, pcEdit=null;
 const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
@@ -2532,7 +2558,7 @@ function m2(){
       <button class="btn" type="submit">${tt("Add stock","Agregar stock")}</button>
      </div><p class="hint" id="asMsg" aria-live="polite"></p></form>
     <div class="tablewrap" id="invTable"></div>
-    <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces, but the cost is always per kg (g and kg), per L (mL and L) or per package, with 2 decimals. Pieces are bought and entered by the package: cost per piece = package price ÷ pieces in the package (e.g. a box of 30 eggs at CA$9.00 = CA$0.30 per egg). Stock value = stock converted to kg / L × cost, = the “per g / mL / piece” column × on hand (for pieces: cost per piece × pieces per package) (e.g. 4,500 g at CA$8.50/kg = 4.5 kg × 8.50 = CA$38.25). The “per g / mL” column is the cost ÷ 1,000. Each purchase updates the cost with the weighted average: (current stock in kg/L × current cost + kg/L bought × purchase cost) ÷ new stock in kg/L.","El stock puede estar en gramos, kilos, mililitros, litros o unidades, pero el costo siempre es por kg (g y kg), por L (mL y L) o por paquete, con 2 decimales. Las unidades se compran y se anotan por paquete: costo por unidad = precio del paquete ÷ piezas del paquete (p. ej. caja de 30 huevos a CA$9,00 = CA$0,30 por huevo). Valor del stock = stock convertido a kg / L × costo, = columna “por g / mL / und” × stock (para unidades: costo por unidad × piezas por paquete) (p. ej. 4.500 g a CA$8,50/kg = 4,5 kg × 8,50 = CA$38,25). La columna “por g / mL” es el costo ÷ 1.000. Cada compra actualiza el costo con el promedio ponderado: (stock actual en kg/L × costo actual + kg/L comprados × costo de compra) ÷ stock nuevo en kg/L.")}</p>
+    <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces (pieces are bought by the package). Cost per kg / L / package, cost per g / mL / piece and stock value are in 3 · Purchases, sales, costs & analytics (📒 Kardex and Costs), calculated from the Kardex with the weighted average cost.","El stock puede estar en gramos, kilos, mililitros, litros o unidades (las unidades se compran por paquete). El costo por kg / L / paquete, el costo por g / mL / und y el valor del stock están en 3 · Compras, ventas, costos y análisis (📒 Kardex y Costos), calculados desde el Kardex con el costo promedio ponderado.")}</p>
    </div>
    <div class="grid" style="margin-top:20px">
     <div class="stack">
@@ -2632,22 +2658,17 @@ function listM2(){
     [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
     [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
-  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Cost per kg / L / package","Costo por kg / L / paquete")} (${curSym()})</th><th>${tt("Per g / mL / piece","Por g / mL / und")}</th><th>${tt("Stock value","Valor del stock")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), sc=subCost(i);return `<tr><td>${esc(i.name)} <small>${esc(unitLbl(i.unit))}</small></td>
+  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i);return `<tr><td>${esc(i.name)} <small>${esc(unitLbl(i.unit))}</small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${packOf(i)}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
      <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.qty)}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.min)}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.par)}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
-     <td class="nw">${i.unit==="pc"?`<input data-f="cost" data-id="${i.id}" type="number" step="0.01" min="0" value="${inCur(num(i.cost)*packOf(i)).toFixed(2)}" aria-label="${tt("Cost per package","Costo por paquete")} ${esc(i.name)}"><span class="unit"> / ${tt("package","paquete")}</span>
-       <small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${packOf(i)}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`
-       :`<input data-f="cost" data-id="${i.id}" type="number" step="0.01" min="0" value="${inCur(i.cost).toFixed(2)}" aria-label="${tt("Cost per","Costo por")} ${costPerLbl(i.unit,i)} ${esc(i.name)}"><span class="unit"> / ${esc(costPerLbl(i.unit,i))}</span>`}</td>
-     <td class="nw">${i.unit==="pc"?(num(i.qty)>0?`${money4(perUnit(i))} / ${tt("pc","und")}<small>${money2(num(i.cost)*packOf(i))} ÷ ${num(i.qty)} ${tt("on hand","en stock")}</small>`:`<span class="dimtxt">—</span>`):`${fmtSub(sc)} / ${esc(unitLbl(i.unit))}`}</td>
-     <td class="nw">${money2(stockValue(i))}<small>${i.unit==="pc"?`${money4(perUnit(i))} × ${packOf(i)} ${tt("per package","por paquete")}`:`${num(i.qty)} ${esc(unitLbl(i.unit))} × ${fmtSub(perUnit(i))}`}</small></td>
      <td><input data-f="supplier" data-id="${i.id}" class="txt" value="${esc(i.supplier)}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
      <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}" aria-label="${tt("Add stock","Agregar stock")} ${esc(i.name)}">+ ${tt("Stock","Stock")}</button> <button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
   const po=poLines(), poBox=document.getElementById("poBox");
   poBox.innerHTML=po.length?`<p>${tt("Items at or below their alert level, ordered up to the maximum quantity:","Artículos en o bajo su nivel de alerta, pedidos hasta la cantidad máxima:")}</p><ul class="rows">${po.map(l=>`<li><div><b>${esc(l.name)}</b>: ${+l.order.toFixed(2)} ${esc(l.unit)}<small>${esc(l.supplier||tt("No supplier","Sin proveedor"))}${l.cost?" · ≈ "+money(l.est):""}</small></div></li>`).join("")}</ul><p><b>${tt("Estimated total","Total estimado")}: ${money(po.reduce((s,l)=>s+l.est,0))}</b></p><button class="btn" id="poCopy">${tt("Copy order","Copiar orden")}</button>`
     :`<p class="empty">${tt("Nothing to order. Items appear here when stock falls to the alert level (set the alert level and maximum quantity first).","Nada que pedir. Los artículos aparecen aquí cuando el stock llega al nivel de alerta (primero define la alerta y la cantidad máxima).")}</p>`;
-  const as=document.getElementById("asItem"); if(as){const cur=as.value; as.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`;}
+  const as=document.getElementById("asItem"); if(as){const cur=as.value; as.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(as.value!==cur) asForm();}
   const ws=document.getElementById("wItem"); if(ws){const cur=ws.value; ws.innerHTML=inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)})</option>`).join("");}
   const byR={},byI={}; w30.forEach(w=>{byR[w.reason]=(byR[w.reason]||0)+num(w.cost);byI[w.item]=(byI[w.item]||0)+num(w.cost);});
   document.getElementById("wBox").innerHTML=w30.length?`<h4 class="minih">${tt("Last 30 days — cost by reason","Últimos 30 días — costo por motivo")}</h4><ul class="rows">${REASONS.filter(r=>r[0] in byR).map(r=>`<li><div>${tt(r[1],r[2])}</div><b>${money(byR[r[0]])}</b></li>`).join("")}</ul>
@@ -2804,19 +2825,23 @@ function m3(){
       <label class="f inline"><span>${tt("Target margin %","Margen objetivo %")}</span><input id="tMargin" type="number" min="0" max="100" value="${num(D.costs._target)||60}"></label></div>
 </div></div>`;
   let body="";
+  const pe=pcEdit?D.kardex.find(k=>k.id===pcEdit):null; if(!pe) pcEdit=null;
+  const peIt=pe?(invItem(pe.itemId)||{unit:pe.unit,pack:pe.pack}):null, pePk=pe&&pe.unit==="pc"?packOf(peIt):1;
+  const pv=f=>pe?` value="${esc(String(f==="qty"?r3(num(pe.qty)/pePk):f==="cost"?inCur(num(pe.unitCost)*pePk).toFixed(2):pe[f]||""))}"`:"";
   if(m3Sub==="purchases") body=`
-   <div class="panel"><h3>🛒 ${tt("Register purchase","Registrar compra")}</h3>
+   <div class="panel${pe?" editpanel":""}" id="pcPanel"><h3>${pe?`✏ ${tt("Edit purchase","Editar compra")} — ${esc(pe.item)}`:`🛒 ${tt("Register purchase","Registrar compra")}`}</h3>
+    ${pe?`<p class="hint">${tt("When you save, this row and every later Kardex movement of this item are recalculated with the weighted average cost, and the inventory is updated.","Al guardar, se recalculan esta fila y todos los movimientos posteriores de este artículo en el Kardex con el costo promedio ponderado, y se actualiza el inventario.")}</p>`:""}
     <form id="pcForm" class="fgrid">
      ${field("pcItem",tt("Item","Artículo"),`<select id="pcItem" required></select>`)}
-     ${field("pcDate",tt("Purchase date","Fecha de compra"),`<input id="pcDate" type="date" value="${today()}" max="${today()}" required>`)}
-     <div class="f"><label for="pcQty" id="pcQtyL">${tt("Quantity","Cantidad")}</label><input id="pcQty" type="number" step="any" min="0" required></div>
-     <div class="f"><label for="pcCost" id="pcCostL">${tt("Cost","Costo")}</label><input id="pcCost" type="number" step="0.01" min="0" required placeholder="0.00"></div>
-     ${field("pcSup",tt("Supplier","Proveedor"),`<input id="pcSup" maxlength="60">`)}
-     ${field("pcLot",tt("Lot","Lote"),`<input id="pcLot" maxlength="40">`)}
-     ${field("pcExp",tt("Expiry","Caducidad"),`<input id="pcExp" type="date">`)}
-     ${field("pcRef",tt("Invoice (optional)","Factura (opcional)"),`<input id="pcRef" maxlength="60">`)}
+     ${field("pcDate",tt("Purchase date","Fecha de compra"),`<input id="pcDate" type="date" value="${pe?esc(pe.date||today()):today()}" max="${today()}" required>`)}
+     <div class="f"><label for="pcQty" id="pcQtyL">${tt("Quantity","Cantidad")}</label><input id="pcQty" type="number" step="any" min="0" required${pv("qty")}></div>
+     <div class="f"><label for="pcCost" id="pcCostL">${tt("Cost","Costo")}</label><input id="pcCost" type="number" step="0.01" min="0" required placeholder="0.00"${pv("cost")}></div>
+     ${field("pcSup",tt("Supplier","Proveedor"),`<input id="pcSup" maxlength="60"${pv("supplier")}>`)}
+     ${field("pcLot",tt("Lot","Lote"),`<input id="pcLot" maxlength="40"${pv("lot")}>`)}
+     ${field("pcExp",tt("Expiry","Caducidad"),`<input id="pcExp" type="date"${pv("expiry")}>`)}
+     ${field("pcRef",tt("Invoice (optional)","Factura (opcional)"),`<input id="pcRef" maxlength="60"${pe&&pe.reason!=="initial"?pv("ref"):""}>`)}
      <p class="hint f full" id="pcCalc" aria-live="polite"></p>
-     <button class="btn" type="submit">${tt("Save purchase","Guardar compra")}</button>
+     <div style="grid-column:1/-1;display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start"><button class="btn" type="submit">${pe?tt("Save changes","Guardar cambios"):tt("Save purchase","Guardar compra")}</button>${pe?`<button class="btn ghost" type="button" id="pcCancel">${tt("Cancel","Cancelar")}</button>`:""}</div>
     </form>
     <p class="hint">${tt("Each purchase is an entry in the Kardex and updates the inventory with the weighted average cost: (stock in kg / L × current cost + kg / L bought × purchase cost) ÷ new stock. Sales charged in billing are exits: they lower the inventory and the Kardex at the average cost.","Cada compra es una entrada en el Kardex y actualiza el inventario con el costo promedio ponderado: (stock en kg / L × costo actual + kg / L comprados × costo de compra) ÷ stock nuevo. Las ventas cobradas en facturación son salidas: bajan el inventario y el Kardex al costo promedio.")}</p>
    </div>
@@ -2907,17 +2932,27 @@ function wireM3(){
     const pcSet=()=>{ const it=invItem(g("pcItem").value), pc=it&&it.unit==="pc";
       g("pcQtyL").textContent=pc?tt(`Packages (${packOf(it)} pieces each)`,`Paquetes (${packOf(it)} piezas c/u)`):tt(`Quantity (${it?unitLbl(it.unit):"—"})`,`Cantidad (${it?unitLbl(it.unit):"—"})`);
       g("pcCostL").textContent=(pc?tt("Price per package","Precio por paquete"):tt(`Cost per ${it?costPerLbl(it.unit):"kg / L"}`,`Costo por ${it?costPerLbl(it.unit):"kg / L"}`))+` (${curSym()})`;
-      if(it&&document.activeElement!==g("pcSup")) g("pcSup").value=it.supplier||""; pcCalc(); };
+      if(it&&!pcEdit&&document.activeElement!==g("pcSup")) g("pcSup").value=it.supplier||""; pcCalc(); };
     const pcCalc=()=>{ const it=invItem(g("pcItem").value); if(!it) return setHTML(g("pcCalc"),""); const n=num(g("pcQty").value), c=g("pcCost").value;
       if(!(n>0)||c==="") return setHTML(g("pcCalc"),"");
+      if(pcEdit){ const pc=it.unit==="pc", q=pc?n*packOf(it):n, uc=pc?toCAD(c)/packOf(it):toCAD(c); return setHTML(g("pcCalc"),tt(`New total ${money2(toBaseI(q,it)*uc)} (${fmtQ(q)} ${unitLbl(it.unit)})`,`Total nuevo ${money2(toBaseI(q,it)*uc)} (${fmtQ(q)} ${unitLbl(it.unit)})`)); }
       const pc=it.unit==="pc", q=pc?n*packOf(it):n, uc=pc?toCAD(c)/packOf(it):toCAD(c), B=x=>toBaseI(x,it), q0=Math.max(0,num(it.qty)), c0=num(it.cost), q1=q0+q, c1=q1>0?(B(q0)*c0+B(q)*uc)/B(q1):uc;
       setHTML(g("pcCalc"),tt(`Total ${money2(B(q)*uc)} · new stock ${nice(q1)} ${unitLbl(it.unit)} · weighted average ${money2(pc?c1*packOf(it):c1)} per ${pc?"package":costPerLbl(it.unit)} (now ${money2(pc?c0*packOf(it):c0)})`,
         `Total ${money2(B(q)*uc)} · stock nuevo ${nice(q1)} ${unitLbl(it.unit)} · promedio ponderado ${money2(pc?c1*packOf(it):c1)} por ${pc?"paquete":costPerLbl(it.unit)} (ahora ${money2(pc?c0*packOf(it):c0)})`)); };
     g("pcItem").onchange=pcSet; g("pcQty").oninput=pcCalc; g("pcCost").oninput=pcCalc; pcSet();
     g("pcDays").onchange=e=>{ pcDays=num(e.target.value); listPurchases(); };
+    if(g("pcCancel")) g("pcCancel").onclick=()=>{ pcEdit=null; render(); };
+    g("pcBox").addEventListener("click",e=>{ const b=e.target.closest("[data-pcedit]"); if(!b) return; pcEdit=b.dataset.pcedit; render(); const p=document.getElementById("pcPanel"); if(p) p.scrollIntoView({behavior:"smooth",block:"start"}); const q=document.getElementById("pcQty"); if(q) q.focus({preventScroll:true}); });
     g("pcForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("pcItem").value); if(!it) return; const n=num(g("pcQty").value), c=g("pcCost").value;
       if(!(n>0)||c==="") return toast(tt("Enter quantity and cost.","Ingresa cantidad y costo."));
       const pc=it.unit==="pc", q=pc?n*packOf(it):n;
+      if(pcEdit){ const k=D.kardex.find(x=>x.id===pcEdit); if(!k){ pcEdit=null; return render(); }
+        const date=/^\d{4}-\d{2}-\d{2}$/.test(g("pcDate").value)?g("pcDate").value:k.date, tpart=/^T\d\d:\d\d/.test(String(k.when||"").slice(10))?String(k.when).slice(10,23):"T12:00:00.000";
+        const patch={id:k.id,qty:r3(q),unitCost:costR(it,pc?toCAD(c)/packOf(it):toCAD(c)),date,when:date+tpart,supplier:g("pcSup").value.trim().slice(0,60),lot:g("pcLot").value.trim().slice(0,40),expiry:g("pcExp").value,
+          edited:new Date().toISOString(),editedBy:SESSION?(SESSION.name||SESSION.user):""};
+        if(k.reason!=="initial") patch.ref=g("pcRef").value.trim().slice(0,60);
+        const r=await kardexRecalcItem(k.itemId,patch); if(!r) return;
+        pcEdit=null; toast(tt(`Purchase updated and Kardex recalculated. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)} · average ${money2(pc?r.c*packOf(it):r.c)}`,`Compra actualizada y Kardex recalculado. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)} · promedio ${money2(pc?r.c*packOf(it):r.c)}`)); render(); return; }
       const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:pc?toCAD(c)/packOf(it):toCAD(c),date:g("pcDate").value,supplier:g("pcSup").value.trim(),lot:g("pcLot").value.trim(),expiry:g("pcExp").value,ref:g("pcRef").value.trim()}); if(!r) return;
       toast(tt(`Purchase saved. ${it.name}: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`,`Compra guardada. ${it.name}: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`));
       ["pcQty","pcCost","pcLot","pcExp","pcRef"].forEach(id=>g(id).value=""); render(); };
@@ -2973,7 +3008,8 @@ function prodStats(n){
 function listM3(){
   if(m3Sub==="purchases"){
     const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name))), ps=document.getElementById("pcItem");
-    if(ps&&document.activeElement!==ps){ const cur=ps.value; ps.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(ps.value!==cur) ps.dispatchEvent(new Event("change")); }
+    const pe=pcEdit?D.kardex.find(k=>k.id===pcEdit):null; if(ps) ps.disabled=!!pe;
+    if(ps&&document.activeElement!==ps){ const cur=pe?pe.itemId:ps.value; ps.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(ps.value!==cur||pe) ps.dispatchEvent(new Event("change")); }
     listPurchases(); return; }
   if(m3Sub==="kardex"){
   const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
