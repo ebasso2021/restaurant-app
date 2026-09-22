@@ -64,6 +64,12 @@ main{padding-top:22px}
 .factor{font:500 13px var(--mono);color:var(--muted);margin-left:auto}
 .factor b{color:var(--ink);font-weight:500}
 .tablewrap{overflow-x:auto}
+.cfmwrap{position:fixed;inset:0;background:rgba(20,10,25,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.cfm{background:var(--surface);color:var(--ink);border-radius:14px;padding:20px 22px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.cfm h3{margin:0 0 8px;font-size:18px}.cfm p{margin:0 0 16px;color:var(--muted)}
+.cfmbtns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+table.dt.invt tr.editing td{background:var(--sunk)}
 input[aria-invalid="true"],select[aria-invalid="true"]{border-color:var(--bad)!important;box-shadow:0 0 0 2px var(--bad-bg)!important}
 table.ing{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 table.ing td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -2586,6 +2592,30 @@ function m2(){
     </div>
    </div></section>`;
 }
+let invEdit=null, invDraft={};
+/* in-app confirmation dialog (works inside the Claude artifact too, where browser pop-ups may be blocked) */
+function askConfirm(title,msg,okLabel){ return new Promise(res=>{
+  const prev=document.activeElement, w=document.createElement("div"); w.className="cfmwrap";
+  w.innerHTML=`<div class="cfm" role="alertdialog" aria-modal="true" aria-labelledby="cfmT" aria-describedby="cfmM"><h3 id="cfmT">${esc(title)}</h3><p id="cfmM">${esc(msg||"")}</p><div class="cfmbtns"><button type="button" class="btn ghost" data-cfm="0">${tt("Cancel","Cancelar")}</button><button type="button" class="btn danger" data-cfm="1">${esc(okLabel||tt("OK","Aceptar"))}</button></div></div>`;
+  const done=v=>{ w.remove(); document.removeEventListener("keydown",key,true); if(prev&&prev.focus) prev.focus(); res(v); };
+  const key=e=>{ if(e.key==="Escape"){ e.preventDefault(); done(false); } if(e.key==="Tab"){ const bs=[...w.querySelectorAll("button")], i=bs.indexOf(document.activeElement); e.preventDefault(); bs[(i+(e.shiftKey?-1:1)+bs.length)%bs.length].focus(); } };
+  w.addEventListener("click",e=>{ const b=e.target.closest("[data-cfm]"); if(b) done(b.dataset.cfm==="1"); else if(e.target===w) done(false); });
+  document.addEventListener("keydown",key,true); document.body.appendChild(w); w.querySelector('[data-cfm="0"]').focus(); }); }
+/* ✓ Save an edited stock row: no blanks or 0; stock changes go to the Kardex as a count / adjustment */
+async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>document.querySelector(`#invTable [data-f="${f}"][data-id="${id}"]`);
+  const fl=[["name",tt("Item","Artículo"),"text"],["qty",tt("On hand","Stock"),"pos"],["min",tt("Alert","Alerta"),"pos"],["par",tt("Max. quantity","Cantidad máxima"),"pos"],...(it.unit==="pc"?[["pack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["supplier",tt("Supplier","Proveedor"),"text"]];
+  const bad=[]; fl.forEach(([f,l,k])=>{ const el=rowQ(f); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:(v!==""&&num(v)>0); el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(l); });
+  if(bad.length) return toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
+  const v=f=>String(rowQ(f)?rowQ(f).value:"").trim();
+  if(num(v("par"))<num(v("min"))){ rowQ("par").setAttribute("aria-invalid","true"); return toast(tt("Maximum quantity must be at least the alert level.","La cantidad máxima debe ser mayor o igual a la alerta.")); }
+  if(!DB) return noDb();
+  const name=v("name").slice(0,60), upd={name,min:num(v("min")),par:num(v("par")),supplier:v("supplier").slice(0,60),updated:new Date().toISOString()};
+  await dbUpd("inventory",id,upd);
+  if(name!==it.name) for(const k of D.kardex.filter(k=>k.itemId===id)) await dbUpd("kardex",k.id,{item:name});
+  const it2={...it,...upd};
+  if(it.unit==="pc"){ const n=Math.max(1,Math.round(num(v("pack")))); if(n!==packOf(it)){ const pkg=num(it.cost)*packOf(it); await dbUpd("inventory",id,{pack:n}); await kardexMove({...it2,pack:n},{type:"cost",reason:"cost",unitCost:pkg/n,ref:tt(`Package of ${n}: ${money2(pkg)} ÷ ${n}`,`Paquete de ${n}: ${money2(pkg)} ÷ ${n}`)}); it2.pack=n; } }
+  if(r3(num(v("qty")))!==r3(num(it.qty))) await kardexMove(it2,{type:"adj",reason:"adjust",newQty:v("qty"),ref:tt("Edited in the stock table","Editado en la tabla de stock")});
+  invEdit=null; invDraft={}; toast(tt(`“${name}” saved.`,`“${name}” guardado.`)); listM2(); }
 /* Kitchen & inventory: no blank fields and no 0 / 0.00 values. fields = [id, label, "text" | "pos"] */
 function reqCheck(fields){ const bad=[];
   fields.forEach(([id,lbl,k])=>{ const el=document.getElementById(id); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:(v!==""&&num(v)>0);
@@ -2620,22 +2650,18 @@ function wireM2(){
     for(const a of adds) await dbAdd("inventory",a);
     toast(tt(`${adds.length} items added`,`${adds.length} artículos agregados`));
   };
-  document.getElementById("invTable").addEventListener("change",async e=>{
-    const inp=e.target.closest("[data-f]"); if(!inp) return; const f=inp.dataset.f, it=invItem(inp.dataset.id); if(!it) return;
-    { const v=String(inp.value||"").trim(), ok=f==="supplier"?!!v:(v!==""&&num(v)>0);
-      if(!ok){ inp.value=f==="supplier"?(it.supplier||""):f==="pack"?packOf(it):num(it[f]); inp.setAttribute("aria-invalid","true"); setTimeout(()=>inp.setAttribute("aria-invalid","false"),2500);
-        return toast(tt("Blank or 0 is not allowed — the previous value was kept.","No se permite vacío ni 0 — se mantuvo el valor anterior.")); } }
-    if(f==="qty") return kardexMove(it,{type:"adj",reason:"adjust",newQty:inp.value,ref:tt("Edited in the stock table","Editado en la tabla de stock")});
-    // pieces: the table shows the PACKAGE price → cost per piece = package price ÷ pieces per package
-    if(f==="cost") return kardexMove(it,{type:"cost",reason:"cost",unitCost:it.unit==="pc"?toCAD(inp.value)/packOf(it):toCAD(inp.value),ref:it.unit==="pc"?tt(`Package price ${inp.value} ÷ ${packOf(it)} pieces`,`Precio del paquete ${inp.value} ÷ ${packOf(it)} piezas`):tt("Edited in the stock table","Editado en la tabla de stock")});
-    // changing the pieces per package keeps the package price and recalculates the cost per piece
-    if(f==="pack"){ const n=Math.max(1,Math.round(num(inp.value)||1)), pkg=num(it.cost)*packOf(it); await dbUpd("inventory",it.id,{pack:n,updated:new Date().toISOString()});
-      return kardexMove({...it,pack:n},{type:"cost",reason:"cost",unitCost:pkg/n,ref:tt(`Package of ${n}: ${money2(pkg)} ÷ ${n}`,`Paquete de ${n}: ${money2(pkg)} ÷ ${n}`)}); }
-    await dbUpd("inventory",it.id,{[f]:f==="supplier"?inp.value.trim():f==="pack"?Math.max(1,Math.round(num(inp.value)||1)):num(inp.value),updated:new Date().toISOString()});
-  });
+  // stock table: rows are read-only until ✏ Edit; changes are kept as a draft and saved with ✓ Save
+  document.getElementById("invTable").addEventListener("input",e=>{ const inp=e.target.closest("[data-f]"); if(!inp||inp.dataset.id!==invEdit) return; invDraft[inp.dataset.f]=inp.value; if(inp.getAttribute("aria-invalid")==="true") inp.setAttribute("aria-invalid","false"); });
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
   document.getElementById("invTable").addEventListener("click",async e=>{
-    const b=e.target.closest("[data-del]"); if(b) await dbDel("inventory",b.dataset.del);
+    const ed=e.target.closest("[data-invedit]"); if(ed){ invEdit=ed.dataset.invedit; invDraft={}; listM2(); const f=document.querySelector(`#invTable [data-f="name"][data-id="${invEdit}"]`); if(f) f.focus(); return; }
+    if(e.target.closest("[data-invcancel]")){ invEdit=null; invDraft={}; listM2(); return; }
+    const sv=e.target.closest("[data-invsave]"); if(sv){ await invSave(sv.dataset.invsave); return; }
+    const b=e.target.closest("[data-del]"); if(b){ const it=invItem(b.dataset.del); if(!it) return;
+      const nk=D.kardex.filter(k=>k.itemId===it.id).length;
+      const ok=await askConfirm(tt(`Delete “${it.name}” from the stock?`,`¿Eliminar “${it.name}” del stock?`),
+        tt(`This can't be undone.${nk?` Its ${nk} Kardex movements are kept as history.`:""}`,`No se puede deshacer.${nk?` Sus ${nk} movimientos del Kardex se conservan como historial.`:""}`),tt("Delete","Eliminar"));
+      if(!ok) return; if(invEdit===it.id){ invEdit=null; invDraft={}; } await dbDel("inventory",it.id); toast(tt(`“${it.name}” deleted.`,`“${it.name}” eliminado.`)); return; }
     const k=e.target.closest("[data-kx]"); if(k){ kxItem=k.dataset.kx; state.aiView="m3"; m3Sub="kardex"; save(); render(); window.scrollTo({top:0}); return; }
     const a=e.target.closest("[data-add]"); if(a){ document.getElementById("asItem").value=a.dataset.add; asForm(); document.getElementById("addStockForm").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asQty").focus({preventScroll:true}); }
   });
@@ -2683,12 +2709,19 @@ function listM2(){
     [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
     [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
-  if(!tb.contains(document.activeElement)) tb.innerHTML=inv.length?`<table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i);return `<tr><td>${esc(i.name)} <small>${esc(unitLbl(i.unit))}</small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${packOf(i)}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
-     <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.qty)}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
-     <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.min)}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
-     <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${num(i.par)}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
-     <td><input data-f="supplier" data-id="${i.id}" class="txt" value="${esc(i.supplier)}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
-     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button> <button class="btn sm ghost" data-del="${i.id}" aria-label="${tt("Delete","Borrar")} ${esc(i.name)}">✕</button></td></tr>`;}).join("")}</tbody></table>`
+  if(invEdit&&!invItem(invEdit)){ invEdit=null; invDraft={}; }
+  const canInv=canWrite("inventory"), dv=(i,f,d)=>i.id===invEdit&&invDraft[f]!=null?invDraft[f]:d;
+  const actIn=document.activeElement&&tb.contains(document.activeElement)&&document.activeElement.matches("input,select,textarea");
+  if(!actIn) tb.innerHTML=inv.length?`<table class="dt invt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), ed=i.id===invEdit, u=esc(unitLbl(i.unit));
+     if(!ed) return `<tr><td><b>${esc(i.name)}</b> <small>${u}</small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
+     <td class="nw">${fmtQ(num(i.qty))} ${u}</td><td class="nw">${fmtQ(num(i.min))} ${u}</td><td class="nw">${fmtQ(num(i.par))} ${u}</td><td>${esc(i.supplier||"")||"—"}</td>
+     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw">${canInv?`<button class="btn sm ghost" data-invedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> `:""}<button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button>${canInv?` <button class="btn sm ghost" data-del="${i.id}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete","Eliminar")} ${esc(i.name)}">✕</button>`:""}</td></tr>`;
+     return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}"> <small>${u}</small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
+     <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"qty",num(i.qty)))}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
+     <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"min",num(i.min)))}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
+     <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"par",num(i.par)))}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
+     <td><input data-f="supplier" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"supplier",i.supplier||""))}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
+     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-invsave="${i.id}">✓ ${tt("Save","Guardar")}</button> <button class="btn sm ghost" data-invcancel="${i.id}">${tt("Cancel","Cancelar")}</button></td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
   const po=poLines(), poBox=document.getElementById("poBox");
   poBox.innerHTML=po.length?`<p>${tt("Items at or below their alert level, ordered up to the maximum quantity:","Artículos en o bajo su nivel de alerta, pedidos hasta la cantidad máxima:")}</p><ul class="rows">${po.map(l=>`<li><div><b>${esc(l.name)}</b>: ${+l.order.toFixed(2)} ${esc(l.unit)}<small>${esc(l.supplier||tt("No supplier","Sin proveedor"))}${l.cost?" · ≈ "+money(l.est):""}</small></div></li>`).join("")}</ul><p><b>${tt("Estimated total","Total estimado")}: ${money(po.reduce((s,l)=>s+l.est,0))}</b></p><button class="btn" id="poCopy">${tt("Copy order","Copiar orden")}</button>`
