@@ -2440,7 +2440,7 @@ const kxDirLbl=d=>d==="Entrada"?tt("In","Entrada"):d==="Salida"?tt("Out","Salida
 /* Kardex: every stock movement (in, out, adjustment) with the unit cost, running balance and weighted average cost.
    Saved in the "kardex" collection (Google Sheet tab "Kardex" on the website; the app's database in Claude). */
 async function kardexMove(it,m){
-  const q0=Math.max(0,num(it.qty)), c0=costR(it,it.cost), stamp=new Date().toISOString();
+  const kt=kxTotals()[it.id], q0=kt?kt.q:0, c0=kt?kt.c:(m.type==="in"?0:costR(it,it.cost)), stamp=new Date().toISOString();   // the balance comes from the Kardex itself
   let qty=num(m.qty), uc=c0, q1=q0, c1=c0, type=m.type;
   const B=q=>toBaseI(q,it);
   if(type==="in"){ uc=m.unitCost!=null&&m.unitCost!==""?costR(it,m.unitCost):c0; q1=r3(q0+qty); c1=q1>0?costR(it,(B(q0)*c0+B(qty)*uc)/B(q1)):uc; }
@@ -2457,18 +2457,12 @@ async function kardexMove(it,m){
     avgCost:c1,balValue:snap.stockVal,ref:m.ref||"",by:SESSION?(SESSION.name||SESSION.user):""});
   return {q1,c1};
 }
-/* Restart the Kardex: erase every movement and write one opening row per item with the stock and cost of 2 · Kitchen & inventory */
+/* Restart the Kardex: only erases every movement in the Kardex database. It reads nothing and writes nothing else;
+   from then on the Kardex is fed by purchases (entries) and billed sales, waste and counts (exits) */
 async function kardexReset(){
   if(!DB) return noDb();
   const old=[...D.kardex]; for(const k of old) if(k.id) await dbDel("kardex",k.id);
-  const stamp=new Date().toISOString(), by=SESSION?(SESSION.name||SESSION.user):""; let n=0;
-  for(const it of [...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)))){
-    const q=r3(Math.max(0,num(it.qty))), c=costR(it,it.cost), sn=kxSnap({unit:it.unit,pack:packOf(it),balQty:q,avgCost:c});
-    const id="k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    await dbSet("kardex/"+id,{item:it.name,costPkg:sn.costPkg,perSub:sn.perSub,stockVal:sn.stockVal,date:today(),dir:"Entrada",qty:q,unitCost:c,balQty:q,supplier:it.supplier||"",lot:"",expiry:"",
-      when:kxStamp(),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type:"in",reason:"initial",total:cost2(toBaseI(q,it)*c),avgCost:c,balValue:sn.stockVal,
-      ref:tt("Opening Kardex from Kitchen & inventory","Kardex inicial desde Cocina e inventario"),by}); n++; }
-  return {del:old.length,n};
+  return {del:old.length};
 }
 /* Kardex totals per ingredient: replay every movement in date order with the weighted average cost */
 function kxTotals(){ const by={};
@@ -2851,7 +2845,7 @@ function m3(){
    </div>
    <div class="panel"><h3>${tt("Inventory = Kardex totals","Inventario = totales del Kardex")}</h3>
     <div class="tablewrap" id="kxTot"></div>
-    <p class="hint">${tt("Opening stock comes from the stock and costs of 2 · Kitchen & inventory (📒 Kardex → Restart Kardex). “Rebuild” replays every Kardex movement in date order with the weighted average and writes the result to the inventory.","El stock inicial viene del stock y los costos de 2 · Cocina e inventario (📒 Kardex → Reiniciar Kardex). “Recalcular” repasa cada movimiento del Kardex en orden de fecha con el promedio ponderado y escribe el resultado en el inventario.")}</p>
+    <p class="hint">${tt("The Kardex is fed by purchases (entries) and by billed sales, waste and stock counts (exits); 📒 Kardex → Restart Kardex only erases it. “Rebuild” replays every Kardex movement in date order with the weighted average and writes the result to the inventory.","El Kardex se alimenta de las compras (entradas) y de las ventas facturadas, mermas y conteos (salidas); 📒 Kardex → Reiniciar Kardex solo lo borra. “Recalcular” repasa cada movimiento del Kardex en orden de fecha con el promedio ponderado y escribe el resultado en el inventario.")}</p>
     <button type="button" class="btn ghost" id="kxRebuild">⟳ ${tt("Rebuild inventory from the Kardex","Recalcular inventario desde el Kardex")}</button>
    </div>`;
   else if(m3Sub==="kardex") body=`
@@ -2860,7 +2854,7 @@ function m3(){
      ${field("kxItem",tt("Item","Artículo"),`<select id="kxItem"></select>`)}
      ${field("kxDays",tt("Period","Periodo"),`<select id="kxDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===kxDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
      <div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxCsv">⬇ ${tt("Export CSV","Exportar CSV")}</button></div>
-     ${canWrite("kardex")&&(MODE!=="sheet"||["admin","chef"].includes(SESSION&&SESSION.role))?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxReset" title="${tt("Erases every Kardex movement and starts again with one opening row per item, using the stock and cost from 2 · Kitchen & inventory","Borra todos los movimientos del Kardex y empieza de nuevo con una fila inicial por artículo, con el stock y el costo de 2 · Cocina e inventario")}">↺ ${tt("Restart Kardex","Reiniciar Kardex")}</button></div>`:""}
+     ${canWrite("kardex")&&(MODE!=="sheet"||["admin","chef"].includes(SESSION&&SESSION.role))?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxReset" title="${tt("Only erases every movement in the Kardex database. After that, the Kardex is fed by purchases.","Solo borra todos los movimientos de la base de datos del Kardex. Después, el Kardex se alimenta de las compras.")}">↺ ${tt("Restart Kardex","Reiniciar Kardex")}</button></div>`:""}
     </div>
     <form id="kmForm" class="addstock"><h4 class="minih">${tt("Register movement","Registrar movimiento")}</h4>
      <div class="fgrid">
@@ -2982,7 +2976,7 @@ function wireM3(){
     if(Date.now()-kxArm>6000){ kxArm=Date.now(); b.textContent=tt("Sure? Click again to erase","¿Seguro? Clic otra vez para borrar"); setTimeout(()=>{ if(b.isConnected) b.textContent="↺ "+tt("Restart Kardex","Reiniciar Kardex"); },6000); return; }
     kxArm=0; b.disabled=true; b.textContent=tt("Restarting…","Reiniciando…");
     const r=await kardexReset(); if(!r) return;
-    kxItem=""; toast(tt(`Kardex restarted: ${r.del} movements erased, ${r.n} opening rows from Kitchen & inventory.`,`Kardex reiniciado: ${r.del} movimientos borrados, ${r.n} filas iniciales desde Cocina e inventario.`)); render(); };
+    kxItem=""; toast(tt(`Kardex cleared: ${r.del} movements erased. New entries come from purchases.`,`Kardex limpio: ${r.del} movimientos borrados. Las nuevas entradas vienen de las compras.`)); render(); };
   const kmSet=()=>{ const it=invItem(g("kmItem").value), pc=it&&it.unit==="pc", inn=g("kmType").value==="in";
     g("kmQtyL").textContent=pc&&inn?tt("Packages","Paquetes"):tt(`Quantity (${it?unitLbl(it.unit):"—"})`,`Cantidad (${it?unitLbl(it.unit):"—"})`);
     g("kmCostL").textContent=(pc?tt(`Price per package (${packOf(it)} pieces)`,`Precio por paquete (${packOf(it)} piezas)`):tt(`Unit cost per ${it?costPerLbl(it.unit):"kg / L"}`,`Costo unitario por ${it?costPerLbl(it.unit):"kg / L"}`))+` (${curSym()})`;

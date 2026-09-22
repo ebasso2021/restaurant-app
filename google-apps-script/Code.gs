@@ -257,7 +257,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu("Taste of Peru")
     .addItem("Crear o cambiar usuario…", "menuUsuario")
     .addItem("Instalar fórmulas", "instalarFormulas")
-    .addItem("Reiniciar Kardex (stock inicial desde Inventario)", "reiniciarKardex")
+    .addItem("Reiniciar Kardex (borrar todo)", "reiniciarKardex")
     .addToUi();
 }
 function menuUsuario() {
@@ -477,25 +477,15 @@ function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by, extr
     unit: it.unit || "", reason: reason, type: type, total: r2_(toBase_(qty, it.unit, it.pack) * unitCost), avgCost: rc_(it.unit, avgCost), balValue: sn.stockVal,
     ref: ref || "", by: by || "", when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
 }
-// Erases every row of the "Kardex" tab and writes one opening row per item of "Inventario"
-// (stock and cost of Kitchen & inventory). Menu Taste of Peru → Reiniciar Kardex, or run it from the editor.
+// Only erases every row of the "Kardex" tab (keeps the headers). It reads nothing else; from then on the Kardex
+// is fed by purchases. Menu Taste of Peru → Reiniciar Kardex, or run it from the editor.
 function reiniciarKardex() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), sh = sheet_("kardex");
   const want = ["ID", "json"].concat(FIELDS.kardex.map(function (f) { return f[1]; }));
   const lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
     sh.clear(); sh.getRange(1, 1, 1, want.length).setValues([want]); sh.setFrozenRows(1); sh.hideColumns(2);
-    const inv = list_("inventory").sort(function (a, b) { return String(a.data.name).localeCompare(String(b.data.name)); });
-    const now = new Date(), date = Utilities.formatDate(now, tz_(), "yyyy-MM-dd");
-    inv.forEach(function (d, i) {
-      const it = d.data, u = it.unit || "", pk = u === "pc" && Number(it.pack) > 0 ? Number(it.pack) : 1;
-      const q = r3_(Math.max(0, Number(it.qty || 0))), c = rc_(u, Number(it.cost || 0)), sn = kxSnap_(u, pk, q, c);
-      write_("kardex", "k" + now.getTime().toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 5), {
-        item: it.name || "", costPkg: sn.costPkg, perSub: sn.perSub, stockVal: sn.stockVal, date: date, dir: "Entrada", qty: q, unitCost: c, balQty: q,
-        supplier: String(it.supplier || ""), lot: "", expiry: "", unit: u, reason: "initial", type: "in", total: r2_(toBase_(q, u) * c), avgCost: c, balValue: sn.stockVal,
-        ref: "Kardex inicial desde Inventario", by: "Hoja", when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: d.id, costPer: baseOf_(u), pack: pk });
-    });
-    try { ss.toast(inv.length + " filas iniciales en Kardex", "Taste of Peru"); } catch (e) {}
+    try { ss.toast("Kardex limpio", "Taste of Peru"); } catch (e) {}
   } finally { lock.releaseLock(); }
 }
 // Puts the "Kardex" tab in the new column order (Artículo, Costo por kg / L / paquete, Por g / mL / und, Valor del stock,
