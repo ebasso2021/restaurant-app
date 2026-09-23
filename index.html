@@ -2565,7 +2565,7 @@ const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobrepr
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
    <div class="kpis" id="invKpis"></div>
-   <div class="panel"><h3>${tt("Stock","Stock")}</h3>
+   <div class="panel"><h3>${tt("Items","Artículos")}</h3>
     <form id="invForm" class="fgrid wide">
      ${field("iName",tt("Item","Artículo"),`<input id="iName" required>`)}
      ${field("iUnit",tt("Unit","Unidad"),`<select id="iUnit">${UNITS.map(u=>`<option value="${u}">${({g:tt("grams (g) — cost per kg","gramos (g) — costo por kg"),kg:tt("kilos (kg) — cost per kg","kilos (kg) — costo por kg"),ml:tt("millilitres (mL) — cost per L","mililitros (mL) — costo por L"),L:tt("litres (L) — cost per L","litros (L) — costo por L"),pc:tt("pieces — cost per piece (package price ÷ pieces)","unidades — costo por unidad (precio del paquete ÷ piezas)")})[u]}</option>`).join("")}</select>`)}
@@ -2628,8 +2628,8 @@ function askConfirm(title,msg,okLabel){ return new Promise(res=>{
   document.addEventListener("keydown",key,true); document.body.appendChild(w); w.querySelector('[data-cfm="0"]').focus(); }); }
 /* ✓ Save an edited stock row: no blanks or 0; stock changes go to the Kardex as a count / adjustment */
 async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>document.querySelector(`#invTable [data-f="${f}"][data-id="${id}"]`);
-  const fl=[["name",tt("Item","Artículo"),"text"],["qty",tt("On hand","Stock"),"pos"],["min",tt("Alert","Alerta"),"pos"],["par",tt("Max. quantity","Cantidad máxima"),"pos"],...(it.unit==="pc"?[["pack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["supplier",tt("Supplier","Proveedor"),"text"]];
-  const bad=[]; fl.forEach(([f,l,k])=>{ const el=rowQ(f); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:(v!==""&&num(v)>0); el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(l); });
+  const fl=[["name",tt("Item","Artículo"),"text"],["qty",tt("On hand","Stock"),"zero"],["min",tt("Alert","Alerta"),"pos"],["par",tt("Max. quantity","Cantidad máxima"),"pos"],...(it.unit==="pc"?[["pack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["supplier",tt("Supplier","Proveedor"),"text"]];
+  const bad=[]; fl.forEach(([f,l,k])=>{ const el=rowQ(f); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:k==="zero"?(v!==""&&num(v)>=0):(v!==""&&num(v)>0); el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(l); });
   if(bad.length) return toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
   const v=f=>String(rowQ(f)?rowQ(f).value:"").trim();
   if(num(v("par"))<num(v("min"))){ rowQ("par").setAttribute("aria-invalid","true"); return toast(tt("Maximum quantity must be at least the alert level.","La cantidad máxima debe ser mayor o igual a la alerta.")); }
@@ -2643,7 +2643,7 @@ async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>
   invEdit=null; invDraft={}; toast(tt(`“${name}” saved.`,`“${name}” guardado.`)); listM2(); }
 /* Kitchen & inventory: no blank fields and no 0 / 0.00 values. fields = [id, label, "text" | "pos"] */
 function reqCheck(fields){ const bad=[];
-  fields.forEach(([id,lbl,k])=>{ const el=document.getElementById(id); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:(v!==""&&num(v)>0);
+  fields.forEach(([id,lbl,k])=>{ const el=document.getElementById(id); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:k==="zero"?(v!==""&&num(v)>=0):(v!==""&&num(v)>0);
     el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(lbl); });
   if(!bad.length) return true;
   toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
@@ -2653,8 +2653,9 @@ function wireM2(){
   document.getElementById("invForm").onsubmit=async e=>{
     e.preventDefault();
     const pc0=val("iUnit")==="pc";
-    if(!reqCheck([["iName",tt("Item","Artículo"),"text"],["iQty",tt("On hand","En stock"),"pos"],["iMin",tt("Alert below","Alerta bajo"),"pos"],["iPar",tt("Maximum quantity","Cantidad máxima"),"pos"],
-      ...(pc0?[["iPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["iCost",tt("Cost","Costo"),"pos"],["iSup",tt("Supplier","Proveedor"),"text"]])) return;
+    const q0i=num(val("iQty"));   // on hand may be 0; with 0 on hand the cost may be 0 too
+    if(!reqCheck([["iName",tt("Item","Artículo"),"text"],["iQty",tt("On hand","En stock"),"zero"],["iMin",tt("Alert below","Alerta bajo"),"pos"],["iPar",tt("Maximum quantity","Cantidad máxima"),"pos"],
+      ...(pc0?[["iPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["iCost",tt("Cost","Costo"),q0i>0?"pos":"zero"],["iSup",tt("Supplier","Proveedor"),"text"]])) return;
     if(num(val("iPar"))<num(val("iMin"))){ document.getElementById("iPar").setAttribute("aria-invalid","true"); return toast(tt("Maximum quantity must be at least the alert level.","La cantidad máxima debe ser mayor o igual a la alerta.")); }
     if(!DB) return noDb();
     const pcs=val("iUnit")==="pc", pk=pcs?Math.max(1,Math.round(num(val("iPack"))||1)):1;
@@ -2934,11 +2935,6 @@ function m3(){
    <div class="panel"><div class="flexrow"><h3 style="margin:0">${tt("Purchases","Compras")}</h3>
      ${field("pcDays",tt("Period","Periodo"),`<select id="pcDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===pcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}</div>
     <div id="pcKpis"></div><div class="tablewrap" id="pcBox"></div>
-   </div>
-   <div class="panel"><h3>${tt("Inventory = Kardex totals","Inventario = totales del Kardex")}</h3>
-    <div class="tablewrap" id="kxTot"></div>
-    <p class="hint">${tt("The Kardex is fed by purchases (entries) and by billed sales, waste and stock counts (exits); 📒 Kardex → Restart Kardex only erases it. “Rebuild” replays every Kardex movement in date order with the weighted average and writes the result to the inventory.","El Kardex se alimenta de las compras (entradas) y de las ventas facturadas, mermas y conteos (salidas); 📒 Kardex → Reiniciar Kardex solo lo borra. “Recalcular” repasa cada movimiento del Kardex en orden de fecha con el promedio ponderado y escribe el resultado en el inventario.")}</p>
-    <button type="button" class="btn ghost" id="kxRebuild">⟳ ${tt("Rebuild inventory from the Kardex","Recalcular inventario desde el Kardex")}</button>
    </div>`;
   else if(m3Sub==="kardex") body=`
    <div class="panel" id="kxPanel"><h3>📒 Kardex</h3>
@@ -2947,6 +2943,7 @@ function m3(){
      ${field("kxDays",tt("Period","Periodo"),`<select id="kxDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===kxDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
      <div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxCsv">⬇ ${tt("Export CSV","Exportar CSV")}</button></div>
      ${canWrite("kardex")&&(MODE!=="sheet"||["admin","chef"].includes(SESSION&&SESSION.role))?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxReset" title="${tt("Only erases every movement in the Kardex database. After that, the Kardex is fed by purchases.","Solo borra todos los movimientos de la base de datos del Kardex. Después, el Kardex se alimenta de las compras.")}">↺ ${tt("Restart Kardex","Reiniciar Kardex")}</button></div>`:""}
+     ${canWrite("kardex")?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxRebuild" title="${tt("Replays every Kardex movement in date order with the weighted average and writes the result to the inventory","Repasa cada movimiento del Kardex en orden de fecha con el promedio ponderado y escribe el resultado en el inventario")}">⟳ ${tt("Rebuild inventory","Recalcular inventario")}</button></div>`:""}
     </div>
     <form id="kmForm" class="addstock${ke?" editpanel":""}"><h4 class="minih">${ke?`✏ ${tt("Edit movement","Editar movimiento")} — ${esc(ke.item)}`:tt("Register movement","Registrar movimiento")}</h4>
      ${ke?`<p class="hint">${tt("When you save, this item's whole Kardex is recalculated in date order (balances, weighted average cost, value and the cost of later exits) and the inventory is updated.","Al guardar, se recalcula todo el Kardex de este artículo en orden de fecha (saldos, costo promedio ponderado, valor y costo de las salidas posteriores) y se actualiza el inventario.")}</p>`:""}
