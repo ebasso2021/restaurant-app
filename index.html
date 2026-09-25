@@ -2508,7 +2508,7 @@ async function kardexMove(it,m){
     supplier:String(m.supplier!=null?m.supplier:(type==="in"?it.supplier||"":"")).slice(0,60),lot:String(m.lot||"").slice(0,40),expiry:m.expiry&&/^\d{4}-\d{2}-\d{2}$/.test(m.expiry)?m.expiry:"",
     created:kxStamp(),when:date+kxStamp().slice(10),itemId:it.id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type,reason:m.reason||type,total:cost2(B(qty)*uc),
     avgCost:c1,balValue:snap.stockVal,ref:m.ref||"",by:SESSION?(SESSION.name||SESSION.user):""});
-  return {q1,c1};
+  return {q1,c1,id};
 }
 /* Restart the Kardex: only erases every movement in the Kardex database. It reads nothing and writes nothing else;
    from then on the Kardex is fed by purchases (entries) and billed sales, waste and counts (exits) */
@@ -2728,13 +2728,17 @@ function wireM2(){
     const a=e.target.closest("[data-add]"); if(a){ document.getElementById("asItem").value=a.dataset.add; asForm(); document.getElementById("addStockForm").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asQty").focus({preventScroll:true}); }
   });
   document.getElementById("addStockForm").onsubmit=async e=>{
-    e.preventDefault(); document.getElementById("asMsg").textContent=""; const it=D.inventory.find(i=>i.id===val("asItem")); const p=asPurchase(it);
+    e.preventDefault(); if(asBusy) return; document.getElementById("asMsg").textContent=""; const it=D.inventory.find(i=>i.id===val("asItem")); const p=asPurchase(it);
     if(!it) return toast(tt("Choose an item.","Elige un artículo."));
     if(!reqCheck([["asQty",it.unit==="pc"?tt("Packages received","Paquetes recibidos"):tt("Quantity received","Cantidad recibida"),"pos"],...(it.unit==="pc"?[["asPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),
       ["asCost",it.unit==="pc"?tt("Price per package","Precio por paquete"):tt("Purchase cost","Costo de compra"),"pos"],["asSup",tt("Supplier","Proveedor"),"text"]])) return;
     if(!p||p.q<=0) return; const q=p.q, uc=p.uc;
     if(it.unit==="pc"&&p.pk!==packOf(it)) await dbUpd("inventory",it.id,{pack:p.pk});
-    const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef"),supplier:val("asSup"),lot:val("asLot"),expiry:val("asExp")}); if(!r) return;
+    // lock "Add stock" until the new row is back in the Kardex, so a double click can't record the same purchase twice
+    asLock(true); let r=null;
+    try{ r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef"),supplier:val("asSup"),lot:val("asLot"),expiry:val("asExp")}); if(r) await waitKardex(r.id); }
+    finally{ asLock(false); }
+    if(!r) return;
     { const am=document.getElementById("asMsg"); am.className="hint oknote"; am.textContent="✅ "+tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${it.unit==="pc"?money4(r.c1):money2(r.c1)} per ${costPerLbl(it.unit,it)} · value ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} per ${subUnit(it.unit)}).`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${it.unit==="pc"?money4(r.c1):money2(r.c1)} por ${costPerLbl(it.unit,it)} · valor ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} por ${subUnit(it.unit)}).`); }
     toast("✅ "+tt(`Stock added: ${q} ${unitLbl(it.unit)} of ${it.name}`,`Stock agregado: ${q} ${unitLbl(it.unit)} de ${it.name}`));
     document.getElementById("asQty").value=""; document.getElementById("asCost").value=""; ["asRef","asLot","asExp"].forEach(id=>document.getElementById(id).value=""); asForm();
@@ -2773,6 +2777,17 @@ function recentStockHTML(n=8){
 }
 // portions left for a dish typed in an order (null = no saved recipe linked to inventory)
 function portionsForDish(d){ const m=menuFind(d); if(!m) return null; const r=recipeOf(m.id); if(!r||!r.locked) return null; const pp=portionsPossible(r); return pp.linked?pp.best:null; }
+// "Add stock" is locked while a purchase is being saved and until the Kardex shows it
+let asBusy=false;
+function asLock(on){ asBusy=on; const f=document.getElementById("addStockForm"); if(!f) return; const b=f.querySelector('button[type="submit"]');
+  if(b){ b.disabled=on; b.textContent=on?"⏳ "+tt("Updating Kardex…","Actualizando Kardex…"):tt("Add stock","Agregar stock"); }
+  f.setAttribute("aria-busy",on?"true":"false"); }
+async function waitKardex(id,ms=20000){ const t0=Date.now(); let asked=0;
+  while(!(D.kardex||[]).some(k=>k.id===id||k.id==="kardex/"+id)){
+    if(Date.now()-t0>ms) return false;
+    if(DB&&DB._refresh&&Date.now()-asked>2500){ asked=Date.now(); try{ DB._refresh("kardex"); }catch(e){} }
+    await new Promise(r=>setTimeout(r,300)); }
+  return true; }
 function listM2(){
   const tb=document.getElementById("invTable"); if(!tb) return;
   setHTML(document.getElementById("ppBox"),ppListHTML());
