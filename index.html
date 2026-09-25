@@ -1560,6 +1560,7 @@ function applyRoleUI(){
   if(ROLE_VIEWS[SESSION.role]) return; // waiter: full use of the modules they can open
   const cook=SESSION.role==="cocinero";
   if(cook&&v==="m2") return; // cook: full use of Kitchen & inventory only
+  if(v==="m3"&&m3Sub==="kardex"&&canWrite("kardex")) return; // chef and cook can register / edit Kardex movements
   main.querySelectorAll("section input,section select,section textarea,section button,section .linkbtn").forEach(el=>{
     if(el.matches(READ_OK)) return;
     if(chef&&v==="m3"&&(el.matches("[data-cost]")||el.id==="tMargin"||el.closest("#opexBox,#opexAdd"))) return;
