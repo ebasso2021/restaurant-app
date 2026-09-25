@@ -161,6 +161,8 @@ select.invsel{max-width:180px;font:13px var(--body);padding:4px 6px;border:1px s
 ol.steps li{margin-bottom:6px}
 .capnote{font-size:13px;color:var(--muted);margin:0 0 16px}
 .warnnote{background:var(--warn-bg);color:var(--ink);padding:10px 12px;border-radius:10px}
+.oknote{background:var(--ok-bg);color:var(--ink);padding:10px 12px;border-radius:10px;border-left:4px solid var(--ok)}
+.oknote:empty{display:none}
 .btn{border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 14px var(--body);padding:8px 14px;border-radius:9px;cursor:pointer;min-height:36px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
@@ -2629,6 +2631,8 @@ function m2(){
    </div>
    <div class="grid" style="margin-top:20px">
     <div class="stack">
+     <div class="panel"><h3>📦 ${tt("Recently added stock","Stock agregado recientemente")}</h3><div id="rsBox"></div>
+      <p class="hint">${tt("Latest entries in the Kardex (Add stock, purchases and first counts).","Últimas entradas en el Kardex (Agregar stock, compras y conteos iniciales).")}</p></div>
      <div class="panel"><h3>${tt("Portions possible with current stock","Porciones posibles con el stock actual")}</h3><div id="ppBox"></div>
       <p class="hint">${tt("From each recipe's standard measure (1 portion). Set the measures in the Recipes tab.","Según la medida única (1 porción) de cada receta. Las medidas se definen en el tab Recetas.")}</p></div>
      <div class="panel"><h3>${tt("Automatic purchase order","Orden de compra automática")}</h3><div id="poBox"></div></div>
@@ -2724,14 +2728,15 @@ function wireM2(){
     const a=e.target.closest("[data-add]"); if(a){ document.getElementById("asItem").value=a.dataset.add; asForm(); document.getElementById("addStockForm").scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asQty").focus({preventScroll:true}); }
   });
   document.getElementById("addStockForm").onsubmit=async e=>{
-    e.preventDefault(); const it=D.inventory.find(i=>i.id===val("asItem")); const p=asPurchase(it);
+    e.preventDefault(); document.getElementById("asMsg").textContent=""; const it=D.inventory.find(i=>i.id===val("asItem")); const p=asPurchase(it);
     if(!it) return toast(tt("Choose an item.","Elige un artículo."));
     if(!reqCheck([["asQty",it.unit==="pc"?tt("Packages received","Paquetes recibidos"):tt("Quantity received","Cantidad recibida"),"pos"],...(it.unit==="pc"?[["asPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),
       ["asCost",it.unit==="pc"?tt("Price per package","Precio por paquete"):tt("Purchase cost","Costo de compra"),"pos"],["asSup",tt("Supplier","Proveedor"),"text"]])) return;
     if(!p||p.q<=0) return; const q=p.q, uc=p.uc;
     if(it.unit==="pc"&&p.pk!==packOf(it)) await dbUpd("inventory",it.id,{pack:p.pk});
     const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef"),supplier:val("asSup"),lot:val("asLot"),expiry:val("asExp")}); if(!r) return;
-    document.getElementById("asMsg").textContent=tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${it.unit==="pc"?money4(r.c1):money2(r.c1)} per ${costPerLbl(it.unit,it)} · value ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} per ${subUnit(it.unit)}).`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${it.unit==="pc"?money4(r.c1):money2(r.c1)} por ${costPerLbl(it.unit,it)} · valor ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} por ${subUnit(it.unit)}).`);
+    { const am=document.getElementById("asMsg"); am.className="hint oknote"; am.textContent="✅ "+tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${it.unit==="pc"?money4(r.c1):money2(r.c1)} per ${costPerLbl(it.unit,it)} · value ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} per ${subUnit(it.unit)}).`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${it.unit==="pc"?money4(r.c1):money2(r.c1)} por ${costPerLbl(it.unit,it)} · valor ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} por ${subUnit(it.unit)}).`); }
+    toast("✅ "+tt(`Stock added: ${q} ${unitLbl(it.unit)} of ${it.name}`,`Stock agregado: ${q} ${unitLbl(it.unit)} de ${it.name}`));
     document.getElementById("asQty").value=""; document.getElementById("asCost").value=""; ["asRef","asLot","asExp"].forEach(id=>document.getElementById(id).value=""); asForm();
   };
   document.getElementById("asItem").addEventListener("change",asForm);
@@ -2758,11 +2763,20 @@ function ppRows(){ return D.menu.filter(m=>m.active!==false).map(m=>{const r=rec
 function ppListHTML(){ const rows=ppRows();
   return rows.length?`<ul class="rows">${rows.map(x=>`<li><div>${esc(itemName(x.m)||x.m.name)}<small>${tt("runs out first","se acaba primero")}: ${esc(x.pp.limit||"—")}</small></div><b class="${x.pp.best===0?"alltxt":""}">${x.pp.best===0?"⛔ ":""}${x.pp.best} ${tt("portions","porciones")}</b></li>`).join("")}</ul>`
     :`<p class="empty">${tt("No saved recipe is linked to inventory yet.","Aún no hay recetas guardadas vinculadas al inventario.")}</p>`; }
+// latest stock entries (Kardex "in" rows), newest first; entries from today are marked
+function recentStockHTML(n=8){
+  const rows=(D.kardex||[]).filter(k=>k.type==="in"&&num(k.qty)>0).sort((a,b)=>String(b.created||b.when||b.date).localeCompare(String(a.created||a.when||a.date))).slice(0,n);
+  if(!rows.length) return `<p class="empty">${tt("No stock added yet.","Aún no se ha agregado stock.")}</p>`;
+  const t=today();
+  return `<ul class="rows">${rows.map(k=>{ const ts=kxTsFmt(k.created||k.when)||k.date||"", isToday=String(ts).slice(0,10)===t||k.date===t;
+    return `<li><div>${isToday?`<span class="badge ok">${tt("Today","Hoy")}</span> `:""}${esc(k.item||"")}<small>${esc(ts.slice(0,16))} · ${esc(kxReason(k.reason))}${k.supplier?" · "+esc(k.supplier):""}${k.by?" · "+tt("by","por")+" "+esc(k.by):""}</small></div><b class="kin">+${fmtQ(num(k.qty))} ${esc(unitLbl(k.unit))}</b></li>`; }).join("")}</ul>`;
+}
 // portions left for a dish typed in an order (null = no saved recipe linked to inventory)
 function portionsForDish(d){ const m=menuFind(d); if(!m) return null; const r=recipeOf(m.id); if(!r||!r.locked) return null; const pp=portionsPossible(r); return pp.linked?pp.best:null; }
 function listM2(){
   const tb=document.getElementById("invTable"); if(!tb) return;
   setHTML(document.getElementById("ppBox"),ppListHTML());
+  setHTML(document.getElementById("rsBox"),recentStockHTML());
   const inv=[...D.inventory].sort((a,b)=>a.name.localeCompare(b.name));
   const low=inv.filter(i=>invStatus(i)[0]==="bad"), over=inv.filter(i=>invStatus(i)[0]==="warn");
   const stockVal=inv.reduce((s,i)=>s+stockValue(i),0);
