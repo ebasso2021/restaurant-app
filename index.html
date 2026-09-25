@@ -787,6 +787,26 @@ const invItem=id=>D.inventory.find(i=>i.id===id);
 // Roles that can't read the Kardex (waiter) fall back to the Inventory quantity.
 function kardexOn(){ return canRead("kardex")&&Array.isArray(D.kardex)&&LOADED.has("kardex"); }
 function stockQty(it,T){ if(!it) return 0; if(!kardexOn()) return num(it.qty); const t=(T||kxTotals())[it.id]; return t?num(t.q):0; }
+// Kardex totals, recomputed only when the Kardex changes
+let _kxMemo=null;
+function kxT(){ const k=D.kardex||[], sig=k.length+"|"+(k.length?String(k[k.length-1].id)+String(k[k.length-1].balQty):"");
+  if(!_kxMemo||_kxMemo.ref!==k||_kxMemo.sig!==sig) _kxMemo={ref:k,sig,T:kxTotals()}; return _kxMemo.T; }
+// weighted average cost of an inventory item (per kg / L / piece) — from the Kardex; roles that can't read the Kardex use the Inventory cost
+function avgCostOf(it){ if(!it) return 0; if(!kardexOn()) return num(it.cost); const t=kxT()[it.id]; return t?num(t.c):0; }
+// cost of 1 portion of a recipe = Σ ingredient quantity × Kardex weighted average cost
+function portionCost(std){
+  let cost=0; const lines=[], missing=[], unlinked=[], bad=[];
+  (std.ingredients||[]).forEach(g=>{ if(!num(g.q)) return; const it=g.inv?invItem(g.inv):null;
+    if(!it){ unlinked.push(g.n); return; }
+    const per=convQty(g.q,g.u,it.unit); if(per==null){ bad.push(g.n); return; }
+    const c=avgCostOf(it); if(!(c>0)){ missing.push(g.n); lines.push({n:g.n,it,per,cost:null}); return; }
+    const lc=toBaseI(per,it)*c; cost+=lc; lines.push({n:g.n,it,per,cost:lc}); });
+  return {cost,lines,missing,unlinked,bad,known:cost>0&&!missing.length&&!bad.length};
+}
+// cost per cup / plate of an app product (sales are kept per product): the saved recipe × Kardex; manual cost only as a fallback
+function recipeForProd(pid){ const m=D.menu.find(x=>x.prodId===pid&&recipeOf(x.id)&&recipeOf(x.id).locked); return m?recipeOf(m.id):null; }
+function prodCost(pid){ const r=recipeForProd(pid); if(r){ const pc=portionCost(r); if(pc.cost>0) return {c:pc.cost,src:"kardex",pc}; }
+  const c=num(D.costs&&D.costs[pid]); return {c,src:c>0?"manual":"",pc:null}; }
 // how many portions the current stock allows, and which ingredient runs out first
 function portionsPossible(std){
   let best=null, limit=null, linked=0, bad=[]; const T=kardexOn()?kxTotals():null;
@@ -1050,14 +1070,16 @@ function standardRecipe(item,prod){
 function calcHTML(item){
   const std=recEdit||standardOf(item), ing=(std.ingredients||[]).filter(g=>g.n), n=Math.max(1,Math.round(num(recN))||1);
   if(!ing.length) return `<p class="empty">${tt("Add the ingredients for one portion first.","Primero agrega los ingredientes de una porción.")}</p>`;
-  const pp=portionsPossible(std), T=kardexOn()?kxTotals():null;
+  const pp=portionsPossible(std), T=kardexOn()?kxTotals():null, pcst=portionCost(std);
   const rows=ing.map(g=>{ const it=g.inv?invItem(g.inv):null, need=num(g.q)*n, inU=it?convQty(need,g.u,it.unit):null, have=stockQty(it,T);
     const ok=it&&inU!=null?have>=inU:null;
     return `<tr><td>${esc(g.n)}</td><td class="nw">${nice(num(g.q))} ${esc(g.u)}</td><td class="nw"><b>${nice(need)} ${esc(g.u)}</b>${inU!=null&&it.unit!==g.u?`<small>= ${nice(inU)} ${esc(it.unit)}</small>`:""}</td>
       <td class="nw">${it?`${nice(have)} ${esc(it.unit)}`:`<span class="dimtxt">—</span>`}</td>
-      <td>${ok==null?"":ok?`<span class="badge ok">OK</span>`:`<span class="badge bad">${tt("short","falta")} ${nice(inU-have)} ${esc(it.unit)}</span>`}</td></tr>`; }).join("");
+      <td>${ok==null?"":ok?`<span class="badge ok">OK</span>`:`<span class="badge bad">${tt("short","falta")} ${nice(inU-have)} ${esc(it.unit)}</span>`}</td>
+      <td class="nw">${(()=>{ const l=pcst.lines.find(x=>x.n===g.n&&x.it===it); return l&&l.cost!=null?money2(l.cost*n):`<span class="dimtxt">—</span>`; })()}</td></tr>`; }).join("");
   return `<p class="dimtxt">${esc(itemName(item))} · <b>${n}</b> ${tt("portion(s)","porción(es)")}${std.portionLabel?" × "+esc(std.portionLabel):""}</p>
-   <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>1</th><th>× ${n}</th><th>${tt("In stock","En stock")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+   <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>1</th><th>× ${n}</th><th>${tt("In stock","En stock")}</th><th></th><th>${tt("Cost","Costo")} × ${n}</th></tr></thead><tbody>${rows}</tbody></table></div>
+   ${pcst.cost>0?`<p class="capnote">💲 ${tt("Cost per portion","Costo por porción")}: <b>${money2(pcst.cost)}</b>${n>1?` · × ${n} = <b>${money2(pcst.cost*n)}</b>`:""} <span class="dimtxt">(${tt("Kardex weighted average cost","costo promedio ponderado del Kardex")})</span>${pcst.missing.length?` · <span class="alltxt">⚠ ${tt("no Kardex cost yet","aún sin costo en Kardex")}: ${esc(pcst.missing.join(", "))}</span>`:""}</p>`:""}
    ${pp.linked?`<p class="capnote ${pp.best===0?"warnnote":""}">📦 ${tt(`With the current stock you can make <b>${pp.best}</b> portion(s)`,`Con el stock actual alcanzan <b>${pp.best}</b> porción(es)`)}${pp.limit?` — ${tt("first to run out","se acaba primero")}: ${esc(pp.limit)}`:""}.</p>`
      :`<p class="hint">${tt("Link the ingredients to inventory items to see how many portions your stock allows and to discount stock when a bill is paid.","Vincula los ingredientes con artículos del inventario para ver cuántas porciones alcanzan con tu stock y descontar el stock al cobrar una cuenta.")}</p>`}
    ${pp.bad.length?`<p class="hint alltxt">${tt("Units that can't be converted","Unidades que no se pueden convertir")}: ${esc(pp.bad.join(", "))}</p>`:""}
@@ -2861,7 +2883,7 @@ function listKardex(){
 
 /* ---------- sales helpers (used by modules 2, 3, 5) ---------- */
 function salesDays(n){ const out=[]; for(let i=n-1;i>=0;i--){const d=addDays(today(),-i); const s=D.sales.find(x=>x.id===d); out.push({date:d,items:(s&&s.items)||{},hours:(s&&s.hours)||{}});} return out; }
-function dayTotals(day){ let cups=0,rev=0,cost=0; Object.entries(day.items).forEach(([pid,it])=>{cups+=num(it.cups);rev+=num(it.revenue);cost+=num(it.cups)*num(D.costs[pid]);}); return {cups,rev,cost}; }
+function dayTotals(day){ let cups=0,rev=0,cost=0; Object.entries(day.items).forEach(([pid,it])=>{cups+=num(it.cups);rev+=num(it.revenue);cost+=num(it.cups)*prodCost(pid).c;}); return {cups,rev,cost}; }
 function weekdayForecast(){
   const hist=salesDays(56).filter(d=>Object.keys(d.items).length);
   if(hist.length<7) return null;
@@ -3031,7 +3053,7 @@ function m3(){
   else if(m3Sub==="costs") body=`
    <div class="grid">
     <div class="stack">
-     <div class="panel"><h3>${tt("Cost per cup","Costo por vaso")}</h3><div id="costBox"></div><p class="hint">${tt("Use the recipe calculators and your supplier prices to work out each cost.","Usa las calculadoras de receta y los precios de tus proveedores para calcular cada costo.")}</p></div>
+     <div class="panel"><h3>${tt("Cost per portion (Kardex weighted average)","Costo por porción (promedio ponderado del Kardex)")}</h3><div id="costBox"></div></div>
     </div>
     <div class="stack"><div class="panel"><h3>${tt("Stock value","Valor del stock")}</h3><div id="m3Stock"></div></div></div>
    </div>
@@ -3182,11 +3204,26 @@ function wireM3(){
     ["kmQty","kmCost","kmLot","kmExp","kmRef"].forEach(id=>g(id).value=""); kxItem=it.id; render(); };
   }
 }
+// "Cost per cup": every menu item with a saved recipe, costed with the Kardex weighted average; manual cost only when there is no recipe cost
+function costBoxHTML(){
+  const target=num(D.costs&&D.costs._target)||60;
+  const items=D.menu.filter(m=>m.active!==false).map(m=>{ const r=recipeOf(m.id); return {m,r:r&&r.locked?r:null}; });
+  const rows=items.filter(x=>x.r).map(x=>{ const pc=portionCost(x.r), price=num(x.m.price), mg=price>0&&pc.cost>0?(price-pc.cost)/price*100:null;
+    const why=[...pc.missing.map(n=>n+": "+tt("no Kardex cost","sin costo en Kardex")),...pc.unlinked.map(n=>n+": "+tt("not linked","sin vincular")),...pc.bad.map(n=>n+": "+tt("unit","unidad"))].join(" · ");
+    const det=pc.lines.filter(l=>l.cost!=null).map(l=>`${l.n} ${nice(l.per)} ${unitLbl(l.it.unit)} = ${money2(l.cost)}`).join(" · ");
+    return `<tr><td>${esc(itemName(x.m)||x.m.name)}${det?`<small>${esc(det)}</small>`:""}</td><td class="nw"><b>${pc.cost>0?money2(pc.cost):"—"}</b>${why?`<small class="alltxt">⚠ ${esc(why)}</small>`:""}</td>
+      <td class="nw">${price>0?money2(price):"—"}</td><td class="nw">${mg==null?"—":`<span class="badge ${mg<target?"bad":"ok"}">${Math.round(mg)}%</span>`}</td></tr>`; }).join("");
+  const manual=P.filter(p=>!(prodCost(p.id).src==="kardex"));
+  return (rows?`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Plato / bebida")}</th><th>${tt("Cost per portion","Costo por porción")}</th><th>${tt("Price","Precio")}</th><th>${tt("Margin","Margen")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+     <p class="hint">${tt("Cost per portion = each ingredient of the saved recipe (1 portion) × its weighted average cost in the Kardex. It updates by itself with every purchase.","Costo por porción = cada ingrediente de la receta guardada (1 porción) × su costo promedio ponderado del Kardex. Se actualiza solo con cada compra.")}</p>`
+    :`<p class="empty">${tt("Save the recipes (Recipes tab) and link their ingredients to inventory to cost each item from the Kardex.","Guarda las recetas (tab Recetas) y vincula sus ingredientes al inventario para costear cada producto con el Kardex.")}</p>`)
+   +(manual.length?`<h4 class="minih">${tt("Manual cost (only for drinks without a recipe cost)","Costo manual (solo para bebidas sin costo de receta)")}</h4><div class="costgrid">${manual.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`:"");
+}
 function prodStats(n){
   const days=salesDays(n), st={};
   P.forEach(p=>st[p.id]={cups:0,rev:0});
   days.forEach(d=>Object.entries(d.items).forEach(([pid,it])=>{ if(!st[pid]) st[pid]={cups:0,rev:0}; st[pid].cups+=num(it.cups); st[pid].rev+=num(it.revenue); }));
-  return Object.entries(st).map(([pid,s])=>{const c=num(D.costs[pid]);const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0};});
+  return Object.entries(st).map(([pid,s])=>{const c=prodCost(pid).c;const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0};});
 }
 function listM3(){
   if(m3Sub==="purchases"){
@@ -3205,7 +3242,7 @@ function listM3(){
   if(st0){ const inv=[...D.inventory].sort((a,b)=>stockValue(b)-stockValue(a)); const tot=inv.reduce((s,i)=>s+stockValue(i),0);
     setHTML(st0,inv.length?`<div class="kpi"><div class="big">${money(tot)}</div><div class="lbl">${tt("total stock value","valor total del stock")}</div></div><ul class="rows">${inv.slice(0,8).map(i=>`<li><div>${esc(i.name)}<small>${num(i.qty)} ${esc(unitLbl(i.unit))}</small></div><b>${money2(stockValue(i))}</b></li>`).join("")}</ul><p class="hint">${tt("From 2 · Kitchen & inventory. The Kardex tab has every movement.","Desde 2 · Cocina e inventario. La pestaña Kardex tiene cada movimiento.")}</p>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`); }
   const ob=document.getElementById("opexBox"); if(ob&&!ob.contains(document.activeElement)) setHTML(ob,opexHTML());
-  if(cb&&document.activeElement?.dataset?.cost===undefined) cb.innerHTML=`<div class="costgrid">${P.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`;
+  if(cb&&document.activeElement?.dataset?.cost===undefined) setHTML(cb,costBoxHTML());
   const days=salesDays(range), tot=days.map(dayTotals);
   const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
   const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
