@@ -2992,7 +2992,7 @@ function wireOpex(){
   if(!opexCan()) document.querySelectorAll("#opexAdd input,#opexAdd select,#opexAdd button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
 }
 let m3Sub="sales";
-const M3SUBS=[["purchases","🛒 Purchases","🛒 Compras"],["sales","Sales","Ventas"],["costs","Costs","Costos"],["kardex","📒 Kardex","📒 Kardex"],["analysis","Analysis & projection","Análisis y proyección"]];
+const M3SUBS=[["sales","Sales","Ventas"],["costs","Costs","Costos"],["kardex","📒 Kardex","📒 Kardex"],["analysis","Analysis & projection","Análisis y proyección"]];
 function m3(){
   if(!M3SUBS.some(x=>x[0]===m3Sub)) m3Sub="sales";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("Purchases, sales, costs & analytics","Compras, ventas, costos y análisis")}" style="margin-top:4px">${M3SUBS.map(x=>`<button type="button" role="tab" data-m3sub="${x[0]}" aria-selected="${m3Sub===x[0]}">${tt(x[1],x[2])}</button>`).join("")}</div>`;
@@ -3004,31 +3004,7 @@ function m3(){
   const ke=kxEdit?D.kardex.find(k=>k.id===kxEdit&&k.type!=="cost"):null; if(!ke) kxEdit=null;
   const keDir=ke?((ke.type==="in"||(ke.type==="adj"&&num(ke.qty)>0))?"in":"out"):"", keIt=ke?(invItem(ke.itemId)||{unit:ke.unit,pack:ke.pack}):null, kePk=ke&&ke.unit==="pc"?packOf(keIt):1;
   const keQty=ke?r3(Math.abs(num(ke.qty))/(keDir==="in"?kePk:1)):"", keCost=ke?inCur(num(ke.unitCost)*kePk).toFixed(2):"";
-  const pe=pcEdit?D.kardex.find(k=>k.id===pcEdit):null; if(!pe) pcEdit=null;
-  const peIt=pe?(invItem(pe.itemId)||{unit:pe.unit,pack:pe.pack}):null, pePk=pe&&pe.unit==="pc"?packOf(peIt):1;
-  const pv=f=>pe?` value="${esc(String(f==="qty"?r3(num(pe.qty)/pePk):f==="cost"?inCur(num(pe.unitCost)*pePk).toFixed(2):pe[f]||""))}"`:"";
-  if(m3Sub==="purchases") body=`
-   <div class="panel${pe?" editpanel":""}" id="pcPanel"><h3>${pe?`✏ ${tt("Edit purchase","Editar compra")} — ${esc(pe.item)}`:`🛒 ${tt("Register purchase","Registrar compra")}`}</h3>
-    ${pe?`<p class="hint">${tt("When you save, this row and every later Kardex movement of this item are recalculated with the weighted average cost, and the inventory is updated.","Al guardar, se recalculan esta fila y todos los movimientos posteriores de este artículo en el Kardex con el costo promedio ponderado, y se actualiza el inventario.")}</p>`:""}
-    <form id="pcForm" class="fgrid">
-     ${field("pcItem",tt("Item","Artículo"),`<select id="pcItem" required></select>`)}
-     ${field("pcDate",tt("Purchase date","Fecha de compra"),`<input id="pcDate" type="date" value="${pe?esc(pe.date||today()):today()}" max="${today()}" required>`)}
-     <div class="f"><label for="pcQty" id="pcQtyL">${tt("Quantity","Cantidad")}</label><input id="pcQty" type="number" step="any" min="0" required${pv("qty")}></div>
-     <div class="f"><label for="pcCost" id="pcCostL">${tt("Cost","Costo")}</label><input id="pcCost" type="number" step="0.01" min="0.01" required placeholder="0.00"${pv("cost")}></div>
-     ${field("pcSup",tt("Supplier","Proveedor"),`<input id="pcSup" maxlength="60" required${pv("supplier")}>`)}
-     ${field("pcLot",tt("Lot","Lote"),`<input id="pcLot" maxlength="40"${pv("lot")}>`)}
-     ${field("pcExp",tt("Expiry","Caducidad"),`<input id="pcExp" type="date"${pv("expiry")}>`)}
-     ${field("pcRef",tt("Invoice (optional)","Factura (opcional)"),`<input id="pcRef" maxlength="60"${pe&&pe.reason!=="initial"?pv("ref"):""}>`)}
-     <p class="hint f full" id="pcCalc" aria-live="polite"></p>
-     <div style="grid-column:1/-1;display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start"><button class="btn" type="submit">${pe?tt("Save changes","Guardar cambios"):tt("Save purchase","Guardar compra")}</button>${pe?`<button class="btn ghost" type="button" id="pcCancel">${tt("Cancel","Cancelar")}</button>`:""}</div>
-    </form>
-    <p class="hint">${tt("Each purchase is an entry in the Kardex and updates the inventory with the weighted average cost: (stock in kg / L × current cost + kg / L bought × purchase cost) ÷ new stock. Sales charged in billing are exits: they lower the inventory and the Kardex at the average cost.","Cada compra es una entrada en el Kardex y actualiza el inventario con el costo promedio ponderado: (stock en kg / L × costo actual + kg / L comprados × costo de compra) ÷ stock nuevo. Las ventas cobradas en facturación son salidas: bajan el inventario y el Kardex al costo promedio.")}</p>
-   </div>
-   <div class="panel"><div class="flexrow"><h3 style="margin:0">${tt("Purchases","Compras")}</h3>
-     ${field("pcDays",tt("Period","Periodo"),`<select id="pcDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===pcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}</div>
-    <div id="pcKpis"></div><div class="tablewrap" id="pcBox"></div>
-   </div>`;
-  else if(m3Sub==="kardex") body=`
+  if(m3Sub==="kardex") body=`
    <div class="panel" id="kxPanel"><h3>📒 Kardex</h3>
     <div class="fgrid" style="margin-bottom:10px">
      ${field("kxItem",tt("Item","Artículo"),`<select id="kxItem"></select>`)}
@@ -3104,39 +3080,6 @@ function m3(){
 function wireM3(){
   main.querySelectorAll("[data-m3sub]").forEach(b=>b.onclick=()=>{ m3Sub=b.dataset.m3sub; render(); });
   const g=id=>document.getElementById(id);
-  if(g("pcForm")){
-    const pcSet=()=>{ const it=invItem(g("pcItem").value), pc=it&&it.unit==="pc";
-      g("pcQtyL").textContent=pc?tt(`Packages (${packOf(it)} pieces each)`,`Paquetes (${packOf(it)} piezas c/u)`):tt(`Quantity (${it?unitLbl(it.unit):"—"})`,`Cantidad (${it?unitLbl(it.unit):"—"})`);
-      g("pcCostL").textContent=(pc?tt("Price per package","Precio por paquete"):tt(`Cost per ${it?costPerLbl(it.unit):"kg / L"}`,`Costo por ${it?costPerLbl(it.unit):"kg / L"}`))+` (${curSym()})`;
-      if(it&&!pcEdit&&document.activeElement!==g("pcSup")) g("pcSup").value=it.supplier||""; pcCalc(); };
-    const pcCalc=()=>{ const it=invItem(g("pcItem").value); if(!it) return setHTML(g("pcCalc"),""); const n=num(g("pcQty").value), c=g("pcCost").value;
-      if(!(n>0)||c==="") return setHTML(g("pcCalc"),"");
-      if(pcEdit){ const pc=it.unit==="pc", q=pc?n*packOf(it):n, uc=pc?toCAD(c)/packOf(it):toCAD(c); return setHTML(g("pcCalc"),tt(`New total ${money2(toBaseI(q,it)*uc)} (${fmtQ(q)} ${unitLbl(it.unit)})`,`Total nuevo ${money2(toBaseI(q,it)*uc)} (${fmtQ(q)} ${unitLbl(it.unit)})`)); }
-      const pc=it.unit==="pc", q=pc?n*packOf(it):n, uc=pc?toCAD(c)/packOf(it):toCAD(c), B=x=>toBaseI(x,it), q0=Math.max(0,num(it.qty)), c0=num(it.cost), q1=q0+q, c1=q1>0?(B(q0)*c0+B(q)*uc)/B(q1):uc;
-      setHTML(g("pcCalc"),tt(`Total ${money2(B(q)*uc)} · new stock ${nice(q1)} ${unitLbl(it.unit)} · weighted average ${money2(pc?c1*packOf(it):c1)} per ${pc?"package":costPerLbl(it.unit)} (now ${money2(pc?c0*packOf(it):c0)})`,
-        `Total ${money2(B(q)*uc)} · stock nuevo ${nice(q1)} ${unitLbl(it.unit)} · promedio ponderado ${money2(pc?c1*packOf(it):c1)} por ${pc?"paquete":costPerLbl(it.unit)} (ahora ${money2(pc?c0*packOf(it):c0)})`)); };
-    g("pcItem").onchange=pcSet; g("pcQty").oninput=pcCalc; g("pcCost").oninput=pcCalc; pcSet();
-    g("pcDays").onchange=e=>{ pcDays=num(e.target.value); listPurchases(); };
-    if(g("pcCancel")) g("pcCancel").onclick=()=>{ pcEdit=null; render(); };
-    g("pcBox").addEventListener("click",e=>{ const b=e.target.closest("[data-pcedit]"); if(!b) return; pcEdit=b.dataset.pcedit; render(); const p=document.getElementById("pcPanel"); if(p) p.scrollIntoView({behavior:"smooth",block:"start"}); const q=document.getElementById("pcQty"); if(q) q.focus({preventScroll:true}); });
-    g("pcForm").noValidate=true; g("pcForm").addEventListener("input",e=>{ if(e.target.getAttribute("aria-invalid")==="true") e.target.setAttribute("aria-invalid","false"); });
-    g("pcForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("pcItem").value); if(!it){ g("pcItem").setAttribute("aria-invalid","true"); return toast(tt("Choose an item.","Elige un artículo.")); }
-      const pcu=it.unit==="pc";
-      if(!reqCheck([["pcDate",tt("Purchase date","Fecha de compra"),"text"],["pcQty",pcu?tt("Packages","Paquetes"):tt("Quantity","Cantidad"),"pos"],["pcCost",pcu?tt("Price per package","Precio por paquete"):tt("Cost","Costo"),"pos"],["pcSup",tt("Supplier","Proveedor"),"text"]])) return;
-      if(g("pcDate").value>today()){ g("pcDate").setAttribute("aria-invalid","true"); return toast(tt("The purchase date can't be in the future.","La fecha de compra no puede ser futura.")); }
-      const n=num(g("pcQty").value), c=g("pcCost").value;
-      const pc=it.unit==="pc", q=pc?n*packOf(it):n;
-      if(pcEdit){ const k=D.kardex.find(x=>x.id===pcEdit); if(!k){ pcEdit=null; return render(); }
-        const date=/^\d{4}-\d{2}-\d{2}$/.test(g("pcDate").value)?g("pcDate").value:k.date, tpart=/^T\d\d:\d\d/.test(String(k.when||"").slice(10))?String(k.when).slice(10,23):"T12:00:00.000";
-        const patch={id:k.id,qty:r3(q),unitCost:costR(it,pc?toCAD(c)/packOf(it):toCAD(c)),date,when:date+tpart,supplier:g("pcSup").value.trim().slice(0,60),lot:g("pcLot").value.trim().slice(0,40),expiry:g("pcExp").value,
-          edited:kxStamp(),editedBy:SESSION?(SESSION.name||SESSION.user):""};
-        if(k.reason!=="initial") patch.ref=g("pcRef").value.trim().slice(0,60);
-        const r=await kardexRecalcItem(k.itemId,patch); if(!r) return;
-        pcEdit=null; toast(tt(`Purchase updated and Kardex recalculated. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)} · average ${money2(pc?r.c*packOf(it):r.c)}`,`Compra actualizada y Kardex recalculado. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)} · promedio ${money2(pc?r.c*packOf(it):r.c)}`)); render(); return; }
-      const r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:pc?toCAD(c)/packOf(it):toCAD(c),date:g("pcDate").value,supplier:g("pcSup").value.trim(),lot:g("pcLot").value.trim(),expiry:g("pcExp").value,ref:g("pcRef").value.trim()}); if(!r) return;
-      toast(tt(`Purchase saved. ${it.name}: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`,`Compra guardada. ${it.name}: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`));
-      ["pcQty","pcCost","pcLot","pcExp","pcRef"].forEach(id=>g(id).value=""); render(); };
-  }
   if(g("kxTot")){ const kt=g("kxTot");
     kt.addEventListener("input",e=>{ const x=e.target.closest("[data-kt]"); if(!x) return; ktDraft[x.dataset.kt]=x.value; if(x.getAttribute("aria-invalid")==="true") x.setAttribute("aria-invalid","false"); });
     kt.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.closest("[data-kt]")&&ktEdit){ e.preventDefault(); ktSave(ktEdit); } });
@@ -3231,11 +3174,6 @@ function prodStats(n){
   return Object.entries(st).map(([pid,s])=>{const pcx=prodCost(pid), c=pcx.c, partial=!!pcx.partial;const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0,partial};});
 }
 function listM3(){
-  if(m3Sub==="purchases"){
-    const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name))), ps=document.getElementById("pcItem");
-    const pe=pcEdit?D.kardex.find(k=>k.id===pcEdit):null; if(ps) ps.disabled=!!pe;
-    if(ps&&document.activeElement!==ps){ const cur=pe?pe.itemId:ps.value; ps.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))})</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(ps.value!==cur||pe) ps.dispatchEvent(new Event("change")); }
-    listPurchases(); return; }
   if(m3Sub==="kardex"){
   const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
   const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
