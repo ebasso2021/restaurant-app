@@ -1705,6 +1705,7 @@ async function tagCostPer(){ costPerDone=true; for(const i of D.inventory) if(i.
 function refreshNow(){
   if(!costPerDone&&DB&&LOADED.has("inventory")&&D.inventory.length&&canWrite("inventory")) tagCostPer();
   if(!dedupeDone&&LOADED.has("menu")&&LOADED.has("recipes")&&canWrite("menu")) dedupeAppDrinks();
+  kardexHeal();
   if(state.tab==="recipes"){
     const sig=JSON.stringify(D.menu.map(m=>[m.id,m.name,m.cat,m.kind,m.price]))+"|"+JSON.stringify(D.recipes.map(r=>[r.itemId,r.updated,r.locked]))+"|"+JSON.stringify(D.inventory.map(i=>[i.id,i.name,i.unit,i.qty]))+"|"+(D.kardex||[]).length+":"+JSON.stringify(Object.values(kardexOn()?kxTotals():{}).map(t=>[t.itemId,t.q]))+"|"+state.recipe;
     const ae=document.activeElement;
@@ -2625,6 +2626,31 @@ async function kardexRecalcItem(itemId,patch){
   return {q,c,short};
 }
 let kxItem="", kxDays=30, pcDays=30, pcEdit=null, kxEdit=null, ktEdit=null, ktDraft={};
+/* Self-repair: if a Kardex movement disappears some other way (deleted by hand in the Google Sheet, on another
+   device, or a recalculation that was interrupted), the stored balances / weighted average costs of the later rows
+   and the inventory no longer match. Replay each item's Kardex and recalculate the ones that differ. */
+let kxHealBusy=false, kxHealSig="";
+function kxChainOff(itemId){ const it=invItem(itemId); if(!it) return false; const u={unit:it.unit}, B=x=>toBaseI(x,u);
+  const rows=D.kardex.filter(k=>k.itemId===itemId).sort((a,b)=>String(a.when||a.date).localeCompare(String(b.when||b.date)));
+  let q=0,c=0;
+  for(const k of rows){ const qty=num(k.qty);
+    if(k.type==="in"){ const uc=costR(u,k.unitCost), q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
+    else if(k.type==="out") q=r3(Math.max(0,q-qty)); else if(k.type==="adj") q=r3(Math.max(0,q+qty)); else if(k.type==="cost") c=costR(u,k.unitCost);
+    if(r3(num(k.balQty))!==q||costR(u,k.avgCost)!==c) return true; }
+  return rows.length>0&&(r3(num(it.qty))!==q||costR(it,it.cost)!==c);
+}
+async function kardexHeal(){
+  if(kxHealBusy||!DB||!LOADED.has("kardex")||!LOADED.has("inventory")||!canWrite("kardex")||!canWrite("inventory")||asBusy) return;
+  const sig=D.kardex.length+"|"+D.kardex.map(k=>k.id+":"+k.qty+":"+k.unitCost+":"+(k.when||k.date)).join(",")+"|"+D.inventory.map(i=>i.id+":"+i.qty+":"+i.cost).join(",");
+  if(sig===kxHealSig) return; kxHealSig=sig;
+  const ids=[...new Set(D.kardex.map(k=>k.itemId))].filter(id=>id&&kxChainOff(id)); if(!ids.length) return;
+  kxHealBusy=true;
+  try{ for(const id of ids) await kardexRecalcItem(id);
+    const names=ids.map(id=>(invItem(id)||{}).name).filter(Boolean);
+    toast(tt(`Kardex recalculated (weighted average and balances): ${names.join(", ")}`,`Kardex recalculado (promedio ponderado y saldos): ${names.join(", ")}`)); }
+  catch(e){ console.warn("kardexHeal",e); }
+  finally{ kxHealBusy=false; }
+}
 const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
