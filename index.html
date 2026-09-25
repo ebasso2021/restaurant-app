@@ -2635,18 +2635,17 @@ function askConfirm(title,msg,okLabel){ return new Promise(res=>{
   document.addEventListener("keydown",key,true); document.body.appendChild(w); w.querySelector('[data-cfm="0"]').focus(); }); }
 /* ✓ Save an edited stock row: no blanks or 0; stock changes go to the Kardex as a count / adjustment */
 async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>document.querySelector(`#invTable [data-f="${f}"][data-id="${id}"]`);
-  const fl=[["name",tt("Item","Artículo"),"text"],["qty",tt("On hand","Stock"),"zero"],["min",tt("Alert","Alerta"),"pos"],["par",tt("Max. quantity","Cantidad máxima"),"pos"],...(it.unit==="pc"?[["pack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),["supplier",tt("Supplier","Proveedor"),"text"]];
+  const fl=[["name",tt("Item","Artículo"),"text"],["min",tt("Alert","Alerta"),"pos"],["par",tt("Max. quantity","Cantidad máxima"),"pos"],...(it.unit==="pc"?[["pack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[])];
   const bad=[]; fl.forEach(([f,l,k])=>{ const el=rowQ(f); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:k==="zero"?(v!==""&&num(v)>=0):(v!==""&&num(v)>0); el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(l); });
   if(bad.length) return toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
   const v=f=>String(rowQ(f)?rowQ(f).value:"").trim();
   if(num(v("par"))<num(v("min"))){ rowQ("par").setAttribute("aria-invalid","true"); return toast(tt("Maximum quantity must be at least the alert level.","La cantidad máxima debe ser mayor o igual a la alerta.")); }
   if(!DB) return noDb();
-  const name=v("name").slice(0,60), upd={name,min:num(v("min")),par:num(v("par")),supplier:v("supplier").slice(0,60),updated:new Date().toISOString()};
+  const name=v("name").slice(0,60), upd={name,min:num(v("min")),par:num(v("par")),updated:new Date().toISOString()};
   await dbUpd("inventory",id,upd);
   if(name!==it.name) for(const k of D.kardex.filter(k=>k.itemId===id)) await dbUpd("kardex",k.id,{item:name});
   const it2={...it,...upd};
   if(it.unit==="pc"){ const n=Math.max(1,Math.round(num(v("pack")))); if(n!==packOf(it)){ const pkg=num(it.cost)*packOf(it); await dbUpd("inventory",id,{pack:n}); await kardexMove({...it2,pack:n},{type:"cost",reason:"cost",unitCost:pkg/n,ref:tt(`Package of ${n}: ${money2(pkg)} ÷ ${n}`,`Paquete de ${n}: ${money2(pkg)} ÷ ${n}`)}); it2.pack=n; } }
-  if(r3(num(v("qty")))!==r3(num(it.qty))) await kardexMove(it2,{type:"adj",reason:"adjust",newQty:v("qty"),ref:tt("Edited in the stock table","Editado en la tabla de stock")});
   invEdit=null; invDraft={}; toast(tt(`“${name}” saved.`,`“${name}” guardado.`)); listM2(); }
 /* Kitchen & inventory: no blank fields and no 0 / 0.00 values. fields = [id, label, "text" | "pos"] */
 function reqCheck(fields){ const bad=[];
@@ -2745,16 +2744,15 @@ function listM2(){
   if(invEdit&&!invItem(invEdit)){ invEdit=null; invDraft={}; }
   const canInv=canWrite("inventory"), dv=(i,f,d)=>i.id===invEdit&&invDraft[f]!=null?invDraft[f]:d;
   const actIn=document.activeElement&&tb.contains(document.activeElement)&&document.activeElement.matches("input,select,textarea");
-  if(!actIn) tb.innerHTML=inv.length?`<table class="dt invt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("On hand","Stock")}</th><th>${tt("Alert","Alerta")}</th><th>${tt("Max. quantity","Cantidad máxima")}</th><th>${tt("Supplier","Proveedor")}</th><th>${tt("Status","Estado")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), ed=i.id===invEdit, u=esc(unitLbl(i.unit));
-     if(!ed) return `<tr><td><b>${esc(i.name)}</b> <small>${u}</small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
-     <td class="nw">${fmtQ(num(i.qty))} ${u}</td><td class="nw">${fmtQ(num(i.min))} ${u}</td><td class="nw">${fmtQ(num(i.par))} ${u}</td><td>${esc(i.supplier||"")||"—"}</td>
-     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw">${canInv?`<button class="btn sm ghost" data-invedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> `:""}<button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button>${canInv?` <button class="btn sm ghost" data-del="${i.id}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete","Eliminar")} ${esc(i.name)}">✕</button>`:""}</td></tr>`;
-     return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}"> <small>${u}</small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
-     <td><input data-f="qty" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"qty",num(i.qty)))}" aria-label="${tt("On hand","Stock")} ${esc(i.name)}"></td>
+  if(!actIn) tb.innerHTML=inv.length?`<table class="dt invt"><thead><tr><th>${tt("Description","Descripción")}</th><th>${tt("Unit","Unidad")}</th><th>${tt("Minimum (alert)","Mínimo (alerta)")}</th><th>${tt("Maximum","Máximo")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), ed=i.id===invEdit, u=esc(unitLbl(i.unit));
+     if(!ed) return `<tr><td><b>${esc(i.name)}</b>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
+     <td>${u}</td><td class="nw">${fmtQ(num(i.min))} ${u}</td><td class="nw">${fmtQ(num(i.par))} ${u}</td>
+     <td class="nw">${canInv?`<button class="btn sm ghost" data-invedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> `:""}<button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button>${canInv?` <button class="btn sm ghost" data-del="${i.id}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete","Eliminar")} ${esc(i.name)}">✕</button>`:""}</td></tr>`;
+     return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}">${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
+     <td>${u}</td>
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"min",num(i.min)))}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"par",num(i.par)))}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
-     <td><input data-f="supplier" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"supplier",i.supplier||""))}" aria-label="${tt("Supplier","Proveedor")} ${esc(i.name)}"></td>
-     <td><span class="badge ${s[0]}">${s[1]}</span></td><td class="nw"><button class="btn sm" data-invsave="${i.id}">✓ ${tt("Save","Guardar")}</button> <button class="btn sm ghost" data-invcancel="${i.id}">${tt("Cancel","Cancelar")}</button></td></tr>`;}).join("")}</tbody></table>`
+     <td class="nw"><button class="btn sm" data-invsave="${i.id}">✓ ${tt("Save","Guardar")}</button> <button class="btn sm ghost" data-invcancel="${i.id}">${tt("Cancel","Cancelar")}</button></td></tr>`;}).join("")}</tbody></table>`
     :`<p class="empty">${tt("No items yet. Add them above, or load the recipe ingredients.","Aún no hay artículos. Agrégalos arriba o carga los ingredientes de las recetas.")}</p>`;
   const po=poLines(), poBox=document.getElementById("poBox");
   poBox.innerHTML=po.length?`<p>${tt("Items at or below their alert level, ordered up to the maximum quantity:","Artículos en o bajo su nivel de alerta, pedidos hasta la cantidad máxima:")}</p><ul class="rows">${po.map(l=>`<li><div><b>${esc(l.name)}</b>: ${+l.order.toFixed(2)} ${esc(l.unit)}<small>${esc(l.supplier||tt("No supplier","Sin proveedor"))}${l.cost?" · ≈ "+money(l.est):""}</small></div></li>`).join("")}</ul><p><b>${tt("Estimated total","Total estimado")}: ${money(po.reduce((s,l)=>s+l.est,0))}</b></p><button class="btn" id="poCopy">${tt("Copy order","Copiar orden")}</button>`
