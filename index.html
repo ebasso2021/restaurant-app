@@ -3154,6 +3154,8 @@ function m3(){
       ${field("kmItem",tt("Item","Artículo"),`<select id="kmItem" required></select>`)}
       ${field("kmDate",tt("Movement date","Fecha de movimiento"),`<input id="kmDate" type="date" value="${ke?esc(ke.date||today()):today()}" max="${today()}" required>`)}
       ${field("kmType",tt("Type","Tipo"),`<select id="kmType"><option value="in">${tt("In","Entrada")}</option><option value="out"${ke&&keDir==="out"?" selected":""}>${tt("Out","Salida")}</option></select>`)}
+      <div class="f"><label for="kmBig" id="kmBigL">${tt("Kilos (kg)","Kilos (kg)")}</label><input id="kmBig" type="number" step="any" min="0"${ke?` value="${kxBig(ke).v||""}"`:""}></div>
+      <div class="f" id="kmTotF"><label for="kmTotal">${tt("Total price","Precio total")} (${curSym()})</label><input id="kmTotal" type="number" step="0.01" min="0" placeholder="0.00"${ke&&keDir==="in"&&num(ke.total)?` value="${inCur(Math.abs(num(ke.total))).toFixed(2)}"`:""}></div>
       <div class="f"><label for="kmQty" id="kmQtyL">${tt("Quantity","Cantidad")}</label><input id="kmQty" type="number" step="any" min="0" required${ke?` value="${keQty}"`:""}></div>
       <div class="f" id="kmCostF"><label for="kmCost" id="kmCostL">${tt("Unit cost","Costo unitario")}</label><input id="kmCost" type="number" step="0.01" min="0.01" placeholder="0.00"${ke&&keDir==="in"?` value="${keCost}"`:""}></div>
       ${field("kmSup",tt("Supplier","Proveedor"),`<input id="kmSup" maxlength="60"${ke?` value="${esc(ke.supplier||"")}"`:""}>`)}
@@ -3276,9 +3278,17 @@ function wireM3(){
   const kmSet=()=>{ const it=invItem(g("kmItem").value), pc=it&&it.unit==="pc", inn=g("kmType").value==="in";
     g("kmQtyL").textContent=pc&&inn?tt("Packages","Paquetes"):tt(`Quantity (${it?unitLbl(it.unit):"—"})`,`Cantidad (${it?unitLbl(it.unit):"—"})`);
     g("kmCostL").textContent=(pc?tt(`Price per package (${packOf(it)} pieces)`,`Precio por paquete (${packOf(it)} piezas)`):tt(`Unit cost per ${it?costPerLbl(it.unit):"kg / L"}`,`Costo unitario por ${it?costPerLbl(it.unit):"kg / L"}`))+` (${curSym()})`;
-    ["kmCostF","kmLotF","kmExpF"].forEach(id=>g(id).hidden=!inn);
+    ["kmCostF","kmLotF","kmExpF","kmTotF"].forEach(id=>g(id).hidden=!inn);
+    const u=it?it.unit:"g"; g("kmBigL").textContent=u==="pc"?(inn?tt("Packages bought","Paquetes comprados"):tt(`Packages (${packOf(it)} pieces)`,`Paquetes (${packOf(it)} piezas)`)):baseOf(u)==="L"?tt("Litres (L)","Litros (L)"):tt("Kilos (kg)","Kilos (kg)");
     if(it&&!kxEdit&&document.activeElement!==g("kmSup")) g("kmSup").value=inn?(it.supplier||""):""; };
   g("kmItem").onchange=kmSet; g("kmType").onchange=kmSet; kmSet();
+  // kilos / litres / packages and total price → Quantity (g / mL / packages or pieces) and unit cost per kg / L / package
+  const kmFromBig=()=>{ const it=invItem(g("kmItem").value); if(!it) return; const inn=g("kmType").value==="in", big=num(g("kmBig").value), tot=num(g("kmTotal").value);
+    const f=it.unit==="g"||it.unit==="ml"||it.unit==="mL"?1000:it.unit==="pc"&&!inn?packOf(it):1;
+    if(big>0){ g("kmQty").value=r3(big*f); g("kmQty").setAttribute("aria-invalid","false"); }
+    if(inn&&big>0&&tot>0){ g("kmCost").value=(tot/big).toFixed(2); g("kmCost").setAttribute("aria-invalid","false"); } };
+  ["kmBig","kmTotal"].forEach(id=>g(id).addEventListener("input",kmFromBig));
+  g("kmItem").addEventListener("change",()=>{ if(num(g("kmBig").value)>0) kmFromBig(); }); g("kmType").addEventListener("change",()=>{ if(num(g("kmBig").value)>0) kmFromBig(); });
   g("kmForm").noValidate=true; g("kmForm").addEventListener("input",e=>{ if(e.target.getAttribute("aria-invalid")==="true") e.target.setAttribute("aria-invalid","false"); });
   if(g("kmCancel")) g("kmCancel").onclick=()=>{ kxEdit=null; render(); };
   g("kxBox").addEventListener("click",async e=>{
@@ -3305,7 +3315,7 @@ function wireM3(){
     const r=await kardexMove(it,{type:inn?"in":"out",reason:inn?"manual_in":"manual_out",qty:q,unitCost:inn&&c!==""?(it.unit==="pc"?toCAD(c)/packOf(it):toCAD(c)):null,
       date:g("kmDate").value,supplier:g("kmSup").value.trim(),lot:inn?g("kmLot").value.trim():"",expiry:inn?g("kmExp").value:"",ref:g("kmRef").value.trim()}); if(!r) return;
     toast(tt(`Saved. New balance: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`,`Guardado. Saldo nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`));
-    ["kmQty","kmCost","kmLot","kmExp","kmRef"].forEach(id=>g(id).value=""); kxItem=it.id; render(); };
+    ["kmQty","kmCost","kmLot","kmExp","kmRef","kmBig","kmTotal"].forEach(id=>g(id).value=""); kxItem=it.id; render(); };
   }
 }
 // "Cost per cup": every menu item with a saved recipe, costed with the Kardex weighted average; manual cost only when there is no recipe cost
