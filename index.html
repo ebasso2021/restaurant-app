@@ -1421,7 +1421,7 @@ function makeSheetDB(url){
 
 
 /* ===== Login + roles (website mode, backed by the Apps Script in google-apps-script/Code.gs) ===== */
-const DEFAULT_SERVER_URL = ""; // optional: paste the /exec URL here so new devices don't have to type it
+const DEFAULT_SERVER_URL = "https://script.google.com/macros/s/AKfycbyI2kMnHQ24cJBsfxBSwGDpCoMaGurofj8NpFehlOqD7vGma5Nuzn5tlDBRZGUcOab-Rw/exec"; // optional: paste the /exec URL here so new devices don't have to type it
 const SS_TOK = "top-token";
 let SESSION = null;
 function ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
