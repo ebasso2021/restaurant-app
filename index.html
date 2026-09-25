@@ -2502,7 +2502,7 @@ async function kardexMove(it,m){
   else if(type==="cost"){ uc=costR(it,m.unitCost); c1=uc; qty=0; if(c1===c0) return; }
   if(!DB) return noDb();
   await dbUpd("inventory",it.id,{qty:q1,cost:c1,costPer:baseOf(it.unit),updated:stamp});
-  const id="k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const id=m.id||("k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const date=m.date&&/^\d{4}-\d{2}-\d{2}$/.test(m.date)?m.date:today(), snap=kxSnap({unit:it.unit,pack:packOf(it),balQty:q1,avgCost:c1});
   await dbSet("kardex/"+id,{item:it.name,costPkg:snap.costPkg,perSub:snap.perSub,stockVal:snap.stockVal,date,dir:kxDir({type,qty}),qty:r3(qty),unitCost:uc,balQty:q1,
     supplier:String(m.supplier!=null?m.supplier:(type==="in"?it.supplier||"":"")).slice(0,60),lot:String(m.lot||"").slice(0,40),expiry:m.expiry&&/^\d{4}-\d{2}-\d{2}$/.test(m.expiry)?m.expiry:"",
@@ -2733,12 +2733,19 @@ function wireM2(){
     if(!reqCheck([["asQty",it.unit==="pc"?tt("Packages received","Paquetes recibidos"):tt("Quantity received","Cantidad recibida"),"pos"],...(it.unit==="pc"?[["asPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[]),
       ["asCost",it.unit==="pc"?tt("Price per package","Precio por paquete"):tt("Purchase cost","Costo de compra"),"pos"],["asSup",tt("Supplier","Proveedor"),"text"]])) return;
     if(!p||p.q<=0) return; const q=p.q, uc=p.uc;
-    if(it.unit==="pc"&&p.pk!==packOf(it)) await dbUpd("inventory",it.id,{pack:p.pk});
-    // lock "Add stock" until the new row is back in the Kardex, so a double click can't record the same purchase twice
-    asLock(true); let r=null;
-    try{ r=await kardexMove(it,{type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef"),supplier:val("asSup"),lot:val("asLot"),expiry:val("asExp")}); if(r) await waitKardex(r.id); }
-    finally{ asLock(false); }
-    if(!r) return;
+    // lock "Add stock" until the new row is in the Kardex, so a double click can't record the same purchase twice.
+    // It always unlocks: when the save ends (ok or error), or after 20 s at most if the Google Sheet is slow.
+    const kid="k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    asLock(true); let r=null, settled=false;
+    const job=(async()=>{ if(it.unit==="pc"&&p.pk!==packOf(it)) await dbUpd("inventory",it.id,{pack:p.pk});
+      return kardexMove(it,{id:kid,type:"in",reason:"purchase",qty:q,unitCost:uc,ref:val("asRef"),supplier:val("asSup"),lot:val("asLot"),expiry:val("asExp")}); })()
+      .then(x=>{ r=x; return x; },()=>null).finally(()=>{ settled=true; });
+    const t0=Date.now(); while(!settled&&Date.now()-t0<20000) await new Promise(res=>setTimeout(res,250));
+    if(!settled){ document.getElementById("asQty").value=""; document.getElementById("asCost").value=""; }   // still saving: clear the form so it isn't sent twice
+    asLock(false);
+    if(!settled){ const am=document.getElementById("asMsg"); am.className="hint warnnote"; am.textContent="⏳ "+tt("The Google Sheet is slow — the purchase is still being saved. Check “Recently added stock” before entering it again.","La hoja de Google está lenta — la compra aún se está guardando. Revisa “Stock agregado recientemente” antes de ingresarla otra vez."); }
+    await job;
+    if(!r||!(D.kardex||[]).some(k=>k.id===kid)){ { const am=document.getElementById("asMsg"); am.className="hint warnnote"; am.textContent="⚠ "+tt("Not saved to the Kardex. Try again.","No se guardó en el Kardex. Inténtalo de nuevo."); } return; }
     { const am=document.getElementById("asMsg"); am.className="hint oknote"; am.textContent="✅ "+tt(`Added ${q} ${unitLbl(it.unit)} of ${it.name}. New stock: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · average cost ${it.unit==="pc"?money4(r.c1):money2(r.c1)} per ${costPerLbl(it.unit,it)} · value ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} per ${subUnit(it.unit)}).`,`Se agregaron ${q} ${unitLbl(it.unit)} de ${it.name}. Stock nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)} · costo promedio ${it.unit==="pc"?money4(r.c1):money2(r.c1)} por ${costPerLbl(it.unit,it)} · valor ${money2(toBaseI(r.q1,it)*r.c1)} (${fmtSub(subCost(it,r.c1))} por ${subUnit(it.unit)}).`); }
     toast("✅ "+tt(`Stock added: ${q} ${unitLbl(it.unit)} of ${it.name}`,`Stock agregado: ${q} ${unitLbl(it.unit)} de ${it.name}`));
     document.getElementById("asQty").value=""; document.getElementById("asCost").value=""; ["asRef","asLot","asExp"].forEach(id=>document.getElementById(id).value=""); asForm();
@@ -2782,12 +2789,6 @@ let asBusy=false;
 function asLock(on){ asBusy=on; const f=document.getElementById("addStockForm"); if(!f) return; const b=f.querySelector('button[type="submit"]');
   if(b){ b.disabled=on; b.textContent=on?"⏳ "+tt("Updating Kardex…","Actualizando Kardex…"):tt("Add stock","Agregar stock"); }
   f.setAttribute("aria-busy",on?"true":"false"); }
-async function waitKardex(id,ms=20000){ const t0=Date.now(); let asked=0;
-  while(!(D.kardex||[]).some(k=>k.id===id||k.id==="kardex/"+id)){
-    if(Date.now()-t0>ms) return false;
-    if(DB&&DB._refresh&&Date.now()-asked>2500){ asked=Date.now(); try{ DB._refresh("kardex"); }catch(e){} }
-    await new Promise(r=>setTimeout(r,300)); }
-  return true; }
 function listM2(){
   const tb=document.getElementById("invTable"); if(!tb) return;
   setHTML(document.getElementById("ppBox"),ppListHTML());
