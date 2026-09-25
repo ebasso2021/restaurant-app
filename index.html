@@ -1292,7 +1292,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={kardex:[],inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},opex:{}};
+const D={kardex:[],inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},opex:{},kxMonths:{}};
 if(!state.aiView) state.aiView="overview";
 
 const LOADED=new Set(); // collections that have answered at least once
@@ -1530,6 +1530,7 @@ function startData(){
   ["inventory","waste","reservations","sales","posts","reviews","tables","orders","menu","bills","recipes","kardex"].filter(canRead).forEach(subscribe);
   if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+    DB.doc("settings/kardex").onSnapshot(s=>{D.kxMonths=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/path").onSnapshot(s=>{D.path=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/opex").onSnapshot(s=>{D.opex=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
@@ -2503,7 +2504,7 @@ const subCost=(i,c)=>num(c!=null?c:i.cost)/factorOf(i);
 const fmtSub=v=>{ const c=curInfo(curNow()); return c[1]+(v*(curRate(c[0])||1)).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{minimumFractionDigits:4,maximumFractionDigits:4}); };
 const costPerLbl=(u,i)=>baseOf(u)==="pc"?tt("piece","und"):baseOf(u);
 const money4=v=>{ const c=curInfo(curNow()); return c[1]+(num(v)*(curRate(c[0])||1)).toLocaleString(state.lang==="es"?"es-CA":"en-CA",{minimumFractionDigits:2,maximumFractionDigits:4}); };
-const KX_REASON={initial:["Opening stock","Stock inicial"],purchase:["Purchase","Compra"],sale:["Sale (paid bill)","Venta (cuenta cobrada)"],waste:["Waste","Merma"],adjust:["Stock count / adjustment","Conteo / ajuste"],cost:["Cost change","Cambio de costo"],manual_in:["Manual entry","Entrada manual"],manual_out:["Manual exit","Salida manual"],unit:["Unit change to kg/L","Cambio de unidad a kg/L"]};
+const KX_REASON={opening:["Opening balance of the month","Saldo inicial del mes"],initial:["Opening stock","Stock inicial"],purchase:["Purchase","Compra"],sale:["Sale (paid bill)","Venta (cuenta cobrada)"],waste:["Waste","Merma"],adjust:["Stock count / adjustment","Conteo / ajuste"],cost:["Cost change","Cambio de costo"],manual_in:["Manual entry","Entrada manual"],manual_out:["Manual exit","Salida manual"],unit:["Unit change to kg/L","Cambio de unidad a kg/L"]};
 const kxReason=k=>KX_REASON[k]?tt(KX_REASON[k][0],KX_REASON[k][1]):k;
 /* Kardex row snapshot with the same rules as the stock table:
    cost per kg / L / package · per g / mL / piece · stock value (pieces: per piece = package cost ÷ on hand, value = per piece × pieces per package) */
@@ -2515,11 +2516,92 @@ const kxTsFmt=v=>{ v=String(v||""); if(!v) return ""; if(/Z$|[+-]\d\d:\d\d$/.tes
 const kxTs=k=>{ const t=kxTsFmt(k.created||k.when); return t?`${esc(t.slice(0,10))}<small>${esc(t.slice(11))}</small>`:"—"; };
 function kxSnap(k){ const s={unit:k.unit,pack:num(k.pack)||1,qty:num(k.balQty),cost:num(k.avgCost)};
   return {costPkg:cost2(k.unit==="pc"?s.cost*packOf(s):s.cost),perSub:Math.round(perUnit(s)*10000)/10000,stockVal:cost2(stockValue(s))}; }
-const kxDir=k=>k.type==="in"||(k.type==="adj"&&num(k.qty)>0)?"Entrada":k.type==="out"||(k.type==="adj"&&num(k.qty)<0)?"Salida":"Costo";
-const kxDirLbl=d=>d==="Entrada"?tt("In","Entrada"):d==="Salida"?tt("Out","Salida"):tt("Cost","Costo");
+const kxDir=k=>k.type==="open"?"Inicial":k.type==="in"||(k.type==="adj"&&num(k.qty)>0)?"Entrada":k.type==="out"||(k.type==="adj"&&num(k.qty)<0)?"Salida":"Costo";
+const kxDirLbl=d=>d==="Inicial"?tt("Opening","Saldo inicial"):d==="Entrada"?tt("In","Entrada"):d==="Salida"?tt("Out","Salida"):tt("Cost","Costo");
 /* Kardex: every stock movement (in, out, adjustment) with the unit cost, running balance and weighted average cost.
    Saved in the "kardex" collection (Google Sheet tab "Kardex" on the website; the app's database in Claude). */
+/* ===== Monthly Kardex: opening balance (start of month) and closing (end of month) =====
+   Closing a month saves each item's balance and weighted average cost at the end of the month and writes them as
+   "open" rows (opening balance) on day 1 of the next month. Every month up to the last closed one is locked:
+   its movements can't be added, edited or deleted, and recalculations start from the latest opening balance. */
+const ym=d=>String(d||"").slice(0,7);
+const nextYM=m=>{ const [y,mo]=String(m).split("-").map(Number), d=new Date(y,mo,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
+const prevYM=m=>{ const [y,mo]=String(m).split("-").map(Number), d=new Date(y,mo-2,1); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
+const monthName=m=>{ const [y,mo]=String(m).split("-").map(Number); if(!y||!mo) return m; const t=new Date(y,mo-1,1).toLocaleDateString(state.lang==="es"?"es-CA":"en-CA",{month:"long",year:"numeric"}); return t.charAt(0).toUpperCase()+t.slice(1); };
+const kxClosedMap=()=>(D.kxMonths&&D.kxMonths.closed)||{};
+const kxLastClosed=()=>Object.keys(kxClosedMap()).sort().pop()||"";
+const kxLocked=date=>{ const lc=kxLastClosed(); return !!lc&&ym(date)<=lc; };
+const kxLockedMsg=()=>tt(`${monthName(kxLastClosed())} is closed: movements up to that month can't be added, edited or deleted.`,`${monthName(kxLastClosed())} está cerrado: no se pueden agregar, editar ni eliminar movimientos hasta ese mes.`);
+// order of the Kardex: date and time; an opening balance goes first on day 1
+const kxKey=k=>k.type==="open"?String(k.date||"").slice(0,10)+"T00:00:00.000":String(k.when||k.date||"");
+const kxOrder=(a,b)=>kxKey(a).localeCompare(kxKey(b));
+// balance and weighted average cost of an item at the end of a date (replaying its Kardex)
+function kxBalanceAt(itemId,endDate){ const it=invItem(itemId)||{unit:(D.kardex.find(k=>k.itemId===itemId)||{}).unit}, u={unit:it.unit}, B=x=>toBaseI(x,u);
+  let q=0,c=0,n=0;
+  D.kardex.filter(k=>k.itemId===itemId&&String(k.date||"").slice(0,10)<=endDate).sort(kxOrder).forEach(k=>{ const qty=num(k.qty); n++;
+    if(k.type==="open"){ q=r3(qty); c=costR(u,k.avgCost); }
+    else if(k.type==="in"){ const uc=costR(u,k.unitCost), q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
+    else if(k.type==="out") q=r3(Math.max(0,q-qty)); else if(k.type==="adj") q=r3(Math.max(0,q+qty)); else if(k.type==="cost") c=costR(u,k.unitCost); });
+  return {q,c,n}; }
+const monthEnd=m=>{ const [y,mo]=m.split("-").map(Number); return m+"-"+String(new Date(y,mo,0).getDate()).padStart(2,"0"); };
+const kxOpenRows=m=>D.kardex.filter(k=>k.type==="open"&&ym(k.date)===m);
+async function kxWriteOpening(m,why){   // opening balance rows for month m = balance at the end of the previous month
+  const pe=monthEnd(prevYM(m)), ids=[...new Set(D.kardex.filter(k=>String(k.date||"")<=pe).map(k=>k.itemId))].filter(id=>invItem(id));
+  let n=0;
+  for(const id of ids){ const it=invItem(id), b=kxBalanceAt(id,pe); if(!b.n) continue;
+    const sn=kxSnap({unit:it.unit,pack:packOf(it),balQty:b.q,avgCost:b.c}), kid="o"+m.replace("-","")+id;
+    await dbSet("kardex/"+kid,{item:it.name,itemId:id,unit:it.unit,costPer:baseOf(it.unit),pack:packOf(it),type:"open",reason:"opening",dir:"Inicial",
+      qty:b.q,unitCost:b.c,avgCost:b.c,balQty:b.q,costPkg:sn.costPkg,perSub:sn.perSub,stockVal:sn.stockVal,balValue:sn.stockVal,total:sn.stockVal,
+      date:m+"-01",when:m+"-01T00:00:00.000",created:kxStamp(),supplier:"",lot:"",expiry:"",ref:why||"",by:SESSION?(SESSION.name||SESSION.user):""}); n++; }
+  return {ids,n}; }
+async function kxRecalcAll(){ const ids=[...new Set(D.kardex.map(k=>k.itemId))].filter(id=>id&&invItem(id)); for(const id of ids) await kardexRecalcItem(id); return ids.length; }
+async function kxStartMonth(m){
+  if(!DB) return noDb(); if(kxOpenRows(m).length) return toast(tt(`${monthName(m)} already has its opening balance.`,`${monthName(m)} ya tiene su saldo inicial.`));
+  const lc=kxLastClosed(); if(lc&&lc!==prevYM(m)) return toast(tt(`Close ${monthName(prevYM(m))} first.`,`Primero cierra ${monthName(prevYM(m))}.`));
+  const r=await kxWriteOpening(m,tt(`Opening balance of ${monthName(m)}`,`Saldo inicial de ${monthName(m)}`));
+  for(const id of r.ids) await kardexRecalcItem(id);
+  await dbSet("settings/kardex",{...(D.kxMonths||{}),started:{...((D.kxMonths||{}).started||{}),[m]:{at:kxStamp(),by:SESSION?(SESSION.name||SESSION.user):""}}});
+  return r.n; }
+async function kxCloseMonth(m){
+  if(!DB) return noDb(); const cur=ym(today());
+  if(m>=cur) return toast(tt("Only a month that has ended can be closed.","Solo se puede cerrar un mes que ya terminó."));
+  if(kxClosedMap()[m]) return toast(tt(`${monthName(m)} is already closed.`,`${monthName(m)} ya está cerrado.`));
+  const nx=nextYM(m);
+  for(const k of kxOpenRows(nx)) await dbDel("kardex",k.id);          // re-created below with the closing values
+  await kxRecalcAll();                                                   // the month's balances and averages, up to date
+  const end=monthEnd(m), items={}; let value=0;
+  [...new Set(D.kardex.map(k=>k.itemId))].filter(id=>invItem(id)).forEach(id=>{ const it=invItem(id), b=kxBalanceAt(id,end); if(!b.n) return;
+    const v=cost2(toBaseI(b.q,it)*b.c); value+=v; items[id]={name:it.name,unit:it.unit,q:b.q,c:b.c,value:v}; });
+  const r=await kxWriteOpening(nx,tt(`Closing of ${monthName(m)}`,`Cierre de ${monthName(m)}`));
+  for(const id of r.ids) await kardexRecalcItem(id);
+  const who=SESSION?(SESSION.name||SESSION.user):"", km=D.kxMonths||{};
+  await dbSet("settings/kardex",{...km,closed:{...(km.closed||{}),[m]:{at:kxStamp(),by:who,value:cost2(value),items}},started:{...(km.started||{}),[nx]:{at:kxStamp(),by:who,from:m}}});
+  return {items:Object.keys(items).length,value}; }
+async function kxReopenLast(){
+  if(!DB) return noDb(); const lc=kxLastClosed(); if(!lc) return;
+  for(const k of kxOpenRows(nextYM(lc))) await dbDel("kardex",k.id);
+  const km=D.kxMonths||{}, closed={...(km.closed||{})}; delete closed[lc]; const started={...(km.started||{})}; delete started[nextYM(lc)];
+  await dbSet("settings/kardex",{...km,closed,started});
+  await kxRecalcAll(); return lc; }
+function kxMonthHTML(){
+  const cur=ym(today()), lc=kxLastClosed(), opened=kxOpenRows(cur).length>0, canK=canWrite("kardex"), canM=canK&&canWrite("settings");
+  const first=D.kardex.map(k=>ym(k.date)).filter(Boolean).sort()[0]||"", cand=[]; if(first){ let m=first; while(m<cur){ if(!lc||m>lc) cand.push(m); m=nextYM(m); } }
+  const cl=lc?kxClosedMap()[lc]:null, rows=cl?Object.values(cl.items||{}).sort((a,b)=>String(a.name).localeCompare(String(b.name))):[];
+  const busy=kxMonthBusy?" disabled":"";
+  return `<h4 class="minih">🗓 ${tt("Monthly Kardex","Kardex mensual")}</h4>
+   <p class="dimtxt">${tt("Current month","Mes actual")}: <b>${esc(monthName(cur))}</b> · ${opened?`✓ ${tt("opening balance recorded","saldo inicial registrado")}`:tt("no opening balance yet","aún sin saldo inicial")} · ${tt("Last closed month","Último mes cerrado")}: <b>${lc?esc(monthName(lc)):tt("none","ninguno")}</b>${cl?` (${esc(kxTsFmt(cl.at).slice(0,16))}${cl.by?" · "+esc(cl.by):""})`:""}</p>
+   <div class="acts" style="flex-wrap:wrap;gap:8px">
+    ${canM&&!opened&&(!lc||lc===prevYM(cur))?`<button type="button" class="btn ghost" data-kxm="start"${busy}>▶ ${tt(`Start ${monthName(cur)}`,`Iniciar ${monthName(cur)}`)}</button>`:""}
+    ${canK?`<button type="button" class="btn ghost" data-kxm="recalc"${busy}>⟳ ${tt(`Recalculate ${monthName(cur)}`,`Recalcular ${monthName(cur)}`)}</button>`:""}
+    ${canM&&cand.length?`<label class="f inline"><select id="kxCloseM" aria-label="${tt("Month to close","Mes a cerrar")}">${cand.map(m=>`<option value="${m}"${m===prevYM(cur)?" selected":""}>${esc(monthName(m))}</option>`).join("")}</select></label><button type="button" class="btn" data-kxm="close"${busy}>🔒 ${tt("Close month","Cerrar mes")}</button>`:""}
+    ${canM&&lc&&(MODE!=="sheet"||(SESSION&&SESSION.role==="admin"))?`<button type="button" class="btn ghost" data-kxm="reopen"${busy}>↺ ${tt(`Reopen ${monthName(lc)}`,`Reabrir ${monthName(lc)}`)}</button>`:""}
+   </div>
+   <p class="hint">${tt("Close month: saves each item's balance and weighted average cost at the end of the month and makes them the opening balance (day 1) of the next month; the closed month is locked. Start: records the opening balance of the current month from the previous month. Recalculate: replays the current month from its opening balance (balances, weighted average, cost of exits and inventory).","Cerrar mes: guarda el saldo y el costo promedio ponderado de cada artículo al final del mes y los convierte en el saldo inicial (día 1) del mes siguiente; el mes cerrado queda bloqueado. Iniciar: registra el saldo inicial del mes actual con el del mes anterior. Recalcular: repasa el mes actual desde su saldo inicial (saldos, promedio ponderado, costo de las salidas e inventario).")}</p>
+   ${rows.length?`<details><summary>${tt(`Closing of ${monthName(lc)}`,`Cierre de ${monthName(lc)}`)} — ${tt("value","valor")} <b>${money2(cl.value)}</b></summary><div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Artículo")}</th><th>${tt("Closing balance","Saldo final")}</th><th>${tt("Weighted average cost","Costo promedio ponderado")}</th><th>${tt("Value","Valor")}</th></tr></thead><tbody>
+     ${rows.map(x=>`<tr><td>${esc(x.name)}</td><td class="nw">${fmtQ(x.q)} ${esc(unitLbl(x.unit))}</td><td class="nw">${x.unit==="pc"?money4(x.c):money2(x.c)}<small>/ ${esc(costPerLbl(x.unit))}</small></td><td class="nw">${money2(x.value)}</td></tr>`).join("")}</tbody></table></div></details>`:""}`;
+}
 async function kardexMove(it,m){
+  if(kxLocked(m.date&&/^\d{4}-\d{2}-\d{2}$/.test(m.date)?m.date:today())){ toast(kxLockedMsg()); return; }
   const kt=m.base||kxTotals()[it.id], q0=kt?kt.q:0, c0=kt?kt.c:(m.type==="in"?0:costR(it,it.cost)), stamp=new Date().toISOString();   // the balance comes from the Kardex itself
   let qty=num(m.qty), uc=c0, q1=q0, c1=c0, type=m.type;
   const B=q=>toBaseI(q,it);
@@ -2542,13 +2624,15 @@ async function kardexMove(it,m){
 async function kardexReset(){
   if(!DB) return noDb();
   const old=[...D.kardex]; for(const k of old) if(k.id) await dbDel("kardex",k.id);
+  if(canWrite("settings")) await dbSet("settings/kardex",{closed:{},started:{}});
   return {del:old.length};
 }
 /* Kardex totals per ingredient: replay every movement in date order with the weighted average cost */
 function kxTotals(){ const by={};
-  [...D.kardex].sort((a,b)=>String(a.when||a.date).localeCompare(String(b.when||b.date))).forEach(k=>{
+  [...D.kardex].sort(kxOrder).forEach(k=>{
     const t=by[k.itemId]||(by[k.itemId]={itemId:k.itemId,item:k.item,unit:k.unit,pack:num(k.pack)||1,ins:0,outs:0,q:0,c:0,n:0}); const it={unit:t.unit}, B=q=>toBaseI(q,it), qty=num(k.qty); t.n++; t.item=k.item||t.item;
-    if(k.type==="in"){ const uc=num(k.unitCost), q1=t.q+qty; t.c=q1>0?costR(it,(B(t.q)*t.c+B(qty)*uc)/B(q1)):uc; t.q=q1; t.ins+=qty; }
+    if(k.type==="open"){ t.q=num(k.qty); t.c=costR(it,k.avgCost); }
+    else if(k.type==="in"){ const uc=num(k.unitCost), q1=t.q+qty; t.c=q1>0?costR(it,(B(t.q)*t.c+B(qty)*uc)/B(q1)):uc; t.q=q1; t.ins+=qty; }
     else if(k.type==="out"){ t.q=Math.max(0,t.q-qty); t.outs+=qty; }
     else if(k.type==="adj"){ t.q=Math.max(0,t.q+qty); if(qty>0) t.ins+=qty; else t.outs-=qty; }
     else if(k.type==="cost"){ t.c=costR(it,k.unitCost); }
@@ -2606,12 +2690,14 @@ async function kxItemClear(id){ if(!DB) return noDb(); const rows=D.kardex.filte
    then update every later row (balance, average cost, value; exits take the new average cost) and the inventory */
 async function kardexRecalcItem(itemId,patch){
   if(!DB) return noDb();
+  if(patch){ const o=D.kardex.find(x=>x.id===patch.id); if((o&&(kxLocked(o.date)||o.type==="open"))||(patch.date&&kxLocked(patch.date))){ toast(o&&o.type==="open"&&!kxLocked(o.date)?tt("The opening balance can't be changed — it comes from the previous month's closing.","El saldo inicial no se puede cambiar — viene del cierre del mes anterior."):kxLockedMsg()); return null; } }
   const del=patch&&patch.__del, it=invItem(itemId), rows=D.kardex.filter(k=>k.itemId===itemId&&!(del&&k.id===patch.id)).map(k=>patch&&!del&&k.id===patch.id?{...k,...patch}:{...k})
-    .sort((a,b)=>String(a.when||a.date).localeCompare(String(b.when||b.date)));
+    .sort(kxOrder);
   const unit=it?it.unit:(rows[0]||{}).unit, u={unit}, pack=it?packOf(it):num((rows[0]||{}).pack)||1, B=x=>toBaseI(x,u);
-  let q=0,c=0; const short=[];
-  for(const k of rows){ const qty=num(k.qty); let uc=num(k.unitCost);
-    if(k.type==="in"){ uc=costR(u,uc); const q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
+  let q=0,c=0; const short=[]; let st=0; rows.forEach((k,i)=>{ if(k.type==="open") st=i; });   // start from the latest opening balance
+  for(const k of rows.slice(st)){ const qty=num(k.qty); let uc=num(k.unitCost);
+    if(k.type==="open"){ q=r3(qty); c=costR(u,k.avgCost); uc=c; }
+    else if(k.type==="in"){ uc=costR(u,uc); const q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
     else if(k.type==="out"){ uc=c; if(qty>q+1e-9) short.push(k.date||""); q=r3(Math.max(0,q-qty)); }
     else if(k.type==="adj"){ uc=c; q=r3(Math.max(0,q+qty)); }
     else if(k.type==="cost"){ c=costR(u,uc); }
@@ -2629,18 +2715,19 @@ let kxItem="", kxDays=30, pcDays=30, pcEdit=null, kxEdit=null, ktEdit=null, ktDr
 /* Self-repair: if a Kardex movement disappears some other way (deleted by hand in the Google Sheet, on another
    device, or a recalculation that was interrupted), the stored balances / weighted average costs of the later rows
    and the inventory no longer match. Replay each item's Kardex and recalculate the ones that differ. */
-let kxHealBusy=false, kxHealSig="";
+let kxHealBusy=false, kxHealSig="", kxMonthBusy=false;
 function kxChainOff(itemId){ const it=invItem(itemId); if(!it) return false; const u={unit:it.unit}, B=x=>toBaseI(x,u);
-  const rows=D.kardex.filter(k=>k.itemId===itemId).sort((a,b)=>String(a.when||a.date).localeCompare(String(b.when||b.date)));
-  let q=0,c=0;
-  for(const k of rows){ const qty=num(k.qty);
-    if(k.type==="in"){ const uc=costR(u,k.unitCost), q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
+  const rows=D.kardex.filter(k=>k.itemId===itemId).sort(kxOrder);
+  let q=0,c=0,st=0; rows.forEach((k,i)=>{ if(k.type==="open") st=i; });
+  for(const k of rows.slice(st)){ const qty=num(k.qty);
+    if(k.type==="open"){ q=r3(qty); c=costR(u,k.avgCost); }
+    else if(k.type==="in"){ const uc=costR(u,k.unitCost), q1=r3(q+qty); c=q1>0?costR(u,(B(q)*c+B(qty)*uc)/B(q1)):uc; q=q1; }
     else if(k.type==="out") q=r3(Math.max(0,q-qty)); else if(k.type==="adj") q=r3(Math.max(0,q+qty)); else if(k.type==="cost") c=costR(u,k.unitCost);
     if(r3(num(k.balQty))!==q||costR(u,k.avgCost)!==c) return true; }
   return rows.length>0&&(r3(num(it.qty))!==q||costR(it,it.cost)!==c);
 }
 async function kardexHeal(){
-  if(kxHealBusy||!DB||!LOADED.has("kardex")||!LOADED.has("inventory")||!canWrite("kardex")||!canWrite("inventory")||asBusy) return;
+  if(kxHealBusy||kxMonthBusy||!DB||!LOADED.has("kardex")||!LOADED.has("inventory")||!canWrite("kardex")||!canWrite("inventory")||asBusy) return;
   const sig=D.kardex.length+"|"+D.kardex.map(k=>k.id+":"+k.qty+":"+k.unitCost+":"+(k.when||k.date)).join(",")+"|"+D.inventory.map(i=>i.id+":"+i.qty+":"+i.cost).join(",");
   if(sig===kxHealSig) return; kxHealSig=sig;
   const ids=[...new Set(D.kardex.map(k=>k.itemId))].filter(id=>id&&kxChainOff(id)); if(!ids.length) return;
@@ -2906,7 +2993,7 @@ function listKardex(){
        <td class="ktype ${d==="Entrada"?"kin":d==="Salida"?"kout":""}" title="${esc([kxReason(k.reason),k.ref,k.by].filter(Boolean).join(" · "))}">${kxDirLbl(d)}<small>${esc(kxReason(k.reason))}${k.ref&&k.reason!=="initial"?" · "+esc(String(k.ref).slice(0,40)):""}</small></td>
        <td class="nw kqty ${d==="Entrada"?"kin":d==="Salida"?"kout":""}">${q?(d==="Salida"?"−":"+")+fmtQ(Math.abs(q))+" "+u:"—"}</td>
        <td class="nw">${pc?money4(k.unitCost):money2(k.unitCost)}<small>/ ${pc?tt("pc","und"):esc(costPerLbl(k.unit))}</small></td>
-       <td class="nw"><b>${fmtQ(num(k.balQty))}</b> ${u}</td><td>${esc(k.supplier||"")||"—"}</td><td class="klot">${esc(k.lot||"")||"—"}</td><td class="nw ${exC}">${esc(ex)||"—"}</td>${canWrite("kardex")?`<td class="kact">${k.type==="cost"?"":`<button type="button" class="btn sm ghost" data-kxedit="${esc(k.id)}" title="${tt("Edit","Editar")}" aria-label="${tt("Edit movement","Editar movimiento")} ${esc(k.item)} ${esc(k.date||"")}">✏</button>`}<button type="button" class="btn sm ghost" data-kxdel="${esc(k.id)}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete movement","Eliminar movimiento")} ${esc(k.item)} ${esc(k.date||"")}">🗑</button></td>`:""}</tr>`;}).join("")}
+       <td class="nw"><b>${fmtQ(num(k.balQty))}</b> ${u}</td><td>${esc(k.supplier||"")||"—"}</td><td class="klot">${esc(k.lot||"")||"—"}</td><td class="nw ${exC}">${esc(ex)||"—"}</td>${canWrite("kardex")?`<td class="kact">${k.type==="open"||kxLocked(k.date)?`<span title="${esc(k.type==="open"?tt("Opening balance — comes from the previous month's closing","Saldo inicial — viene del cierre del mes anterior"):kxLockedMsg())}">🔒</span>`:`${k.type==="cost"?"":`<button type="button" class="btn sm ghost" data-kxedit="${esc(k.id)}" title="${tt("Edit","Editar")}" aria-label="${tt("Edit movement","Editar movimiento")} ${esc(k.item)} ${esc(k.date||"")}">✏</button>`}<button type="button" class="btn sm ghost" data-kxdel="${esc(k.id)}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete movement","Eliminar movimiento")} ${esc(k.item)} ${esc(k.date||"")}">🗑</button>`}</td>`:""}</tr>`;}).join("")}
    </tbody></table>${rows.length>300?`<p class="hint">${tt("Showing the latest 300 — export CSV for all.","Se muestran los últimos 300 — exporta el CSV para ver todos.")}</p>`:""}
    <p class="hint">${tt("In this period","En este periodo")}: ${ins.length} ${tt("entries","entradas")} (${money2(ins.reduce((s,k)=>s+Math.abs(num(k.total)),0))}) · ${outs.length} ${tt("exits","salidas")} (${money2(outs.reduce((s,k)=>s+Math.abs(num(k.total)),0))})</p>`
    :`<p class="empty">${tt("No movements yet. They appear when you add stock, register a movement here, charge a bill, log waste or correct a stock count.","Aún no hay movimientos. Aparecen al agregar stock, registrar un movimiento aquí, cobrar una cuenta, registrar merma o corregir un conteo de stock.")}</p>`);
@@ -3039,6 +3126,7 @@ function m3(){
      ${canWrite("kardex")&&(MODE!=="sheet"||["admin","chef"].includes(SESSION&&SESSION.role))?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxReset" title="${tt("Only erases every movement in the Kardex database. After that, the Kardex is fed by purchases.","Solo borra todos los movimientos de la base de datos del Kardex. Después, el Kardex se alimenta de las compras.")}">↺ ${tt("Restart Kardex","Reiniciar Kardex")}</button></div>`:""}
      ${canWrite("kardex")?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxRebuild" title="${tt("Replays every Kardex movement in date order with the weighted average and writes the result to the inventory","Repasa cada movimiento del Kardex en orden de fecha con el promedio ponderado y escribe el resultado en el inventario")}">⟳ ${tt("Rebuild inventory","Recalcular inventario")}</button></div>`:""}
     </div>
+    <div class="addstock" id="kxMonthBox"></div>
     <form id="kmForm" class="addstock${ke?" editpanel":""}"><h4 class="minih">${ke?`✏ ${tt("Edit movement","Editar movimiento")} — ${esc(ke.item)}`:tt("Register movement","Registrar movimiento")}</h4>
      ${ke?`<p class="hint">${tt("When you save, this item's whole Kardex is recalculated in date order (balances, weighted average cost, value and the cost of later exits) and the inventory is updated.","Al guardar, se recalcula todo el Kardex de este artículo en orden de fecha (saldos, costo promedio ponderado, valor y costo de las salidas posteriores) y se actualiza el inventario.")}</p>`:""}
      <div class="fgrid">
@@ -3117,6 +3205,17 @@ function wireM3(){
         const ok=await askConfirm(tt(`Delete the Kardex of “${it.name}”?`,`¿Eliminar el Kardex de “${it.name}”?`),tt(`Its ${n} Kardex movements will be erased and its inventory will go to 0. The item stays in Kitchen & inventory. This can't be undone.`,`Se borrarán sus ${n} movimientos del Kardex y su inventario quedará en 0. El artículo se mantiene en Cocina e inventario. No se puede deshacer.`),tt("Delete","Eliminar"));
         if(!ok) return; const m=await kxItemClear(it.id); if(m==null) return; if(ktEdit===it.id){ ktEdit=null; ktDraft={}; } toast(tt(`${m} movements of “${it.name}” deleted.`,`${m} movimientos de “${it.name}” eliminados.`)); render(); } });
   }
+  if(g("kxMonthBox")) g("kxMonthBox").addEventListener("click",async e=>{ const b=e.target.closest("[data-kxm]"); if(!b||kxMonthBusy) return; const act=b.dataset.kxm, cur=ym(today());
+    const run=async fn=>{ kxMonthBusy=true; setHTML(g("kxMonthBox"),kxMonthHTML()); try{ return await fn(); } finally{ kxMonthBusy=false; render(); } };
+    if(act==="recalc"){ const n=await run(kxRecalcAll); if(n!=null) toast(tt(`${monthName(cur)} recalculated: ${n} items (balances, weighted average and inventory).`,`${monthName(cur)} recalculado: ${n} artículos (saldos, promedio ponderado e inventario).`)); return; }
+    if(act==="start"){ const n=await run(()=>kxStartMonth(cur)); if(typeof n==="number") toast(tt(`${monthName(cur)} started: opening balance for ${n} items.`,`${monthName(cur)} iniciado: saldo inicial de ${n} artículos.`)); return; }
+    if(act==="close"){ const m=g("kxCloseM").value; if(!m) return;
+      const ok=await askConfirm(tt(`Close ${monthName(m)}?`,`¿Cerrar ${monthName(m)}?`),tt(`Each item's balance and weighted average cost at the end of ${monthName(m)} become the opening balance of ${monthName(nextYM(m))}. Movements up to ${monthName(m)} will be locked (no adding, editing or deleting).`,`El saldo y el costo promedio ponderado de cada artículo al final de ${monthName(m)} pasan a ser el saldo inicial de ${monthName(nextYM(m))}. Los movimientos hasta ${monthName(m)} quedarán bloqueados (no se pueden agregar, editar ni eliminar).`),tt("Close month","Cerrar mes"));
+      if(!ok) return; const r=await run(()=>kxCloseMonth(m)); if(r&&r.items!=null) toast(tt(`${monthName(m)} closed: ${r.items} items, value ${money2(r.value)}. Opening balance of ${monthName(nextYM(m))} recorded.`,`${monthName(m)} cerrado: ${r.items} artículos, valor ${money2(r.value)}. Saldo inicial de ${monthName(nextYM(m))} registrado.`)); return; }
+    if(act==="reopen"){ const lc=kxLastClosed();
+      const ok=await askConfirm(tt(`Reopen ${monthName(lc)}?`,`¿Reabrir ${monthName(lc)}?`),tt(`Its movements can be changed again and the opening balance of ${monthName(nextYM(lc))} is removed (close ${monthName(lc)} again when done).`,`Sus movimientos se podrán cambiar otra vez y se quita el saldo inicial de ${monthName(nextYM(lc))} (vuelve a cerrar ${monthName(lc)} al terminar).`),tt("Reopen","Reabrir"));
+      if(!ok) return; const m=await run(kxReopenLast); if(m) toast(tt(`${monthName(m)} reopened.`,`${monthName(m)} reabierto.`)); return; }
+  });
   if(g("kxRebuild")) g("kxRebuild").onclick=async e=>{ e.currentTarget.disabled=true; const n=await kardexRebuild(); if(n==null) return; toast(tt(`Inventory rebuilt from the Kardex: ${n} items updated.`,`Inventario recalculado desde el Kardex: ${n} artículos actualizados.`)); render(); };
   if(g("sForm")) g("sForm").onsubmit=async e=>{
     e.preventDefault(); const d=val("sDate"), pid=val("sProd"), cups=Math.round(num(val("sCups"))), price=toCAD(val("sPrice")), h=val("sHour");
@@ -3205,6 +3304,7 @@ function listM3(){
   const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
   const km=document.getElementById("kmItem"); const ke=kxEdit?D.kardex.find(k=>k.id===kxEdit):null; if(km) km.disabled=!!ke;
   if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))})</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
+    setHTML(document.getElementById("kxMonthBox"),kxMonthHTML());
     listKardex(); return; }
   const cb=document.getElementById("costBox");
   const st0=document.getElementById("m3Stock");
