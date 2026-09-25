@@ -1386,11 +1386,18 @@ function makeSheetDB(url){
   const cache={}, loaded={}, subs={}, rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   const notify=col=>setTimeout(()=>(subs[col]||new Set()).forEach(f=>f()),0);
   const snap=(col,id)=>({id,exists:!!(cache[col]&&cache[col][id]),data:()=>cache[col]&&cache[col][id]?JSON.parse(JSON.stringify(cache[col][id])):undefined,metadata:{fromCache:false,hasPendingWrites:false}});
+  const fails={}; // consecutive failed loads per tab
   async function load(col){
-    try{ const j=await sheetCall(url,{action:"list",col}); const m={}; j.docs.forEach(d=>{m[d.id]=d.data;});
+    let j=null, err=null;
+    for(let i=0;i<3;i++){ // retry brief network / "busy" hiccups before warning
+      try{ j=await sheetCall(url,{action:"list",col}); err=null; break; }
+      catch(e){ err=e; if(e.code==="auth"||e.code==="forbidden"||e.code==="bad_collection") break; await new Promise(r=>setTimeout(r,1500*(i+1))); } }
+    if(j){ fails[col]=0; const m={}; j.docs.forEach(d=>{m[d.id]=d.data;});
       const same=loaded[col]&&JSON.stringify(cache[col])===JSON.stringify(m);
-      cache[col]=m; loaded[col]=true; if(!same) notify(col); }
-    catch(e){ if(e.code!=="auth") toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora.")); }
+      cache[col]=m; loaded[col]=true; if(!same) notify(col); return; }
+    fails[col]=(fails[col]||0)+1; console.warn("Sheet load failed:",col,err);
+    // background refreshes stay quiet unless the problem persists
+    if(err.code!=="auth"&&(!loaded[col]||fails[col]>=3)) toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora."));
   }
   const denied=()=>toast(tt("Your role can't make this change.","Tu rol no permite este cambio."));
   async function write(col,id,data){ if(!canWrite(col)){ denied(); await load(col); throw {code:"forbidden"}; }
