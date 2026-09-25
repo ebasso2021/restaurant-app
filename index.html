@@ -3129,13 +3129,13 @@ function listM3(){
   if(m3Sub==="purchases"){
     const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name))), ps=document.getElementById("pcItem");
     const pe=pcEdit?D.kardex.find(k=>k.id===pcEdit):null; if(ps) ps.disabled=!!pe;
-    if(ps&&document.activeElement!==ps){ const cur=pe?pe.itemId:ps.value; ps.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(ps.value!==cur||pe) ps.dispatchEvent(new Event("change")); }
+    if(ps&&document.activeElement!==ps){ const cur=pe?pe.itemId:ps.value; ps.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))})</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(ps.value!==cur||pe) ps.dispatchEvent(new Event("change")); }
     listPurchases(); return; }
   if(m3Sub==="kardex"){
   const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
   const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
   const km=document.getElementById("kmItem"); const ke=kxEdit?D.kardex.find(k=>k.id===kxEdit):null; if(km) km.disabled=!!ke;
-  if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))}) — ${num(i.qty)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
+  if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))})</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
     listKardex(); return; }
   const cb=document.getElementById("costBox");
   const st0=document.getElementById("m3Stock");
