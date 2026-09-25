@@ -1438,7 +1438,7 @@ function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
 const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
 // roles limited to some modules (others see every module)
 const ROLE_HOME={cocinero:"m2",mesero:"m1"};
-const ROLE_VIEWS={mesero:["m1","tables","orders","bill","settings"]};
+const ROLE_VIEWS={mesero:["m1","tables","orders","kitchen","bill","settings"]};
 const ROLE_READ={mesero:["reservations","tables","orders","menu","bills","recipes","settings"]};
 const ROLE_WRITE={chef:["inventory","waste","settings","orders","recipes","kardex"],cocinero:["inventory","waste","kardex"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
@@ -1523,7 +1523,7 @@ function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
   if(v==="settings"||v==="overview") return;
-  if(chef&&(v==="m2"||v==="orders")) return;
+  if(chef&&(v==="m2"||v==="orders"||v==="kitchen")) return;
   if(ROLE_VIEWS[SESSION.role]) return; // waiter: full use of the modules they can open
   const cook=SESSION.role==="cocinero";
   if(cook&&v==="m2") return; // cook: full use of Kitchen & inventory only
@@ -1625,6 +1625,7 @@ const MODS=[
   {id:"m1",en:"1 · Customers",es:"1 · Clientes"},
   {id:"tables",en:"Tables layout",es:"Distribución de mesas"},
   {id:"orders",en:"Orders by table",es:"Órdenes por mesa"},
+  {id:"kitchen",en:"Kitchen board",es:"Tablero de cocina"},
   {id:"bill",en:"Billing by table",es:"Facturación por mesa"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
   {id:"m3",en:"3 · Purchases, sales, costs & analytics",es:"3 · Compras, ventas, costos y análisis"},
@@ -1639,13 +1640,13 @@ function aiSys(){
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
-  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="bill"?billView():aiOverview();
+  let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="kitchen"?kitchenView():v==="bill"?billView():aiOverview();
   return nav+banner+body;
 }
 function wireAI(){
   main.querySelectorAll("[data-aiview]").forEach(b=>b.onclick=()=>{state.aiView=b.dataset.aiview;save();render();});
   const v=state.aiView;
-  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="bill") wireBill();
+  if(v==="m1") wireM1(); else if(v==="m2") wireM2(); else if(v==="m3") wireM3(); else if(v==="m4") wireM4(); else if(v==="m5") wireM5(); else if(v==="settings") wireSettings(); else if(v==="tables") wireTables(); else if(v==="orders") wireOrders(); else if(v==="kitchen") wireKitchen(); else if(v==="bill") wireBill();
   refreshAI();
   main.querySelectorAll("[data-needs-ai]").forEach(b=>{ if(capsReady&&!SAMPLE){b.disabled=true;b.title=tt("AI unavailable in this view","IA no disponible en esta vista");} });
   applyRoleUI();
@@ -1681,7 +1682,7 @@ function refreshNow(){
   if(state.tab==="path"){ const sig=JSON.stringify(D.path||{}); if(sig!==pathSig&&pathEdit==null){ pathSig=sig; render(); } return; }
   if(state.tab!=="ai") return;
   const v=state.aiView;
-  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="orders") listOrders(); else if(v==="bill") listBill();
+  if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="kitchen") listOrders(); else if(v==="bill") listBill();
   applyRoleUI();
 }
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
@@ -1964,7 +1965,7 @@ function itemRow(){
 let ordShowServed=false, ordTimer=null;
 function ordersView(){
   const tabs=activeTables();
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Kitchen","Cocina"),tt("Orders by table","Órdenes de pedido por mesa"),tt("Take each table's order with allergies, meat doneness and messages for the cooks. The kitchen board below shows what to cook, oldest first.","Toma el pedido de cada mesa con alergias, término de la carne y mensajes para los cocineros. El tablero de cocina muestra qué preparar, del más antiguo al más nuevo."))}
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Kitchen","Cocina"),tt("Orders by table","Órdenes de pedido por mesa"),tt("Take each table's order with allergies, meat doneness and messages for the cooks. Orders sent here appear in the Kitchen board.","Toma el pedido de cada mesa con alergias, término de la carne y mensajes para los cocineros. Las órdenes enviadas aparecen en el Tablero de cocina."))}
    <div class="grid">
     <div class="stack"><div class="panel"><h3>${tt("New order","Nueva orden")}</h3>
      <form id="ordForm" class="fgrid">
@@ -1979,11 +1980,17 @@ function ordersView(){
        <input id="oAllergyTxt" placeholder="${tt("Other or detail: seat 2 celiac, severe peanut allergy…","Otra o detalle: asiento 2 celíaco, alergia grave al maní…")}" aria-label="${tt("Other allergies","Otras alergias")}"></fieldset>
       <div class="f full"><label for="oMsg">💬 ${tt("Message to the cooks","Mensaje a los cocineros")}</label><textarea id="oMsg" rows="2" placeholder="${tt("Special requests, tastes, timing: birthday — bring dessert with a candle…","Pedidos especiales, gustos, tiempos: cumpleaños — sacar el postre con vela…")}"></textarea></div>
       <button class="btn" type="submit">${tt("Send to kitchen","Enviar a cocina")}</button>
-     </form><p class="hint" id="ordMsg" aria-live="polite"></p></div></div>
-    <div class="stack"><div class="panel"><h3>${tt("Kitchen board","Tablero de cocina")}</h3>
-     <div class="acts" style="margin:0 0 10px"><button type="button" class="btn sm ghost" id="ordRefresh">↻ ${tt("Refresh","Actualizar")}</button><label class="chk"><input type="checkbox" id="ordServed"${ordShowServed?" checked":""}> ${tt("Show served / cancelled today","Mostrar entregadas / canceladas hoy")}</label></div>
-     <div id="ordBoard"></div></div></div>
+     </form><p class="hint" id="ordMsg" aria-live="polite"></p>
+     <p class="hint"><button type="button" class="linkbtn" data-aiview="kitchen">🍳 ${tt("Open the Kitchen board","Abrir el Tablero de cocina")}</button></p></div></div>
    </div></section>`;
+}
+// Kitchen board: its own sub-menu in AI system management
+function kitchenView(){
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Kitchen","Cocina"),tt("Kitchen board","Tablero de cocina"),tt("What to cook, oldest first. Orders come from “Orders by table”; move each one from New to Preparing, Ready and Served.","Qué preparar, del más antiguo al más nuevo. Las órdenes llegan desde “Órdenes por mesa”; pasa cada una de Nueva a En preparación, Lista y Entregada."))}
+    <div class="panel"><h3>${tt("Orders to cook","Órdenes por preparar")}</h3>
+     <div class="acts" style="margin:0 0 10px"><button type="button" class="btn sm ghost" id="ordRefresh">↻ ${tt("Refresh","Actualizar")}</button><label class="chk"><input type="checkbox" id="ordServed"${ordShowServed?" checked":""}> ${tt("Show served / cancelled today","Mostrar entregadas / canceladas hoy")}</label></div>
+     <div id="ordBoard"></div></div>
+   </section>`;
 }
 function ordBookingHint(){
   const el=document.getElementById("oBook"); if(!el) return;
@@ -2013,6 +2020,8 @@ function wireOrders(){
     msg.textContent=tt(`Order for table ${table} sent to the kitchen.`,`Orden de la mesa ${table} enviada a cocina.`);
     e.target.reset(); box.innerHTML=itemRow(); document.getElementById("oGuests").dataset.touched=""; ordBookingHint(); applyRoleUI();
   };
+}
+function wireKitchen(){
   document.getElementById("ordServed").onchange=e=>{ordShowServed=e.target.checked;listOrders();};
   document.getElementById("ordRefresh").onclick=()=>{ if(DB&&DB._refresh) DB._refresh("orders"); else listOrders(); };
   document.getElementById("ordBoard").onclick=async e=>{
@@ -2020,7 +2029,7 @@ function wireOrders(){
     if(b.dataset.ost==="del"){ if(confirm(tt("Delete this order?","¿Borrar esta orden?"))) await dbDel("orders",id); return; }
     await dbUpd("orders",id,{status:b.dataset.ost,updated:new Date().toISOString()});
   };
-  clearInterval(ordTimer); ordTimer=setInterval(()=>{ if(state.tab!=="ai"||state.aiView!=="orders"){clearInterval(ordTimer);return;} if(DB&&DB._refresh&&document.visibilityState==="visible") DB._refresh("orders"); else listOrders(); },15000);
+  clearInterval(ordTimer); ordTimer=setInterval(()=>{ if(state.tab!=="ai"||state.aiView!=="kitchen"){clearInterval(ordTimer);return;} if(DB&&DB._refresh&&document.visibilityState==="visible") DB._refresh("orders"); else listOrders(); },15000);
 }
 function listOrders(){
   const el=document.getElementById("ordBoard"); if(!el) return;
