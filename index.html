@@ -2998,6 +2998,10 @@ function kxBig(k){ const q=Math.abs(num(k.qty)), u=k.unit;
   if(u==="g") return {v:r3(q/1000),u:"kg"}; if(u==="ml"||u==="mL") return {v:r3(q/1000),u:"L"};
   if(u==="pc"){ const pk=num(k.pack)>0?num(k.pack):packOf(invItem(k.itemId)||{unit:"pc"}); return {v:r3(q/pk),u:tt(pk===1?"pc":"packages",pk===1?"und":"paquetes")}; }
   return {v:r3(q),u:unitLbl(u)}; }
+function kmDoneText(it,verb,type,q,uc,date,r){ const k={qty:q,unit:it.unit,pack:packOf(it),itemId:it.id}, b=kxBig(k), inn=type==="in", pc=it.unit==="pc";
+  const big=(b.u!==unitLbl(it.unit))?` (${fmtQ(b.v)} ${b.u})`:"", tot=inn&&uc!=null?cost2(toBaseI(q,it)*uc):null;
+  return "✅ "+tt(`${verb==="add"?"Movement added":"Movement updated"}: ${inn?"In":"Out"} ${inn?"+":"−"}${fmtQ(q)} ${unitLbl(it.unit)}${big} of ${it.name} on ${date}${tot!=null?` · total ${money2(tot)}`:""} · new balance ${fmtQ(r.q)} ${unitLbl(it.unit)} · weighted average ${pc?money4(r.c):money2(r.c)} / ${costPerLbl(it.unit)}.`,
+    `${verb==="add"?"Registro agregado":"Registro actualizado"}: ${inn?"Entrada":"Salida"} ${inn?"+":"−"}${fmtQ(q)} ${unitLbl(it.unit)}${big} de ${it.name} el ${date}${tot!=null?` · total ${money2(tot)}`:""} · saldo nuevo ${fmtQ(r.q)} ${unitLbl(it.unit)} · promedio ponderado ${pc?money4(r.c):money2(r.c)} / ${costPerLbl(it.unit)}.`); }
 function kardexRows(){ const since=kxDays?addDays(today(),-kxDays+1):""; return D.kardex.filter(k=>(!kxItem||k.itemId===kxItem)&&(!since||String(k.date||"")>=since)).sort((a,b)=>String(b.when||b.date).localeCompare(String(a.when||a.date))); }
 function listKardex(){
   const el=document.getElementById("kxBox"); if(!el) return;
@@ -3125,7 +3129,7 @@ function wireOpex(){
     msg.textContent=""; e.target.reset(); document.getElementById("oxFreq").value="month"; };
   if(!opexCan()) document.querySelectorAll("#opexAdd input,#opexAdd select,#opexAdd button").forEach(x=>{x.disabled=true;x.classList.add("ro");});
 }
-let m3Sub="sales";
+let m3Sub="sales", kmMsg="", kmBusy=false;
 const M3SUBS=[["sales","Sales","Ventas"],["costs","Costs","Costos"],["kardex","📒 Kardex","📒 Kardex"],["analysis","Analysis & projection","Análisis y proyección"]];
 function m3(){
   if(!M3SUBS.some(x=>x[0]===m3Sub)) m3Sub="sales";
@@ -3164,6 +3168,7 @@ function m3(){
       <div class="f" id="kmExpF"><label for="kmExp">${tt("Expiry","Caducidad")}</label><input id="kmExp" type="date"${ke?` value="${esc(ke.expiry||"")}"`:""}></div>
       ${field("kmRef",tt("Note / invoice (optional)","Nota / factura (opcional)"),`<input id="kmRef" maxlength="60"${ke?` value="${esc(ke.ref||"")}"`:""}>`)}
       <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center"><button class="btn" type="submit">${ke?tt("Save changes","Guardar cambios"):tt("Save movement","Guardar movimiento")}</button>${ke?`<button class="btn ghost" type="button" id="kmCancel">${tt("Cancel","Cancelar")}</button>`:""}</div>
+      <p class="hint oknote" id="kmMsg" role="status" aria-live="polite" style="grid-column:1/-1">${esc(kmMsg)}</p>
      </div></form>
     <p class="hint kxhint">↔ ${tt("Swipe the table sideways to see every column; the item name stays fixed.","Desliza la tabla hacia los lados para ver todas las columnas; el nombre del artículo queda fijo.")}</p><div class="tablewrap kxscroll" id="kxBox"></div>
     <p class="hint">${tt("Every purchase (+ Stock or “Register movement”), sale (paid bill), waste and stock count is recorded here with weighted average cost (per kg / L / package), cost per g / mL / piece, stock value, movement date, timestamp, type (in / out), quantity, unit cost, updated balance, supplier, lot and expiry. Expired lots show in red, lots expiring within 7 days in amber. On the website it is saved in the “Kardex” tab of the Google Sheet.","Aquí se registra cada compra (+ Stock o “Registrar movimiento”), venta (cuenta cobrada), merma y conteo de stock con costo promedio ponderado (por kg / L / paquete), costo por g / mL / und, valor del stock, fecha de movimiento, registro (fecha y hora), tipo (entrada / salida), cantidad, costo unitario, saldo actualizado, proveedor, lote y caducidad. Los lotes vencidos se ven en rojo y los que vencen en 7 días o menos, en ámbar. En la web se guarda en la pestaña “Kardex” de la hoja de Google.")}</p>
@@ -3299,7 +3304,11 @@ function wireM3(){
     const k=D.kardex.find(x=>x.id===dl.dataset.kxdel); if(!k) return; dl.disabled=true;
     const r=await kardexRecalcItem(k.itemId,{id:k.id,__del:true}); if(!r) return; if(kxEdit===k.id) kxEdit=null;
     toast(tt(`Movement deleted and Kardex recalculated. ${k.item}: ${fmtQ(r.q)} ${unitLbl(k.unit)}`,`Movimiento eliminado y Kardex recalculado. ${k.item}: ${fmtQ(r.q)} ${unitLbl(k.unit)}`)); render(); });
-  g("kmForm").onsubmit=async e=>{ e.preventDefault(); const it=invItem(g("kmItem").value); if(!it) return toast(tt("Choose an item.","Elige un artículo."));
+  g("kmForm").addEventListener("input",()=>{ if(kmMsg){ kmMsg=""; g("kmMsg").textContent=""; } });
+  const kmLock=on=>{ kmBusy=on; const b=g("kmForm")&&g("kmForm").querySelector('button[type="submit"]'); if(b){ b.disabled=on; if(on){ b.dataset.lbl=b.textContent; b.textContent="⏳ "+tt("Saving…","Guardando…"); } else if(b.dataset.lbl) b.textContent=b.dataset.lbl; } };
+  g("kmForm").onsubmit=async e=>{ e.preventDefault(); if(kmBusy) return; kmMsg=""; g("kmMsg").textContent="";
+    kmLock(true); try{ await kmSubmit(); } finally{ kmLock(false); } };
+  const kmSubmit=async()=>{ const it=invItem(g("kmItem").value); if(!it) return toast(tt("Choose an item.","Elige un artículo."));
     const inn=g("kmType").value==="in";
     if(!reqCheck([["kmDate",tt("Movement date","Fecha de movimiento"),"text"],["kmQty",tt("Quantity","Cantidad"),"pos"],...(inn?[["kmCost",tt("Unit cost","Costo unitario"),"pos"]]:[])])) return;
     if(g("kmDate").value>today()){ g("kmDate").setAttribute("aria-invalid","true"); return toast(tt("The date can't be in the future.","La fecha no puede ser futura.")); }
@@ -3311,11 +3320,14 @@ function wireM3(){
       if(k.type==="adj") patch.reason=inn?"manual_in":"manual_out";
       if(inn) patch.unitCost=costR(it,it.unit==="pc"?toCAD(c)/packOf(it):toCAD(c));
       const r=await kardexRecalcItem(k.itemId,patch); if(!r) return;
-      kxEdit=null; toast(tt(`Movement updated and Kardex recalculated. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)}`,`Movimiento actualizado y Kardex recalculado. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)}`)); render(); return; }
+      kmMsg=kmDoneText(it,"edit",type,r3(q),inn?patch.unitCost:null,date,r);
+      kxEdit=null; toast(tt(`Movement updated and Kardex recalculated. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)}`,`Registro actualizado y Kardex recalculado. ${it.name}: ${fmtQ(r.q)} ${unitLbl(it.unit)}`)); render(); return; }
     if(!inn&&q>num(it.qty)) return toast(tt(`Only ${num(it.qty)} ${unitLbl(it.unit)} in stock.`,`Solo hay ${num(it.qty)} ${unitLbl(it.unit)} en stock.`));
     const r=await kardexMove(it,{type:inn?"in":"out",reason:inn?"manual_in":"manual_out",qty:q,unitCost:inn&&c!==""?(it.unit==="pc"?toCAD(c)/packOf(it):toCAD(c)):null,
       date:g("kmDate").value,supplier:g("kmSup").value.trim(),lot:inn?g("kmLot").value.trim():"",expiry:inn?g("kmExp").value:"",ref:g("kmRef").value.trim()}); if(!r) return;
-    toast(tt(`Saved. New balance: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`,`Guardado. Saldo nuevo: ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`));
+    const uc=inn&&c!==""?costR(it,it.unit==="pc"?toCAD(c)/packOf(it):toCAD(c)):null;
+    kmMsg=kmDoneText(it,"add",inn?"in":"out",q,uc,g("kmDate").value||today(),{q:r.q1,c:r.c1});
+    toast(tt(`✅ Movement added — ${it.name}: new balance ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`,`✅ Registro agregado — ${it.name}: saldo nuevo ${+r.q1.toFixed(3)} ${unitLbl(it.unit)}`));
     ["kmQty","kmCost","kmLot","kmExp","kmRef","kmBig","kmTotal"].forEach(id=>g(id).value=""); kxItem=it.id; render(); };
   }
 }
