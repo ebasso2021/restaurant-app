@@ -59,7 +59,7 @@ const ROLES = {
               desc: "Ve todo. Cambia Inventario, Mermas, costo por vaso, Órdenes y Recetas. / Sees everything. Changes inventory, waste, cost per cup, orders and recipes." },
   cocinero: { label: "Cocinero", write: ["inventory", "waste", "kardex"], read: "*",
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
-  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings"],
+  mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings", "inventory", "kardex"],
               desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa (al cobrar suma a Ventas y descuenta stock); no cambia el menú ni los precios. / Customers, Tables layout, Orders and Billing by table (charging adds to sales and discounts stock); cannot change the menu or prices." },
   lectura:  { label: "Solo lectura", write: [], read: "*",
               desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
