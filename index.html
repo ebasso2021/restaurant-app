@@ -1660,7 +1660,7 @@ const MODS=[
   {id:"kitchen",en:"Kitchen board",es:"Tablero de cocina"},
   {id:"bill",en:"Billing by table",es:"Facturación por mesa"},
   {id:"m2",en:"2 · Kitchen & inventory",es:"2 · Cocina e inventario"},
-  {id:"m3",en:"3 · Purchases, sales, costs & analytics",es:"3 · Compras, ventas, costos y análisis"},
+  {id:"m3",en:"3 · Sales, costs & analytics",es:"3 · Ventas, costos y análisis"},
   {id:"m4",en:"4 · Marketing",es:"4 · Marketing"},
   {id:"m5",en:"5 · Reviews",es:"5 · Reseñas"},
   {id:"settings",en:"⚙ Settings",es:"⚙ Ajustes"}
@@ -2653,7 +2653,7 @@ function m2(){
       <button class="btn" type="submit">${tt("Add stock","Agregar stock")}</button>
      </div><p class="hint" id="asMsg" aria-live="polite"></p></form>
     <div class="tablewrap" id="invTable"></div>
-    <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces (pieces are bought by the package). Cost per kg / L / package, cost per g / mL / piece and stock value are in 3 · Purchases, sales, costs & analytics (📒 Kardex and Costs), calculated from the Kardex with the weighted average cost.","El stock puede estar en gramos, kilos, mililitros, litros o unidades (las unidades se compran por paquete). El costo por kg / L / paquete, el costo por g / mL / und y el valor del stock están en 3 · Compras, ventas, costos y análisis (📒 Kardex y Costos), calculados desde el Kardex con el costo promedio ponderado.")}</p>
+    <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces (pieces are bought by the package). Cost per kg / L / package, cost per g / mL / piece and stock value are in 3 · Sales, costs & analytics (📒 Kardex and Costs), calculated from the Kardex with the weighted average cost.","El stock puede estar en gramos, kilos, mililitros, litros o unidades (las unidades se compran por paquete). El costo por kg / L / paquete, el costo por g / mL / und y el valor del stock están en 3 · Ventas, costos y análisis (📒 Kardex y Costos), calculados desde el Kardex con el costo promedio ponderado.")}</p>
    </div>
    <div class="grid" style="margin-top:20px">
     <div class="stack">
@@ -2995,7 +2995,7 @@ let m3Sub="sales";
 const M3SUBS=[["sales","Sales","Ventas"],["costs","Costs","Costos"],["kardex","📒 Kardex","📒 Kardex"],["analysis","Analysis & projection","Análisis y proyección"]];
 function m3(){
   if(!M3SUBS.some(x=>x[0]===m3Sub)) m3Sub="sales";
-  const nav=`<div class="subnav" role="tablist" aria-label="${tt("Purchases, sales, costs & analytics","Compras, ventas, costos y análisis")}" style="margin-top:4px">${M3SUBS.map(x=>`<button type="button" role="tab" data-m3sub="${x[0]}" aria-selected="${m3Sub===x[0]}">${tt(x[1],x[2])}</button>`).join("")}</div>`;
+  const nav=`<div class="subnav" role="tablist" aria-label="${tt("Sales, costs & analytics","Ventas, costos y análisis")}" style="margin-top:4px">${M3SUBS.map(x=>`<button type="button" role="tab" data-m3sub="${x[0]}" aria-selected="${m3Sub===x[0]}">${tt(x[1],x[2])}</button>`).join("")}</div>`;
   const period=`<div class="panel"><div class="flexrow">
       <div><h3>${tt("Period","Periodo")}</h3><div class="variants" id="rangeBtns">${[7,14,30].map(r=>`<button type="button" data-range="${r}" aria-pressed="${r===range}">${r} ${tt("days","días")}</button>`).join("")}</div>
       <label class="f inline"><span>${tt("Target margin %","Margen objetivo %")}</span><input id="tMargin" type="number" min="0" max="100" value="${num(D.costs._target)||60}"></label></div>
@@ -3074,7 +3074,7 @@ function m3(){
     <div class="panel"><h3>${tt("Projection","Proyección")}</h3><div id="sProj"></div></div>
     <div class="panel"><h3>${tt("AI analysis","Análisis con IA")}</h3><button class="btn" id="sAI" data-needs-ai>${tt("Explain my numbers","Explicar mis números")}</button><div id="sAIout" class="aiout"></div></div>
    </div>`;
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Purchases, sales, costs & analytics","Compras, ventas, costos y análisis"),tt("Purchases and billed sales move the Kardex; the Kardex (weighted average cost) is the cost centre and the inventory is its total per ingredient. Also cost per cup, revenue, margins and projection.","Las compras y las ventas facturadas mueven el Kardex; el Kardex (costo promedio ponderado) es el centro de costos y el inventario es su total por ingrediente. Además costo por vaso, ingresos, márgenes y proyección."))}
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 3","Módulo 3"),tt("Sales, costs & analytics","Ventas, costos y análisis"),tt("Stock added in Kitchen & inventory and billed sales move the Kardex; the Kardex (weighted average cost) is the cost centre and the inventory is its total per ingredient. Also cost per portion, revenue, margins and projection.","El stock agregado en Cocina e inventario y las ventas facturadas mueven el Kardex; el Kardex (costo promedio ponderado) es el centro de costos y el inventario es su total por ingrediente. Además costo por porción, ingresos, márgenes y proyección."))}
    ${nav}${body}</section>`;
 }
 function wireM3(){
