@@ -3135,6 +3135,7 @@ function m3(){
     <div class="fgrid" style="margin-bottom:10px">
      ${field("kxItem",tt("Item","Artículo"),`<select id="kxItem"></select>`)}
      ${field("kxDays",tt("Period","Periodo"),`<select id="kxDays">${[[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===kxDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
+     <div class="f"><span>&nbsp;</span><button type="button" class="btn" id="kxUpd" title="${tt("Reloads the Kardex from the Google Sheet, recalculates the selected item (balances, weighted average cost, cost of exits and inventory) and shows its movements again","Vuelve a cargar el Kardex desde la hoja de Google, recalcula el artículo elegido (saldos, costo promedio ponderado, costo de las salidas e inventario) y muestra otra vez sus movimientos")}">⟳ ${kxItem?tt("Update item","Actualizar artículo"):tt("Update all","Actualizar todo")}</button></div>
      <div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxCsv">⬇ ${tt("Export CSV","Exportar CSV")}</button></div>
      ${canWrite("kardex")&&(MODE!=="sheet"||["admin","chef"].includes(SESSION&&SESSION.role))?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxReset" title="${tt("Only erases every movement in the Kardex database. After that, the Kardex is fed by purchases.","Solo borra todos los movimientos de la base de datos del Kardex. Después, el Kardex se alimenta de las compras.")}">↺ ${tt("Restart Kardex","Reiniciar Kardex")}</button></div>`:""}
      ${canWrite("kardex")?`<div class="f"><span>&nbsp;</span><button type="button" class="btn ghost" id="kxRebuild" title="${tt("Replays every Kardex movement in date order with the weighted average and writes the result to the inventory","Repasa cada movimiento del Kardex en orden de fecha con el promedio ponderado y escribe el resultado en el inventario")}">⟳ ${tt("Rebuild inventory","Recalcular inventario")}</button></div>`:""}
@@ -3246,7 +3247,17 @@ function wireM3(){
   if(g("sAI")) g("sAI").onclick=salesAI;
   if(g("opexBox")) wireOpex();
   if(g("kxItem")){
-  document.getElementById("kxItem").onchange=e=>{ kxItem=e.target.value; listKardex(); };
+  document.getElementById("kxItem").onchange=e=>{ kxItem=e.target.value; const u=g("kxUpd"); if(u) u.textContent="⟳ "+(kxItem?tt("Update item","Actualizar artículo"):tt("Update all","Actualizar todo")); listKardex(); };
+  // ⟳ Update: reload the Kardex and inventory from the database, recalculate the selected item (or all), list its movements again
+  g("kxUpd").onclick=async e=>{ const b=e.currentTarget, lbl=b.textContent; b.disabled=true; b.textContent="⏳ "+tt("Updating…","Actualizando…");
+    try{ if(DB&&DB._refresh){ await DB._refresh("kardex"); await DB._refresh("inventory"); await new Promise(r=>setTimeout(r,50)); }
+      let n=0; const id=kxItem;
+      if(canWrite("kardex")&&!kxLocked(today())){ if(id){ if(invItem(id)){ await kardexRecalcItem(id); n=1; } } else n=await kxRecalcAll(); }
+      const it=id?invItem(id):null, rows=D.kardex.filter(k=>!id||k.itemId===id).length, t=id?kxT()[id]:null;
+      toast(id?tt(`${it?it.name:"Item"} updated: ${rows} movements${t?` · balance ${fmtQ(t.q)} ${unitLbl(it?it.unit:"")} · weighted average ${it&&it.unit==="pc"?money4(t.c):money2(t.c)}`:""}.`,`${it?it.name:"Artículo"} actualizado: ${rows} movimientos${t?` · saldo ${fmtQ(t.q)} ${unitLbl(it?it.unit:"")} · promedio ponderado ${it&&it.unit==="pc"?money4(t.c):money2(t.c)}`:""}.`)
+        :tt(`Kardex updated: ${rows} movements, ${n} items recalculated.`,`Kardex actualizado: ${rows} movimientos, ${n} artículos recalculados.`)); }
+    catch(err){ console.warn("kxUpd",err); toast(tt("Could not update. Try again.","No se pudo actualizar. Inténtalo de nuevo.")); }
+    finally{ b.disabled=false; b.textContent=lbl; listM3(); } };
   document.getElementById("kxDays").onchange=e=>{ kxDays=num(e.target.value); listKardex(); };
   document.getElementById("kxCsv").onclick=()=>{ const rows=kardexRows(); if(!rows.length) return toast(tt("No movements to export.","No hay movimientos para exportar."));
     saveFile("kardex-"+today()+".csv",toCSV(rows.map(k=>({...k,...kxSnap(k),dir:kxDirLbl(k.dir||kxDir(k)),ts:kxTsFmt(k.created||k.when),edited:kxTsFmt(k.edited),reason:kxReason(k.reason)})),["item","costPkg","perSub","stockVal","date","ts","dir","qty","unit","unitCost","balQty","supplier","lot","expiry","reason","ref","by","edited"])); };
