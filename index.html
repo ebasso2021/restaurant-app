@@ -781,12 +781,16 @@ async function translateSaved(item){
 }
 
 const invItem=id=>D.inventory.find(i=>i.id===id);
+// stock on hand = the Kardex balance (an item with no Kardex movements has 0).
+// Roles that can't read the Kardex (waiter) fall back to the Inventory quantity.
+function kardexOn(){ return canRead("kardex")&&Array.isArray(D.kardex)&&LOADED.has("kardex"); }
+function stockQty(it,T){ if(!it) return 0; if(!kardexOn()) return num(it.qty); const t=(T||kxTotals())[it.id]; return t?num(t.q):0; }
 // how many portions the current stock allows, and which ingredient runs out first
 function portionsPossible(std){
-  let best=null, limit=null, linked=0, bad=[];
+  let best=null, limit=null, linked=0, bad=[]; const T=kardexOn()?kxTotals():null;
   (std.ingredients||[]).forEach(g=>{ if(!g.inv||!num(g.q)) return; const it=invItem(g.inv); if(!it) return; linked++;
     const per=convQty(g.q,g.u,it.unit); if(per==null){ bad.push(g.n); return; }
-    const n=Math.floor(num(it.qty)/per+1e-9); if(best==null||n<best){best=n;limit=g.n;} });
+    const n=Math.floor(stockQty(it,T)/per+1e-9); if(best==null||n<best){best=n;limit=g.n;} });
   return {linked,best,limit,bad};
 }
 // stock used by N portions, in each inventory item's own unit
@@ -1044,12 +1048,12 @@ function standardRecipe(item,prod){
 function calcHTML(item){
   const std=recEdit||standardOf(item), ing=(std.ingredients||[]).filter(g=>g.n), n=Math.max(1,Math.round(num(recN))||1);
   if(!ing.length) return `<p class="empty">${tt("Add the ingredients for one portion first.","Primero agrega los ingredientes de una porción.")}</p>`;
-  const pp=portionsPossible(std);
-  const rows=ing.map(g=>{ const it=g.inv?invItem(g.inv):null, need=num(g.q)*n, inU=it?convQty(need,g.u,it.unit):null;
-    const ok=it&&inU!=null?num(it.qty)>=inU:null;
+  const pp=portionsPossible(std), T=kardexOn()?kxTotals():null;
+  const rows=ing.map(g=>{ const it=g.inv?invItem(g.inv):null, need=num(g.q)*n, inU=it?convQty(need,g.u,it.unit):null, have=stockQty(it,T);
+    const ok=it&&inU!=null?have>=inU:null;
     return `<tr><td>${esc(g.n)}</td><td class="nw">${nice(num(g.q))} ${esc(g.u)}</td><td class="nw"><b>${nice(need)} ${esc(g.u)}</b>${inU!=null&&it.unit!==g.u?`<small>= ${nice(inU)} ${esc(it.unit)}</small>`:""}</td>
-      <td class="nw">${it?`${nice(num(it.qty))} ${esc(it.unit)}`:`<span class="dimtxt">—</span>`}</td>
-      <td>${ok==null?"":ok?`<span class="badge ok">OK</span>`:`<span class="badge bad">${tt("short","falta")} ${nice(inU-num(it.qty))} ${esc(it.unit)}</span>`}</td></tr>`; }).join("");
+      <td class="nw">${it?`${nice(have)} ${esc(it.unit)}`:`<span class="dimtxt">—</span>`}</td>
+      <td>${ok==null?"":ok?`<span class="badge ok">OK</span>`:`<span class="badge bad">${tt("short","falta")} ${nice(inU-have)} ${esc(it.unit)}</span>`}</td></tr>`; }).join("");
   return `<p class="dimtxt">${esc(itemName(item))} · <b>${n}</b> ${tt("portion(s)","porción(es)")}${std.portionLabel?" × "+esc(std.portionLabel):""}</p>
    <div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Ingredient","Ingrediente")}</th><th>1</th><th>× ${n}</th><th>${tt("In stock","En stock")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
    ${pp.linked?`<p class="capnote ${pp.best===0?"warnnote":""}">📦 ${tt(`With the current stock you can make <b>${pp.best}</b> portion(s)`,`Con el stock actual alcanzan <b>${pp.best}</b> porción(es)`)}${pp.limit?` — ${tt("first to run out","se acaba primero")}: ${esc(pp.limit)}`:""}.</p>`
@@ -1674,7 +1678,7 @@ function refreshNow(){
   if(!costPerDone&&DB&&LOADED.has("inventory")&&D.inventory.length&&canWrite("inventory")) tagCostPer();
   if(!dedupeDone&&LOADED.has("menu")&&LOADED.has("recipes")&&canWrite("menu")) dedupeAppDrinks();
   if(state.tab==="recipes"){
-    const sig=JSON.stringify(D.menu.map(m=>[m.id,m.name,m.cat,m.kind,m.price]))+"|"+JSON.stringify(D.recipes.map(r=>[r.itemId,r.updated,r.locked]))+"|"+JSON.stringify(D.inventory.map(i=>[i.id,i.name,i.unit,i.qty]))+"|"+state.recipe;
+    const sig=JSON.stringify(D.menu.map(m=>[m.id,m.name,m.cat,m.kind,m.price]))+"|"+JSON.stringify(D.recipes.map(r=>[r.itemId,r.updated,r.locked]))+"|"+JSON.stringify(D.inventory.map(i=>[i.id,i.name,i.unit,i.qty]))+"|"+(D.kardex||[]).length+":"+JSON.stringify(Object.values(kardexOn()?kxTotals():{}).map(t=>[t.itemId,t.q]))+"|"+state.recipe;
     const ae=document.activeElement;
     if(sig!==recSig&&!(main.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))){ recSig=sig; render(); }
     return; }
