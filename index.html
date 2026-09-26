@@ -2747,7 +2747,7 @@ async function kardexHeal(){
 const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
-   <div class="kpis" id="invKpis"></div><div id="invAlerts"></div>
+   <div class="kpis" id="invKpis"></div>
    <div class="panel"><h3>${tt("Items","Artículos")}</h3>
     <form id="invForm" class="fgrid wide">
      ${field("iName",tt("Description","Descripción"),`<input id="iName" required>`)}
@@ -2862,8 +2862,6 @@ function wireM2(){
   // stock table: rows are read-only until ✏ Edit; changes are kept as a draft and saved with ✓ Save
   document.getElementById("invTable").addEventListener("input",e=>{ const inp=e.target.closest("[data-f]"); if(!inp||inp.dataset.id!==invEdit) return; invDraft[inp.dataset.f]=inp.value; if(inp.getAttribute("aria-invalid")==="true") inp.setAttribute("aria-invalid","false"); });
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
-  document.getElementById("invAlerts").addEventListener("click",e=>{ const a=e.target.closest("[data-add]"); if(!a) return;
-    const f=document.getElementById("addStockForm"); if(!f) return; document.getElementById("asItem").value=a.dataset.add; asForm(); f.scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asBig").focus({preventScroll:true}); });
   document.getElementById("invTable").addEventListener("click",async e=>{
     const ed=e.target.closest("[data-invedit]"); if(ed){ invEdit=ed.dataset.invedit; invDraft={}; listM2(); const f=document.querySelector(`#invTable [data-f="name"][data-id="${invEdit}"]`); if(f) f.focus(); return; }
     if(e.target.closest("[data-invcancel]")){ invEdit=null; invDraft={}; listM2(); return; }
@@ -2960,9 +2958,6 @@ function listM2(){
     [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
     [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
-  const nb=document.getElementById("invAlerts"), chip=(i,cls)=>`<button type="button" class="badge ${cls}" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}">${esc(i.name)} · ${fmtQ(stockQty(i))} ${esc(unitLbl(i.unit))} (${cls==="bad"?tt("alert","alerta")+" "+fmtQ(num(i.min)):tt("max","máx")+" "+fmtQ(num(i.par))} ${esc(unitLbl(i.unit))})</button>`;
-  setHTML(nb,(low.length?`<div class="capnote invnote bad"><b>⛔ ${tt("Below alert level","Bajo el nivel de alerta")} (${low.length}):</b> ${low.map(i=>chip(i,"bad")).join(" ")}</div>`:"")
-    +(over.length?`<div class="capnote invnote warn"><b>▲ ${tt("Overstocked","Con exceso")} (${over.length}):</b> ${over.map(i=>chip(i,"warn")).join(" ")}</div>`:""));
   if(invEdit&&!invItem(invEdit)){ invEdit=null; invDraft={}; }
   const canInv=canWrite("inventory"), dv=(i,f,d)=>i.id===invEdit&&invDraft[f]!=null?invDraft[f]:d;
   const actIn=document.activeElement&&tb.contains(document.activeElement)&&document.activeElement.matches("input,select,textarea");
