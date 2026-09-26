@@ -2097,8 +2097,10 @@ function wireOrders(){
   document.getElementById("oTable").onchange=ordBookingHint;
   document.getElementById("oGuests").oninput=e=>{e.target.dataset.touched="1";};
   ordBookingHint();
+  let ordBusy=false;
+  document.getElementById("ordForm").addEventListener("input",()=>{ const m=document.getElementById("ordMsg"); if(m&&m.classList.contains("oknote")){ m.textContent=""; m.className="hint"; } });
   document.getElementById("ordForm").onsubmit=async e=>{
-    e.preventDefault(); const msg=document.getElementById("ordMsg");
+    e.preventDefault(); if(ordBusy) return; const msg=document.getElementById("ordMsg"); msg.className="hint";
     const items=[...box.querySelectorAll(".oitem")].map(r=>({dish:r.querySelector(".odish").value.trim(),qty:Math.max(1,Math.round(num(r.querySelector(".oqty").value))),doneness:r.querySelector(".odone").value,note:r.querySelector(".onote").value.trim()})).filter(i=>i.dish);
     const table=Math.round(num(val("oTable")));
     if(!table){msg.textContent=tt("Choose the table.","Elige la mesa.");return;}
@@ -2106,9 +2108,15 @@ function wireOrders(){
     const al=[...document.querySelectorAll(".allerg input[type=checkbox]:checked")].map(c=>allergenName(c.value));
     const alTxt=val("oAllergyTxt"); if(alTxt) al.push(alTxt);
     const resId=document.getElementById("oBook").dataset.res||"", b=D.reservations.find(r=>r.id===resId);
-    const stamp=new Date().toISOString();
-    await dbAdd("orders",{date:today(),table,guests:Math.max(1,Math.round(num(val("oGuests")))),items,itemsText:itemsText(items),allergies:al.join(", "),message:val("oMsg"),status:"new",resId,booking:b?b.name:"",waiter:tableWaiter(table),by:SESSION?SESSION.name:"",created:stamp,updated:stamp});
-    msg.textContent=tt(`Order for table ${table} sent to the kitchen.`,`Orden de la mesa ${table} enviada a cocina.`);
+    const stamp=new Date().toISOString(), sb=e.target.querySelector('button[type="submit"]'), sbl=sb?sb.textContent:"";
+    ordBusy=true; if(sb){ sb.disabled=true; sb.textContent="⏳ "+tt("Sending…","Enviando…"); }
+    const before=D.orders.length;
+    try{ await dbAdd("orders",{date:today(),table,guests:Math.max(1,Math.round(num(val("oGuests")))),items,itemsText:itemsText(items),allergies:al.join(", "),message:val("oMsg"),status:"new",resId,booking:b?b.name:"",waiter:tableWaiter(table),by:SESSION?SESSION.name:"",created:stamp,updated:stamp});
+    } finally{ ordBusy=false; if(sb){ sb.disabled=false; sb.textContent=sbl; } }
+    if(D.orders.length<=before&&!D.orders.some(o=>o.created===stamp&&String(o.table)===String(table))){ msg.className="hint warnnote"; msg.textContent="⚠ "+tt("The order was not sent. Try again.","La orden no se envió. Inténtalo de nuevo."); return; }
+    const wt=tableWaiter(table);
+    msg.className="hint oknote"; msg.textContent="✅ "+tt(`Order sent to the kitchen — table ${table}${wt?` (👤 ${wt})`:""}: ${itemsText(items)}${al.length?` · ⚠ allergies: ${al.join(", ")}`:""}. It now shows on the Kitchen board as “New”.`,`Orden enviada a cocina — mesa ${table}${wt?` (👤 ${wt})`:""}: ${itemsText(items)}${al.length?` · ⚠ alergias: ${al.join(", ")}`:""}. Ya aparece en el Tablero de cocina como “Nueva”.`);
+    toast("✅ "+tt(`Sent to the kitchen — table ${table}`,`Enviada a cocina — mesa ${table}`));
     e.target.reset(); box.innerHTML=itemRow(); document.getElementById("oGuests").dataset.touched=""; ordBookingHint(); ordStockCheck(); applyRoleUI();
   };
 }
