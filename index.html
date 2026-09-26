@@ -801,7 +801,7 @@ function avgCostOf(it){ if(!it) return 0; if(!kardexOn()) return num(it.cost); c
 // cost of 1 portion of a recipe = Σ ingredient quantity × Kardex weighted average cost
 function portionCost(std){
   let cost=0; const lines=[], missing=[], unlinked=[], bad=[];
-  (std.ingredients||[]).forEach(g=>{ if(!num(g.q)) return; const it=g.inv?invItem(g.inv):null;
+  (std.ingredients||[]).forEach(g=>{ if(!num(g.q)||ingFree(g)) return; const it=ingItem(g);
     if(!it){ if(invGone(g)) missing.push(g.n+" ("+tt("deleted from inventory","eliminado del inventario")+")"); else unlinked.push(g.n); return; }
     const per=convQty(g.q,g.u,it.unit); if(per==null){ bad.push(g.n); return; }
     const c=avgCostOf(it); if(!(c>0)){ missing.push(g.n); lines.push({n:g.n,it,per,cost:null}); return; }
@@ -815,14 +815,21 @@ function prodCost(pid){ const r=recipeForProd(pid); if(r){ const pc=portionCost(
 // how many portions the current stock allows, and which ingredient runs out first
 // a recipe ingredient linked to an inventory item that was deleted afterwards
 const invGone=g=>!!(g&&g.inv&&!invItem(g.inv)&&LOADED.has("inventory"));
+// the inventory item of a recipe ingredient: its link, or (if not linked) an item with the same name
+function ingItem(g){ if(!g) return null; if(g.inv){ const it=invItem(g.inv); if(it) return it; } const n=normName(g.n); return n?D.inventory.find(i=>normName(i.name)===n)||null:null; }
+// water and ice are not kept in stock; "to taste" lines have no quantity
+const ingFree=g=>!!(g&&(g.taste||/^(water|cold water|hot water|potable water|ice|agua|hielo)\b/.test(normName(g.n))));
+// portions possible = the MINIMUM over every ingredient of the recipe of (stock ÷ quantity per portion).
+// An ingredient that isn't in the inventory, was deleted, or whose unit can't be converted counts as 0 available.
 function portionsPossible(std){
-  let best=null, limit=null, linked=0; const bad=[], gone=[], T=kardexOn()?kxTotals():null;
-  (std.ingredients||[]).forEach(g=>{ if(!g.inv||!num(g.q)) return; const it=invItem(g.inv);
-    if(!it){ if(invGone(g)){ linked++; gone.push(g.n); } return; } linked++;
+  let best=null, limit=null, linked=0; const bad=[], gone=[], missing=[], T=kardexOn()?kxTotals():null;
+  (std.ingredients||[]).forEach(g=>{ if(!num(g.q)||ingFree(g)) return; linked++; const it=ingItem(g);
+    if(!it){ (invGone(g)?gone:missing).push(g.n); return; }
     const per=convQty(g.q,g.u,it.unit); if(per==null){ bad.push(g.n); return; }
     const n=Math.floor(stockQty(it,T)/per+1e-9); if(best==null||n<best){best=n;limit=g.n;} });
-  if(gone.length){ best=0; limit=gone[0]+" ("+tt("deleted from inventory","eliminado del inventario")+")"; }   // an ingredient that no longer exists can't be served
-  return {linked,best,limit,bad,gone};
+  const block=[...gone.map(n=>n+" ("+tt("deleted from inventory","eliminado del inventario")+")"),...missing.map(n=>n+" ("+tt("not in inventory","no está en el inventario")+")"),...bad.map(n=>n+" ("+tt("unit can't be converted","unidad no convertible")+")")];
+  if(block.length){ best=0; limit=block[0]; }
+  return {linked,best:best==null?0:best,limit,bad,gone,missing,block};
 }
 // stock used by N portions, in each inventory item's own unit
 function stockUseFor(std,portions){
@@ -1080,7 +1087,7 @@ function calcHTML(item){
   const std=recEdit||standardOf(item), ing=(std.ingredients||[]).filter(g=>g.n), n=Math.max(1,Math.round(num(recN))||1);
   if(!ing.length) return `<p class="empty">${tt("Add the ingredients for one portion first.","Primero agrega los ingredientes de una porción.")}</p>`;
   const pp=portionsPossible(std), T=kardexOn()?kxTotals():null, pcst=portionCost(std);
-  const rows=ing.map(g=>{ const it=g.inv?invItem(g.inv):null, need=num(g.q)*n, inU=it?convQty(need,g.u,it.unit):null, have=stockQty(it,T);
+  const rows=ing.map(g=>{ const it=ingFree(g)?null:ingItem(g), need=num(g.q)*n, inU=it?convQty(need,g.u,it.unit):null, have=stockQty(it,T);
     const ok=it&&inU!=null?have>=inU:null;
     return `<tr><td>${esc(g.n)}</td><td class="nw">${nice(num(g.q))} ${esc(g.u)}</td><td class="nw"><b>${nice(need)} ${esc(g.u)}</b>${inU!=null&&it.unit!==g.u?`<small>= ${nice(inU)} ${esc(it.unit)}</small>`:""}</td>
       <td class="nw">${it?`${nice(have)} ${esc(it.unit)}`:invGone(g)?`<span class="badge bad">${tt("deleted from inventory","eliminado del inventario")}</span>`:`<span class="dimtxt">—</span>`}</td>
@@ -1091,7 +1098,7 @@ function calcHTML(item){
    ${pcst.cost>0?`<p class="capnote">💲 ${tt("Cost per portion","Costo por porción")}: <b>${money2(pcst.cost)}</b>${n>1?` · × ${n} = <b>${money2(pcst.cost*n)}</b>`:""} <span class="dimtxt">(${tt("Kardex weighted average cost","costo promedio ponderado del Kardex")})</span>${pcst.missing.length?` · <span class="alltxt">⚠ ${tt("no Kardex cost yet","aún sin costo en Kardex")}: ${esc(pcst.missing.join(", "))}</span>`:""}</p>`:""}
    ${pp.linked?`<p class="capnote ${pp.best===0?"warnnote":""}">📦 ${tt(`With the current stock you can make <b>${pp.best}</b> portion(s)`,`Con el stock actual alcanzan <b>${pp.best}</b> porción(es)`)}${pp.limit?` — ${tt("first to run out","se acaba primero")}: ${esc(pp.limit)}`:""}.</p>`
      :`<p class="hint">${tt("Link the ingredients to inventory items to see how many portions your stock allows and to discount stock when a bill is paid.","Vincula los ingredientes con artículos del inventario para ver cuántas porciones alcanzan con tu stock y descontar el stock al cobrar una cuenta.")}</p>`}
-   ${pp.bad.length?`<p class="hint alltxt">${tt("Units that can't be converted","Unidades que no se pueden convertir")}: ${esc(pp.bad.join(", "))}</p>`:""}
+   ${pp.block&&pp.block.length?`<p class="hint alltxt">⚠ ${tt("Counted as 0 available — fix to get the real number","Se cuentan como 0 disponibles — corrígelo para ver el número real")}: ${esc(pp.block.join(", "))}</p>`:""}
    ${!std.locked||recEdit?`<p class="hint">${tt("Stock is only discounted on paid bills once this measure is saved.","El stock solo se descuenta en las cuentas cobradas cuando esta medida esté guardada.")}</p>`:""}`;
 }
 function wireStandard(item){
