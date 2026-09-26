@@ -2047,7 +2047,9 @@ function ordersView(){
       <button class="btn" type="submit">${tt("Send to kitchen","Enviar a cocina")}</button>
      </form><p class="hint" id="ordMsg" aria-live="polite"></p>
      <p class="hint"><button type="button" class="linkbtn" data-aiview="kitchen">🍳 ${tt("Open the Kitchen board","Abrir el Tablero de cocina")}</button></p></div></div>
-    <div class="stack"><div class="panel"><h3>${tt("Portions possible with current stock","Porciones posibles con el stock actual")}</h3><div id="ordPP"></div>
+    <div class="stack"><div class="panel"><h3>📋 ${tt("Orders sent to the kitchen, by table","Órdenes enviadas a cocina, por mesa")}</h3><div id="ordByTable"></div>
+     <p class="hint">${tt("Status from the Kitchen board. When an order is “Served” its dishes go to Billing by table.","Estado según el Tablero de cocina. Cuando una orden está “Entregada”, sus platos pasan a Facturación por mesa.")}</p></div>
+     <div class="panel"><h3>${tt("Portions possible with current stock","Porciones posibles con el stock actual")}</h3><div id="ordPP"></div>
      <p class="hint">${tt("From the Kardex stock and each dish's saved recipe (1 portion). Check here before taking the order.","Según el stock del Kardex y la receta guardada de cada plato (1 porción). Revisa aquí antes de tomar el pedido.")}</p></div></div>
    </div></section>`;
 }
@@ -2078,7 +2080,14 @@ function ordStockCheck(){
       :`<span class="badge ok">✓ ${esc(w.d)}: ${left} ${tt("left","disponibles")}</span>`; }).filter(Boolean);
   setHTML(el,msgs.length?`<div class="chips">${msgs.join(" ")}</div>`:"");
 }
-function listOrdPP(){ setHTML(document.getElementById("ordPP"),ppListHTML()); ordStockCheck(); }
+function ordByTableHTML(){
+  const os=D.orders.filter(o=>!o.billId&&o.status!=="cancelled"&&(o.date===today()||["new","prep","ready","served"].includes(o.status))).sort((a,b)=>num(a.table)-num(b.table)||String(a.created).localeCompare(String(b.created)));
+  if(!os.length) return `<p class="empty">${tt("No open orders. Send one to the kitchen with the form.","No hay órdenes abiertas. Envía una a cocina con el formulario.")}</p>`;
+  const tabs=[...new Set(os.map(o=>String(o.table)))];
+  return tabs.map(t=>{ const to=os.filter(o=>String(o.table)===t), wt=tableWaiter(t);
+    return `<div class="obt"><h4 class="minih">${tt("Table","Mesa")} ${esc(t)}${wt?` · 👤 ${esc(wt)}`:""}</h4><ul class="rows">${to.map(o=>`<li><div>${esc(itemsText(o.items||[])||o.itemsText||"")}<small>${esc(o.created?kxStamp(new Date(o.created)).slice(11,16):"")}${o.allergies?` · ⚠ ${esc(o.allergies)}`:""}</small></div><span class="badge ${(OSTAT[o.status]||OSTAT.new)[2]}">${o.status==="served"?"✓ "+tt("Served · in the bill","Entregada · en la cuenta"):esc(ostat(o.status))}</span></li>`).join("")}</ul></div>`; }).join("");
+}
+function listOrdPP(){ setHTML(document.getElementById("ordPP"),ppListHTML()); setHTML(document.getElementById("ordByTable"),ordByTableHTML()); ordStockCheck(); }
 function wireOrders(){
   const box=document.getElementById("oItems");
   box.addEventListener("input",ordStockCheck); box.addEventListener("change",ordStockCheck);
@@ -2146,8 +2155,10 @@ const priceOf=d=>{const m=menuFind(d);return m?num(m.price):0;};
 const taxRate=()=>{const r=D.bill&&D.bill.taxRate!=null?num(D.bill.taxRate):GST_DEFAULT;return r>=0&&r<=100?r:GST_DEFAULT;};
 const r2=n=>Math.round(num(n)*100)/100;
 // orders of a table that are not cancelled and not billed yet
-const openOrders=t=>D.orders.filter(o=>String(o.table)===String(t)&&o.status!=="cancelled"&&!o.billId);
-const tablesToBill=()=>[...new Set(D.orders.filter(o=>o.status!=="cancelled"&&!o.billId).map(o=>String(o.table)))].sort((a,b)=>num(a)-num(b));
+// a dish goes on the bill when the Kitchen board marks its order "Served"
+const openOrders=t=>D.orders.filter(o=>String(o.table)===String(t)&&o.status==="served"&&!o.billId);
+const kitchenOrders=t=>D.orders.filter(o=>String(o.table)===String(t)&&["new","prep","ready"].includes(o.status||"new")&&!o.billId);
+const tablesToBill=()=>[...new Set(D.orders.filter(o=>o.status==="served"&&!o.billId).map(o=>String(o.table)))].sort((a,b)=>num(a)-num(b));
 // the menu product a bill line matches, so paid drinks can be added to module 3
 const matchProduct=d=>{const k=dishKey(d);const m=menuFind(d);if(m&&m.prodId) return m.prodId;const p=P.find(x=>dishKey(x.name.en)===k||dishKey(x.name.es)===k);return p?p.id:"";};
 let billMsg=""; let billTable="", billLines=null, billTip=0, billTipPct=null, billDisc={v:0,mode:"pct",why:""}, billSplit=1, billMethod="cash", lastBill=null;
@@ -2169,7 +2180,7 @@ function billView(){
     <div class="stack">
      <div class="panel"><h3>${tt("Bill","Cuenta")}</h3>
       <div class="f" style="max-width:260px"><label for="blTable">${tt("Table","Mesa")}</label>
-       <select id="blTable"><option value="">${tt("Choose a table…","Elige una mesa…")}</option>${opts.map(n=>`<option value="${esc(n)}"${String(n)===String(billTable)?" selected":""}>${tt("Table","Mesa")} ${esc(n)}${pend.includes(String(n))?" · "+tt("orders pending","órdenes pendientes"):""}</option>`).join("")}</select></div>
+       <select id="blTable"><option value="">${tt("Choose a table…","Elige una mesa…")}</option>${opts.map(n=>`<option value="${esc(n)}"${String(n)===String(billTable)?" selected":""}>${tt("Table","Mesa")} ${esc(n)}${pend.includes(String(n))?" · "+tt("served, to bill","servida, por cobrar"):kitchenOrders(n).length?" · "+tt("in the kitchen","en cocina"):""}</option>`).join("")}</select></div>
       <div id="blBody"></div>${dishDatalist("dishList2")}
      </div>
      <div class="panel" id="blReceiptPanel"${lastBill?"":" hidden"}><h3>${tt("Receipt","Recibo")}</h3><pre class="receipt" id="blReceipt"></pre>
@@ -2190,9 +2201,13 @@ function billView(){
     </div>
    </div></section>`;
 }
+// orders of the table still in the kitchen: they join the bill when they are served
+function billKitchenNote(){ if(!billTable) return ""; const ks=kitchenOrders(billTable); if(!ks.length) return "";
+  return `<p class="hint warnnote">🍳 ${tt(`${ks.length} order(s) of this table are still in the kitchen — they are added to the bill when marked “Served”:`,`${ks.length} orden(es) de esta mesa siguen en cocina — se agregan a la cuenta cuando se marcan “Entregada”:`)} ${ks.map(o=>`${esc(itemsText(o.items||[]))} (${esc(ostat(o.status))})`).join(" · ")}</p>`; }
 function billBody(){
   const el=document.getElementById("blBody"); if(!el) return;
   if(!billTable){ el.innerHTML=(billMsg?`<p class="capnote">✅ ${esc(billMsg)}</p>`:"")+`<p class="empty">${tt("Choose a table to build its bill.","Elige una mesa para armar su cuenta.")}</p>`; return; }
+  if(!(billLines||[]).length&&!kitchenOrders(billTable).length&&!openOrders(billTable).length){ el.innerHTML=`<p class="empty">${tt("This table has no served dishes to bill yet. Dishes appear here when the Kitchen board marks them “Served”.","Esta mesa aún no tiene platos servidos por cobrar. Aparecen aquí cuando el Tablero de cocina los marca “Entregada”.")}</p><div class="acts"><button type="button" class="btn sm ghost" id="blAdd">+ ${tt("Add line","Agregar línea")}</button></div>`; return; }
   const t=billTotals(), tip=[0,10,15,18];
   el.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Ítem")}</th><th>${tt("Qty","Cant.")}</th><th>${tt("Price","Precio")} (${curSym()})</th><th>${tt("Line","Línea")}</th><th></th></tr></thead>
    <tbody>${(billLines||[]).map((l,i)=>`<tr data-i="${i}"><td><input class="txt" data-b="dish" value="${esc(l.dish)}" list="dishList2"></td>
@@ -2200,6 +2215,7 @@ function billBody(){
     <td><input data-b="price" type="number" min="0" step="0.01" value="${esc(inCur(l.price))}" aria-label="${tt("Price","Precio")} (${curSym()})"></td>
     <td class="nw">${money(num(l.qty)*num(l.price))}</td>
     <td><button type="button" class="btn sm ghost" data-brm="${i}" aria-label="${tt("Remove line","Quitar línea")}">✕</button></td></tr>`).join("")}</tbody></table></div>
+   <div id="blKitchen">${billKitchenNote()}</div>
    <div class="acts"><button type="button" class="btn sm ghost" id="blAdd">+ ${tt("Add line","Agregar línea")}</button><button type="button" class="btn sm ghost" id="blReload">↻ ${tt("Reload orders","Recargar órdenes")}</button></div>
    ${(billLines||[]).some(l=>!num(l.price))?`<p class="hint warnnote">⚠ ${tt("Some lines have no price. Add them to the price list or type the price here.","Algunas líneas no tienen precio. Agrégalas a la lista de precios o escribe el precio aquí.")}</p>`:""}
    <div class="billbox">
@@ -2214,8 +2230,9 @@ function billBody(){
    </div><p class="hint" id="blMsg" aria-live="polite"></p>`;
   applyRoleUI();
 }
+let billOrderIds=new Set();
 function loadTableLines(){
-  const os=openOrders(billTable), lines=[];
+  const os=openOrders(billTable), lines=[]; billOrderIds=new Set(os.map(o=>o.id));
   os.forEach(o=>(o.items||[]).forEach(i=>{
     const k=dishKey(i.dish), f=lines.find(l=>dishKey(l.dish)===k&&!l.note);
     if(f) f.qty=num(f.qty)+num(i.qty); else lines.push({dish:i.dish,qty:num(i.qty)||1,price:priceOf(i.dish)});
@@ -2329,10 +2346,19 @@ async function payBill(){
   billTable=""; billLines=null; billTip=0; billTipPct=null; billDisc={v:0,mode:"pct",why:""}; billSplit=1;
   render();
 }
+function billAddServed(){
+  if(!billTable||!billLines) return; const nw=openOrders(billTable).filter(o=>!billOrderIds.has(o.id)); if(!nw.length) return;
+  const added=[];
+  nw.forEach(o=>{ billOrderIds.add(o.id); (o.items||[]).forEach(i=>{ const k=dishKey(i.dish), f=billLines.find(l=>dishKey(l.dish)===k&&!l.note);
+    if(f) f.qty=num(f.qty)+num(i.qty); else billLines.push({dish:i.dish,qty:num(i.qty)||1,price:priceOf(i.dish)}); added.push(`${num(i.qty)||1}× ${i.dish}`); }); });
+  if(!(document.activeElement&&document.getElementById("blBody")&&document.getElementById("blBody").contains(document.activeElement))) billBody();
+  toast(tt(`Served — added to table ${billTable}'s bill: ${added.join(", ")}`,`Servido — agregado a la cuenta de la mesa ${billTable}: ${added.join(", ")}`));
+}
 function listBill(){
   const k=document.getElementById("blKpis"); if(!k) return;
+  billAddServed(); const kn=document.getElementById("blKitchen"); if(kn) setHTML(kn,billKitchenNote());
   const t=today(), day=D.bills.filter(b=>b.date===t), sum=day.reduce((s,b)=>s+num(b.total),0), tips=day.reduce((s,b)=>s+num(b.tip),0);
-  setHTML(k,[[day.length,tt("bills today","cuentas de hoy")],[money(sum),tt("charged today","cobrado hoy")],[day.length?money(sum/day.length):"—",tt("average bill","cuenta promedio")],[money(tips),tt("tips today","propinas de hoy")],[tablesToBill().length,tt("tables with orders to bill","mesas con órdenes por cobrar"),tablesToBill().length?"warn":""]]
+  setHTML(k,[[day.length,tt("bills today","cuentas de hoy")],[money(sum),tt("charged today","cobrado hoy")],[day.length?money(sum/day.length):"—",tt("average bill","cuenta promedio")],[money(tips),tt("tips today","propinas de hoy")],[tablesToBill().length,tt("tables with served dishes to bill","mesas con platos servidos por cobrar"),tablesToBill().length?"warn":""]]
     .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join(""));
   const pt=document.getElementById("prTable"), rows=menuActive().slice().sort((a,b)=>String(a.cat).localeCompare(String(b.cat))||String(a.name).localeCompare(String(b.name)));
   if(pt) setHTML(pt,rows.length?`<table class="dt"><thead><tr><th>${tt("Item","Ítem")}</th><th>${tt("Group","Grupo")}</th><th>${tt("Price","Precio")}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="nw">${esc(catName(r.cat))} · ${esc(kindName(r.cat,r.kind))}</td><td class="nw">${num(r.price)?money(r.price):`<span class="badge warn">${tt("no price","sin precio")}</span>`}</td></tr>`).join("")}</tbody></table>`
