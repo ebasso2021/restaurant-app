@@ -186,6 +186,7 @@ textarea{resize:vertical}
 .invnote{padding:10px 12px;border-radius:10px;margin:0 0 10px;color:var(--ink);line-height:1.9}
 .invnote.bad{background:var(--bad-bg);border-left:4px solid var(--bad)}.invnote.warn{background:var(--warn-bg);border-left:4px solid var(--warn)}
 .invnote .badge{cursor:pointer;background:var(--surface);border:1px solid currentColor;font-size:12px;margin:2px 4px 2px 0}
+table.bcost tr.dayrow td{background:var(--sunk);border-top:2px solid var(--line)}table.bcost tfoot td{border-top:2px solid var(--ink)}
 tr.invlow td{background:var(--bad-bg)}tr.invlow td:first-child{box-shadow:inset 4px 0 0 var(--bad)}
 tr.invover td{background:var(--warn-bg)}tr.invover td:first-child{box-shadow:inset 4px 0 0 var(--warn)}
 .badge{display:inline-block;font:600 11px var(--mono);letter-spacing:.04em;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:1px;white-space:nowrap}
@@ -2202,6 +2203,30 @@ function billView(){
    </div></section>`;
 }
 // orders of the table still in the kitchen: they join the bill when they are served
+// cost of what a bill sold: every line × its dish's cost per portion (saved recipe × Kardex weighted average cost)
+function billCostOf(lines){ let cost=0, known=true; const out=[];
+  (lines||[]).forEach(l=>{ const q=num(l.qty); if(!(q>0)) return; const m=menuFind(l.dish), r=m?recipeOf(m.id):null;
+    const pc=r&&r.locked?portionCost(r):null, u=pc?pc.cost:0; if(!pc||!pc.known) known=false;
+    const c=cost2(u*q); cost+=c; out.push({dish:l.dish,qty:q,unitCost:cost2(u),cost:c}); });
+  return {cost:cost2(cost),lines:out,known}; }
+const billRevenue=b=>cost2(num(b.subtotal)-num(b.discount));   // what the food and drinks sold for (no GST, no tip)
+function billCost(b){ if(b.cost!=null&&b.cost!=="") return {cost:num(b.cost),known:b.costKnown!==false,est:false}; const c=billCostOf(b.lines); return {cost:c.cost,known:c.known,est:true}; }
+let bcDays=30;
+function billCostsHTML(){
+  const since=bcDays?addDays(today(),-bcDays+1):"", bills=D.bills.filter(b=>b.status!=="void"&&(!since||String(b.date||"")>=since)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.paid||b.created||"").localeCompare(String(a.paid||a.created||"")));
+  if(!bills.length) return `<p class="empty">${tt("No bills in this period.","No hay cuentas en este periodo.")}</p>`;
+  const target=num(D.costs&&D.costs._target)||60, days=[...new Set(bills.map(b=>b.date))];
+  let T={rev:0,cost:0,n:0};
+  const rows=days.map(d=>{ const bs=bills.filter(b=>b.date===d); let dr=0,dc=0;
+    const lines=bs.map(b=>{ const c=billCost(b), rev=billRevenue(b), mg=rev>0?(rev-c.cost)/rev*100:null; dr+=rev; dc+=c.cost;
+      return `<tr><td class="nw">${esc((()=>{ const v=b.paid||b.created; const d=v?new Date(v):null; return d&&!isNaN(d)?kxStamp(d).slice(11,16):""; })())}</td><td class="nw"><b>${esc(String(b.id||"").replace(/^b/,""))}</b></td><td class="nw">${tt("Table","Mesa")} ${esc(b.table)}</td><td>${esc(b.linesText||(b.lines||[]).map(l=>`${l.qty}× ${l.dish}`).join("; "))}</td>
+        <td class="nw">${money2(rev)}</td><td class="nw">${c.est?"≈ ":""}${money2(c.cost)}${c.known?"":` <span class="badge warn" title="${tt("A dish has no saved recipe or an ingredient has no Kardex cost","Un plato no tiene receta guardada o un ingrediente no tiene costo en el Kardex")}">!</span>`}</td>
+        <td class="nw">${money2(rev-c.cost)}</td><td class="nw">${mg==null?"—":`<span class="badge ${mg<target?"bad":"ok"}">${Math.round(mg)}%</span>`}</td></tr>`; }).join("");
+    T.rev+=dr; T.cost+=dc; T.n+=bs.length;
+    return `<tr class="dayrow"><td colspan="4"><b>${esc(d)}</b> · ${bs.length} ${tt("bill(s)","cuenta(s)")}</td><td class="nw"><b>${money2(dr)}</b></td><td class="nw"><b>${money2(dc)}</b></td><td class="nw"><b>${money2(dr-dc)}</b></td><td class="nw">${dr>0?Math.round((dr-dc)/dr*100)+"%":"—"}</td></tr>`+lines; }).join("");
+  return `<div class="tablewrap"><table class="dt bcost"><thead><tr><th>${tt("Time","Hora")}</th><th>${tt("Bill no.","N° de cuenta")}</th><th>${tt("Table","Mesa")}</th><th>${tt("Items","Ítems")}</th><th>${tt("Sales (no GST/tip)","Venta (sin GST/propina)")}</th><th>${tt("Cost (Kardex)","Costo (Kardex)")}</th><th>${tt("Margin","Margen")}</th><th>%</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="4"><b>${tt("Total","Total")}</b> · ${T.n} ${tt("bill(s)","cuenta(s)")}</td><td class="nw"><b>${money2(T.rev)}</b></td><td class="nw"><b>${money2(T.cost)}</b></td><td class="nw"><b>${money2(T.rev-T.cost)}</b></td><td class="nw">${T.rev>0?Math.round((T.rev-T.cost)/T.rev*100)+"%":"—"}</td></tr></tfoot></table></div>`;
+}
 function billKitchenNote(){ if(!billTable) return ""; const ks=kitchenOrders(billTable); if(!ks.length) return "";
   return `<p class="hint warnnote">🍳 ${tt(`${ks.length} order(s) of this table are still in the kitchen — they are added to the bill when marked “Served”:`,`${ks.length} orden(es) de esta mesa siguen en cocina — se agregan a la cuenta cuando se marcan “Entregada”:`)} ${ks.map(o=>`${esc(itemsText(o.items||[]))} (${esc(ostat(o.status))})`).join(" · ")}</p>`; }
 function billBody(){
@@ -2324,6 +2349,7 @@ async function payBill(){
   const rest=lines.map(l=>{ const k=dishKey(l.dish), take=Math.min(num(l.qty),num(done[k])); done[k]=num(done[k])-take; return {dish:l.dish,qty:r3(num(l.qty)-take)}; }).filter(l=>l.qty>0);
   const use=stockUseForLines(rest);
   bill.stockLines=rest; bill.stockUse=use; bill.stockText=useText(use);
+  { const bc=billCostOf(lines); bill.cost=bc.cost; bill.costLines=bc.lines; bill.costKnown=bc.known; }
   const id="b"+today().replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7);
   await dbSet("bills/"+id,bill);
   // on the Google Sheet the server discounts the stock when it saves a new bill; elsewhere the app does it
@@ -3274,6 +3300,10 @@ function m3(){
     </div>
     <div class="stack"><div class="panel"><h3>${tt("Stock value","Valor del stock")}</h3><div id="m3Stock"></div></div></div>
    </div>
+   <div class="panel" style="margin-top:20px"><div class="flexrow"><h3 style="margin:0">🧾 ${tt("Cost of sales by bill","Costo de ventas por cuenta")}</h3>
+     ${field("bcDays",tt("Period","Periodo"),`<select id="bcDays">${[[1,tt("Today","Hoy")],[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===bcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}</div>
+    <div id="bcBox"></div>
+    <p class="hint">${tt("For each bill number, by date: what the dishes and drinks sold for (subtotal less discount, without GST or tip) and what they cost — each line × its recipe's cost per portion with the Kardex weighted average cost, saved when the bill is charged. ≈ = older bill, costed with today's weighted average. ! = a dish without a saved recipe or an ingredient without Kardex cost.","Por cada número de cuenta, por fecha: en cuánto se vendieron los platos y bebidas (subtotal menos descuento, sin GST ni propina) y cuánto costaron — cada línea × el costo por porción de su receta con el costo promedio ponderado del Kardex, guardado al cobrar. ≈ = cuenta antigua, costeada con el promedio ponderado de hoy. ! = un plato sin receta guardada o un ingrediente sin costo en el Kardex.")}</p></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
     <p class="hint" style="margin:0 0 10px">${tt("Enter each cost as you pay it — per week, per month or per year. The app converts everything to a monthly amount, subtracts it from the gross margin of the period and shows your net profit and break-even point. Amounts in","Ingresa cada costo como lo pagas — por semana, por mes o por año. La app lo convierte todo a un monto mensual, lo resta del margen bruto del periodo y muestra tu utilidad neta y punto de equilibrio. Montos en")} ${curSym()}.</p>
     <div id="opexBox"></div>
@@ -3351,6 +3381,7 @@ function wireM3(){
   };
   if(g("rangeBtns")) g("rangeBtns").onclick=e=>{const b=e.target.closest("[data-range]"); if(!b) return; range=+b.dataset.range; render();};
   if(g("tMargin")) g("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
+  if(g("bcDays")) g("bcDays").onchange=e=>{ bcDays=num(e.target.value); setHTML(g("bcBox"),billCostsHTML()); };
   if(g("costBox")) g("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
   if(g("sAI")) g("sAI").onclick=salesAI;
   if(g("opexBox")) wireOpex();
@@ -3453,7 +3484,7 @@ function listM3(){
   if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""} style="${invStyle(i)}">${esc(i.name)} (${esc(unitLbl(i.unit))})${invTag(i)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
     setHTML(document.getElementById("kxMonthBox"),kxMonthHTML());
     listKardex(); return; }
-  const cb=document.getElementById("costBox");
+  const cb=document.getElementById("costBox"); setHTML(document.getElementById("bcBox"),billCostsHTML());
   const st0=document.getElementById("m3Stock");
   if(st0){ const inv=[...D.inventory].sort((a,b)=>stockValue(b)-stockValue(a)); const tot=inv.reduce((s,i)=>s+stockValue(i),0);
     setHTML(st0,inv.length?`<div class="kpi"><div class="big">${money(tot)}</div><div class="lbl">${tt("total stock value","valor total del stock")}</div></div><ul class="rows">${inv.slice(0,8).map(i=>`<li><div>${esc(i.name)}<small>${num(i.qty)} ${esc(unitLbl(i.unit))}</small></div><b>${money2(stockValue(i))}</b></li>`).join("")}</ul><p class="hint">${tt("From 2 · Kitchen & inventory. The Kardex tab has every movement.","Desde 2 · Cocina e inventario. La pestaña Kardex tiene cada movimiento.")}</p>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`); }
