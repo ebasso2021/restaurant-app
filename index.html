@@ -834,7 +834,7 @@ function portionsPossible(std){
 // stock used by N portions, in each inventory item's own unit
 function stockUseFor(std,portions){
   const out=[];
-  (std.ingredients||[]).forEach(g=>{ if(!g.inv) return; const it=invItem(g.inv); if(!it) return;
+  (std.ingredients||[]).forEach(g=>{ if(!num(g.q)||ingFree(g)) return; const it=ingItem(g); if(!it) return;
     const per=convQty(g.q,g.u,it.unit); if(per==null) return;
     const f=out.find(x=>x.id===it.id); const q=Math.round(per*portions*100)/100;
     if(f) f.qty=Math.round((f.qty+q)*100)/100; else out.push({id:it.id,name:it.name,unit:it.unit,qty:q}); });
@@ -2108,6 +2108,11 @@ function wireKitchen(){
   document.getElementById("ordBoard").onclick=async e=>{
     const b=e.target.closest("[data-ost]"); if(!b) return; const id=b.dataset.id;
     if(b.dataset.ost==="del"){ if(confirm(tt("Delete this order?","¿Borrar esta orden?"))) await dbDel("orders",id); return; }
+    if(b.dataset.ost==="served"){ const o=D.orders.find(x=>x.id===id); if(!o) return; b.disabled=true;
+      const r=await serveOrder(o);
+      toast(r.again?tt(`Table ${o.table} served (stock was already taken out).`,`Mesa ${o.table} servida (el stock ya se había descontado).`)
+        :r.use.length?tt(`Table ${o.table} served · Kardex out: ${useText(r.use)}`,`Mesa ${o.table} servida · salida de Kardex: ${useText(r.use)}`)
+        :tt(`Table ${o.table} served · no saved recipe linked to stock, nothing taken out.`,`Mesa ${o.table} servida · sin receta guardada vinculada al stock, no se descontó nada.`)); return; }
     await dbUpd("orders",id,{status:b.dataset.ost,updated:new Date().toISOString()});
   };
   clearInterval(ordTimer); ordTimer=setInterval(()=>{ if(state.tab!=="ai"||state.aiView!=="kitchen"){clearInterval(ordTimer);return;} if(DB&&DB._refresh&&document.visibilityState==="visible") DB._refresh("orders"); else listOrders(); },15000);
@@ -2123,6 +2128,7 @@ function listOrders(){
     <ul class="oitems">${(o.items||[]).map(i=>`<li><b>${esc(i.qty)}×</b> ${esc(i.dish)}${i.doneness?` <span class="don">${esc(donName(i.doneness))}</span>`:""}${i.note?`<small>${esc(i.note)}</small>`:""}</li>`).join("")||`<li>${esc(o.itemsText||"")}</li>`}</ul>
     ${o.message?`<div class="omsg">💬 ${esc(o.message)}</div>`:""}
     ${o.booking?`<div class="dimtxt">📅 ${esc(o.booking)}</div>`:""}
+    ${o.stockDone&&o.stockText?`<div class="dimtxt">📦 ${tt("Kardex out","Salida de Kardex")}: ${esc(o.stockText)}</div>`:""}
     <div class="acts">${next[o.status]?`<button class="btn sm" data-ost="${next[o.status][0]}" data-id="${esc(o.id)}">${next[o.status][1]}</button>`:""}${["new","prep"].includes(o.status)?`<button class="btn sm ghost" data-ost="cancelled" data-id="${esc(o.id)}">${tt("Cancel","Cancelar")}</button>`:""}${o.status==="served"||o.status==="cancelled"?`<button class="btn sm ghost" data-ost="new" data-id="${esc(o.id)}">${tt("Reopen","Reabrir")}</button><button class="btn sm ghost" data-ost="del" data-id="${esc(o.id)}">${tt("Delete","Borrar")}</button>`:""}</div></article>`;
   setHTML(el,`<div class="board">${cols.map(c=>{const rows=all.filter(o=>c.includes(o.status||"new")); return `<div class="bcol"><h4>${c.length>1?tt("Served / cancelled","Entregadas / canceladas"):ostat(c[0])} <span class="badge">${rows.length}</span></h4>${rows.map(card).join("")||`<p class="empty">—</p>`}</div>`;}).join("")}</div>`);
   applyRoleUI();
@@ -2296,18 +2302,18 @@ async function payBill(){
     total:t.total,split:t.split,per:t.per,method:billMethod,status:"paid",orderIds:os.map(o=>o.id).join(","),
     currency:curOk(state.cur)?state.cur:"CAD",rate:curOk(state.cur)?curRate(state.cur):1,totalCur:r2(t.total*(curOk(state.cur)?curRate(state.cur):1)),
     by:SESSION?SESSION.name:"",created:stamp,paid:stamp};
-  // stock used: each paid line × its recipe's standard measure (only saved measures linked to inventory)
-  const use=[];
-  lines.forEach(l=>{ const m=menuFind(l.dish); const r=m?recipeOf(m.id):null;
-    if(!r||!r.locked) return; stockUseFor(r,num(l.qty)).forEach(u=>{ const f=use.find(x=>x.id===u.id); if(f) f.qty=r3(f.qty+u.qty); else use.push({...u}); }); });
-  bill.stockUse=use; bill.stockText=use.map(u=>`${u.name} −${nice(u.qty)} ${u.unit}`).join("; ");
+  // stock: dishes already served from the Kitchen board left the Kardex then; the bill only takes out the rest
+  const done={}; os.filter(o=>o.stockDone).forEach(o=>(o.items||[]).forEach(i=>{ const k=dishKey(i.dish); done[k]=num(done[k])+num(i.qty); }));
+  const rest=lines.map(l=>{ const k=dishKey(l.dish), take=Math.min(num(l.qty),num(done[k])); done[k]=num(done[k])-take; return {dish:l.dish,qty:r3(num(l.qty)-take)}; }).filter(l=>l.qty>0);
+  const use=stockUseForLines(rest);
+  bill.stockLines=rest; bill.stockUse=use; bill.stockText=useText(use);
   const id="b"+today().replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7);
   await dbSet("bills/"+id,bill);
   // on the Google Sheet the server discounts the stock when it saves a new bill; elsewhere the app does it
   if(MODE!=="sheet") for(const u of use){ const it=invItem(u.id); if(it) await kardexMove(it,{type:"out",reason:"sale",qty:u.qty,ref:tt("Bill","Factura")+" "+id}); }
-  else if(use.length&&DB&&DB._refresh) setTimeout(()=>DB._refresh("inventory"),800);
-  // close the table's orders, free the table and add the menu drinks to the day's sales
-  for(const o of os) await dbUpd("orders",o.id,{status:"served",billId:id,updated:stamp});
+  else if(use.length&&DB&&DB._refresh) setTimeout(()=>{ DB._refresh("inventory"); DB._refresh("kardex"); },800);
+  // close the table's orders (their stock is now taken out by the bill), free the table and add the menu drinks to the day's sales
+  for(const o of os) await dbUpd("orders",o.id,{status:"served",billId:id,stockDone:true,updated:stamp});
   const tb=D.tables.find(x=>String(x.num)===String(billTable));
   if(tb&&tb.occupied) await dbUpd("tables",tb.id,{occupied:false,occSince:""});
   let counted=0, skipped=0;
@@ -3042,6 +3048,27 @@ function kmDoneText(it,verb,type,q,uc,date,r){ const k={qty:q,unit:it.unit,pack:
   const big=(b.u!==unitLbl(it.unit))?` (${fmtQ(b.v)} ${b.u})`:"", tot=inn&&uc!=null?cost2(toBaseI(q,it)*uc):null;
   return "✅ "+tt(`${verb==="add"?"Movement added":"Movement updated"}: ${inn?"In":"Out"} ${inn?"+":"−"}${fmtQ(q)} ${unitLbl(it.unit)}${big} of ${it.name} on ${date}${tot!=null?` · total ${money2(tot)}`:""} · new balance ${fmtQ(r.q)} ${unitLbl(it.unit)} · weighted average ${pc?money4(r.c):money2(r.c)} / ${costPerLbl(it.unit)}.`,
     `${verb==="add"?"Registro agregado":"Registro actualizado"}: ${inn?"Entrada":"Salida"} ${inn?"+":"−"}${fmtQ(q)} ${unitLbl(it.unit)}${big} de ${it.name} el ${date}${tot!=null?` · total ${money2(tot)}`:""} · saldo nuevo ${fmtQ(r.q)} ${unitLbl(it.unit)} · promedio ponderado ${pc?money4(r.c):money2(r.c)} / ${costPerLbl(it.unit)}.`); }
+// stock used by a list of dishes [{dish,qty}] = each dish × its saved recipe (1 portion)
+function stockUseForLines(lines){ const use=[];
+  (lines||[]).forEach(l=>{ const q=num(l.qty); if(!(q>0)) return; const m=menuFind(l.dish); const r=m?recipeOf(m.id):null; if(!r||!r.locked) return;
+    stockUseFor(r,q).forEach(u=>{ const f=use.find(x=>x.id===u.id); if(f) f.qty=r3(f.qty+u.qty); else use.push({...u}); }); });
+  return use; }
+const useText=use=>use.map(u=>`${u.name} −${nice(u.qty)} ${unitLbl(u.unit)}`).join("; ");
+// a dish or drink served from the Kitchen board: every ingredient of its recipe leaves the Kardex (type out)
+async function serveOrder(o){
+  const stamp=new Date().toISOString();
+  if(o.stockDone){ await dbUpd("orders",o.id,{status:"served",updated:stamp}); return {use:o.stockUse||[],again:true}; }
+  const use=stockUseForLines((o.items||[]).map(i=>({dish:i.dish,qty:i.qty})));
+  if(MODE==="sheet"){   // the server takes the stock out when it saves the order as served (any role can serve)
+    await dbUpd("orders",o.id,{status:"served",updated:stamp});
+    if(DB&&DB._refresh) setTimeout(()=>{ ["orders","kardex","inventory"].forEach(c=>DB._refresh(c)); },900);
+  } else {
+    const ref=tt(`Served · table ${o.table}`,`Servido · mesa ${o.table}`);
+    for(const u of use){ const it=invItem(u.id); if(it) await kardexMove(it,{type:"out",reason:"sale",qty:u.qty,ref}); }
+    await dbUpd("orders",o.id,{status:"served",stockDone:true,stockUse:use,stockText:useText(use),updated:stamp});
+  }
+  return {use};
+}
 function kardexRows(){ const since=kxDays?addDays(today(),-kxDays+1):""; return D.kardex.filter(k=>(!kxItem||k.itemId===kxItem)&&(!since||String(k.date||"")>=since)).sort((a,b)=>String(b.when||b.date).localeCompare(String(a.when||a.date))); }
 function listKardex(){
   const el=document.getElementById("kxBox"); if(!el) return;

@@ -232,10 +232,22 @@ function handle_(req) {
       let data = req.data;
       // a new paid bill discounts the stock its recipes use; the server works it out itself
       let uses = null;
-      if (col === "bills" && isNew) { uses = stockForBill_(data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
+      // a bill only takes out the dishes that were not already served from the Kitchen board (the app sends them in stockLines)
+      if (col === "bills" && isNew && data.stockDone !== true) { uses = stockForBill_(Array.isArray(data.stockLines) ? { lines: data.stockLines } : data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
+      // an order marked "served" on the Kitchen board takes its recipes' ingredients out of the Kardex (type out), once
+      let orderRef = "";
+      if (col === "orders") {
+        const old = isNew ? null : docData_(col, id);
+        if (old && old.stockDone === true) { data.stockDone = true; if (old.stockUse) data.stockUse = old.stockUse; if (old.stockText) data.stockText = old.stockText; }
+        else if (data.status === "served" && data.stockDone !== true) {
+          uses = stockForBill_({ lines: (Array.isArray(data.items) ? data.items : []).map(function (i) { return { dish: i && i.dish, qty: i && i.qty }; }) });
+          data.stockDone = true; data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; ");
+          orderRef = "Servido · mesa " + (data.table || "");
+        }
+      }
       if (JSON.stringify(data).length > 45000) return out_({ ok: false, error: "too_big" }); // a cell holds at most 50 000 characters
       write_(col, id, data);
-      if (uses && uses.length) useStock_(uses, "Factura " + id, s.name || s.user || "");
+      if (uses && uses.length) useStock_(uses, orderRef || ("Factura " + id), s.name || s.user || "");
       return out_({ ok: true });
     }
     if (action === "delete") {
@@ -301,6 +313,10 @@ function moveOldRecipes_(ss, dest) {
   const labels = FIELDS.recipes.map(function (f) { return f[1]; });
   const head = old.getRange(1, 1, 1, old.getLastColumn()).getDisplayValues()[0];
   for (let c = head.length; c >= 1; c--) if (labels.indexOf(head[c - 1]) >= 0) old.deleteColumn(c);
+}
+function docData_(col, id) { // the saved JSON of one row (null when it doesn't exist)
+  const sh = sheet_(col), r = rowOf_(sh, id); if (r < 0) return null;
+  try { return JSON.parse(sh.getRange(r, 2).getValue() || "{}"); } catch (e) { return {}; }
 }
 function headerMap_(col, headers) { // header → field
   const m = {}; FIELDS[col].forEach(function (f) { m[f[1]] = f[0]; });
@@ -429,6 +445,7 @@ function applyPurchase_(sh, r) {
 // units the recipes use → the unit of each inventory item
 const UF_ = { g: ["m", 1], kg: ["m", 1000], mg: ["m", 0.001], ml: ["v", 1], mL: ["v", 1], l: ["v", 1000], L: ["v", 1000], tbsp: ["v", 15], tsp: ["v", 5], pc: ["c", 1], u: ["c", 1], und: ["c", 1] };
 function conv_(q, from, to) { const a = UF_[from], b = UF_[to]; if (!a || !b || a[0] !== b[0]) return null; return Number(q) * a[1] / b[1]; }
+const nname_ = function (t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim(); };
 // stock used by a bill: every line × the saved standard measure (1 portion) of its menu item
 function stockForBill_(bill) {
   const lines = Array.isArray(bill.lines) ? bill.lines.slice(0, 200) : []; if (!lines.length) return [];
@@ -436,11 +453,12 @@ function stockForBill_(bill) {
   const menu = list_("menu"), recipes = list_("recipes"), inv = list_("inventory"), out = [];
   lines.forEach(function (l) {
     const qty = Number(l && l.qty); if (!(qty > 0)) return;
-    const m = menu.filter(function (x) { return key(x.data.name) === key(l.dish); })[0]; if (!m) return;
+    const m = menu.filter(function (x) { return [x.data.name, x.data.name_en, x.data.name_es].some(function (n) { return n && key(n) === key(l.dish); }); })[0]; if (!m) return;
     const r = recipes.filter(function (x) { return x.data.itemId === m.id && x.data.locked === true; })[0]; if (!r) return;
     (Array.isArray(r.data.ingredients) ? r.data.ingredients : []).forEach(function (g) {
-      if (!g || !g.inv) return;
-      const it = inv.filter(function (x) { return x.id === g.inv; })[0]; if (!it) return;
+      if (!g || !(Number(g.q) > 0)) return;
+      // linked item, or (not linked) the inventory item with the same name
+      const it = (g.inv && inv.filter(function (x) { return x.id === g.inv; })[0]) || inv.filter(function (x) { return nname_(x.data.name) === nname_(g.n); })[0]; if (!it) return;
       const per = conv_(g.q, g.u, it.data.unit); if (per == null || !(per > 0)) return;
       const q = Math.round(per * qty * 100) / 100, f = out.filter(function (x) { return x.id === it.id; })[0];
       if (f) f.qty = Math.round((f.qty + q) * 100) / 100; else out.push({ id: it.id, name: it.data.name, unit: it.data.unit, qty: q });
