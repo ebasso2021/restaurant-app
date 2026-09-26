@@ -2955,8 +2955,8 @@ function listM2(){
   const stockVal=inv.reduce((s,i)=>s+stockValue(i),0);
   const since=addDays(today(),-30), w30=D.waste.filter(w=>w.date>=since), wCost=w30.reduce((s,w)=>s+num(w.cost),0);
   document.getElementById("invKpis").innerHTML=[
-    [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
-    [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
+    [low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
+    [over.length,tt("overstocked","con exceso"),over.length?"warn":""]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
   if(invEdit&&!invItem(invEdit)){ invEdit=null; invDraft={}; }
   const canInv=canWrite("inventory"), dv=(i,f,d)=>i.id===invEdit&&invDraft[f]!=null?invDraft[f]:d;
