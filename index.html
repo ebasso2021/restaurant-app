@@ -1304,7 +1304,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={kardex:[],inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},opex:{},kxMonths:{}};
+const D={kardex:[],inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},opex:{},kxMonths:{},staff:{}};
 if(!state.aiView) state.aiView="overview";
 
 const LOADED=new Set(); // collections that have answered at least once
@@ -1543,6 +1543,7 @@ function startData(){
   if(canRead("settings")){ DB.doc("settings/costs").onSnapshot(s=>{D.costs=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/bill").onSnapshot(s=>{D.bill=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/kardex").onSnapshot(s=>{D.kxMonths=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+    DB.doc("settings/staff").onSnapshot(s=>{D.staff=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/path").onSnapshot(s=>{D.path=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/opex").onSnapshot(s=>{D.opex=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
@@ -1719,6 +1720,7 @@ async function tagCostPer(){ costPerDone=true; for(const i of D.inventory) if(i.
 function refreshNow(){
   if(!costPerDone&&DB&&LOADED.has("inventory")&&D.inventory.length&&canWrite("inventory")) tagCostPer();
   if(!dedupeDone&&LOADED.has("menu")&&LOADED.has("recipes")&&canWrite("menu")) dedupeAppDrinks();
+  if(!staffSynced&&DB&&SESSION&&SESSION.role==="admin") syncStaff();
   kardexHeal();
   if(state.tab==="recipes"){
     const sig=JSON.stringify(D.menu.map(m=>[m.id,m.name,m.cat,m.kind,m.price]))+"|"+JSON.stringify(D.recipes.map(r=>[r.itemId,r.updated,r.locked]))+"|"+JSON.stringify(D.inventory.map(i=>[i.id,i.name,i.unit,i.qty]))+"|"+(D.kardex||[]).length+":"+JSON.stringify(Object.values(kardexOn()?kxTotals():{}).map(t=>[t.itemId,t.q]))+"|"+state.recipe;
@@ -1932,6 +1934,17 @@ function pickTable(party,date,time,want){
 function tableOptions(sel,withAuto){
   return (withAuto?`<option value="">${tt("Automatic (smallest free table)","Automática (mesa libre más pequeña)")}</option>`:"")+activeTables().map(t=>`<option value="${esc(t.num)}"${String(t.num)===String(sel)?" selected":""}>${tt("Table","Mesa")} ${esc(t.num)} · ${esc(t.seats)} ${tt("chairs","sillas")}${t.zone?" · "+esc(t.zone):""}</option>`).join("");
 }
+/* ----- waiter assigned to each active table ----- */
+// names to choose from: waiters saved from the Users list (settings/staff), names already assigned, and the signed-in waiter
+function waiterNames(){ const set=new Set([...(((D.staff||{}).waiters)||[]),...D.tables.map(t=>t.waiter).filter(Boolean)]);
+  if(SESSION&&SESSION.role==="mesero"&&SESSION.name) set.add(SESSION.name); return [...set].map(String).filter(Boolean).sort((a,b)=>a.localeCompare(b)); }
+const waiterDatalist=()=>`<datalist id="waiterList">${waiterNames().map(n=>`<option value="${esc(n)}"></option>`).join("")}</datalist>`;
+const tableWaiter=tnum=>{ const t=D.tables.find(x=>String(x.num)===String(tnum)); return t&&t.active!==false?String(t.waiter||""):""; };
+// the administrator's Users list feeds the waiter names (active users with role "mesero"), so every role can pick them
+let staffSynced=false;
+async function syncStaff(){ staffSynced=true; if(MODE!=="sheet"||!SESSION||SESSION.role!=="admin"||!canWrite("settings")) return;
+  try{ const j=await sheetCall(serverUrl(),{action:"users_list"}); const w=(j.users||[]).filter(u=>u.role==="mesero"&&u.active!==false).map(u=>String(u.name||u.user)).filter(Boolean).sort();
+    if(JSON.stringify(w)!==JSON.stringify(((D.staff||{}).waiters)||[])) await dbSet("settings/staff",{...(D.staff||{}),waiters:w,updated:new Date().toISOString()}); }catch(e){ console.warn("syncStaff",e); } }
 let tblDate=null;
 function tablesView(){
   if(!tblDate) tblDate=today();
@@ -1946,7 +1959,8 @@ function tablesView(){
        ${field("tZone",tt("Zone (optional)","Zona (opcional)"),`<input id="tZone" placeholder="${tt("Window, terrace…","Ventana, terraza…")}">`)}
        <button class="btn" type="submit">${tt("Add table","Agregar mesa")}</button>
       </form><p class="hint" id="tblMsg" aria-live="polite"></p></div>
-     <div class="panel"><h3>${tt("Tables","Mesas")}</h3><div class="tablewrap" id="tblTable"></div></div>
+     <div class="panel"><h3>${tt("Tables","Mesas")}</h3><div class="tablewrap" id="tblTable"></div>${waiterDatalist()}
+      <p class="hint">${tt("Waiter: type or pick the name for each active table; it shows on the floor, in Orders by table and on the Kitchen board. Leave it empty to unassign.","Mesero: escribe o elige el nombre para cada mesa activa; aparece en el salón, en Órdenes por mesa y en el Tablero de cocina. Déjalo vacío para quitarlo.")}</p></div>
     </div>
     <div class="stack">
      <div class="panel"><h3>${tt("Occupancy","Ocupación")}</h3>
@@ -1969,6 +1983,8 @@ function wireTables(){
     if(el.dataset.f==="seats"){ const s=Math.round(num(el.value)); if(s<1){refreshAI();return;} await dbUpd("tables",id,{seats:s}); }
     if(el.dataset.f==="zone") await dbUpd("tables",id,{zone:el.value.trim()});
     if(el.dataset.f==="active") await dbUpd("tables",id,{active:el.checked});
+    if(el.dataset.f==="waiter"){ const w=el.value.trim().slice(0,40); await dbUpd("tables",id,{waiter:w,waiterSince:w?new Date().toISOString():""});
+      const t=D.tables.find(x=>x.id===id); toast(w?tt(`Table ${t?t.num:""}: waiter ${w}.`,`Mesa ${t?t.num:""}: mesero ${w}.`):tt(`Table ${t?t.num:""}: no waiter.`,`Mesa ${t?t.num:""}: sin mesero.`)); }
   });
   tb.addEventListener("focusout",()=>setTimeout(()=>{if(!tb.contains(document.activeElement))refreshAI();},50));
   tb.addEventListener("click",async e=>{ const o=e.target.closest("[data-tocc]"); if(o){ const t=D.tables.find(x=>x.id===o.dataset.tocc); if(t) await dbUpd("tables",t.id,t.occupied?{occupied:false,occSince:""}:{occupied:true,occSince:new Date().toISOString()}); return; }
@@ -1983,13 +1999,14 @@ function listTables(){
   setHTML(k,[[tabs.length,tt("active tables","mesas activas")],[totalCap(),tt("total capacity (chairs)","capacidad total (sillas)")],[tabs.length?Math.max(...tabs.map(x=>num(x.seats))):0,tt("largest table","mesa más grande")],[busyNow+" / "+tabs.length,tt("tables booked now","mesas reservadas ahora")],[occNow+" / "+tabs.length,tt("occupied now","ocupadas ahora"),"bad"],[freeNow+" / "+tabs.length,tt("free · ready for bookings","libres · listas para reservas"),"okk"]]
     .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join(""));
   const tb=document.getElementById("tblTable");
-  if(!(tb.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")) setHTML(tb,all.length?`<table class="dt"><thead><tr><th>${tt("Table","Mesa")}</th><th>${tt("Chairs","Sillas")}</th><th>${tt("Zone","Zona")}</th><th>${tt("Active","Activa")}</th><th>${tt("Status now","Estado ahora")}</th><th></th></tr></thead><tbody>${all.map(x=>`<tr data-id="${x.id}"><td class="nw"><b>${esc(x.num)}</b></td><td><input data-f="seats" type="number" min="1" value="${esc(x.seats)}" aria-label="${tt("Chairs","Sillas")}"></td><td><input class="txt" data-f="zone" value="${esc(x.zone||"")}" aria-label="${tt("Zone","Zona")}"></td><td><input data-f="active" type="checkbox" style="width:auto"${x.active!==false?" checked":""} aria-label="${tt("Active","Activa")}"></td><td>${(()=>{const st=tableStatus(x);return st[0]==="off"?`<span class="tstat off">${st[1]}</span>`:`<button type="button" class="tstat ${st[0]}" data-tocc="${esc(x.id)}" aria-pressed="${!!x.occupied}" title="${x.occupied?tt("Tap when the guests leave","Toca cuando los clientes se vayan"):tt("Tap when guests sit down","Toca cuando los clientes se sienten")}">${x.occupied?"● ":"○ "}${st[1]}</button>`;})()}</td><td><button type="button" class="btn sm ghost" data-tdel="${esc(x.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
+  if(!(tb.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")) setHTML(tb,all.length?`<table class="dt"><thead><tr><th>${tt("Table","Mesa")}</th><th>👤 ${tt("Waiter","Mesero")}</th><th>${tt("Chairs","Sillas")}</th><th>${tt("Zone","Zona")}</th><th>${tt("Active","Activa")}</th><th>${tt("Status now","Estado ahora")}</th><th></th></tr></thead><tbody>${all.map(x=>`<tr data-id="${x.id}"><td class="nw"><b>${esc(x.num)}</b></td><td style="min-width:120px">${x.active!==false?`<input class="txt" data-f="waiter" list="waiterList" maxlength="40" value="${esc(x.waiter||"")}" placeholder="${tt("Assign waiter","Asignar mesero")}" aria-label="${tt("Waiter of table","Mesero de la mesa")} ${esc(x.num)}">`:`<span class="dimtxt">—</span>`}</td><td><input data-f="seats" type="number" min="1" value="${esc(x.seats)}" aria-label="${tt("Chairs","Sillas")}"></td><td><input class="txt" data-f="zone" value="${esc(x.zone||"")}" aria-label="${tt("Zone","Zona")}"></td><td><input data-f="active" type="checkbox" style="width:auto"${x.active!==false?" checked":""} aria-label="${tt("Active","Activa")}"></td><td>${(()=>{const st=tableStatus(x);return st[0]==="off"?`<span class="tstat off">${st[1]}</span>`:`<button type="button" class="tstat ${st[0]}" data-tocc="${esc(x.id)}" aria-pressed="${!!x.occupied}" title="${x.occupied?tt("Tap when the guests leave","Toca cuando los clientes se vayan"):tt("Tap when guests sit down","Toca cuando los clientes se sienten")}">${x.occupied?"● ":"○ "}${st[1]}</button>`;})()}</td><td><button type="button" class="btn sm ghost" data-tdel="${esc(x.id)}">${tt("Delete","Borrar")}</button></td></tr>`).join("")}</tbody></table>`
     :`<p class="empty">${tt("No tables yet. Add each table with its number and chairs — until then bookings are saved without a table.","Aún no hay mesas. Agrega cada mesa con su número y sillas — mientras tanto las reservas se guardan sin mesa.")}</p>`);
   const noTbl=dayRes.filter(r=>r.table===""||r.table==null);
   setHTML(document.getElementById("tblFloor"),(tabs.length?tabs.map(x=>{
     const rs=dayRes.filter(r=>String(r.table)===String(x.num)).sort((a,b)=>a.time.localeCompare(b.time));
     const occ=tblDate===t&&tableBookingNow(x.num), st=tableStatus(x);
     return `<div class="tcard${occ||x.occupied?" occ":""}" data-t="${esc(x.num)}"><div class="tnum">${tt("Table","Mesa")} ${esc(x.num)}</div><div><span class="tstat ${st[0]}">${st[1]}</span></div><div class="dimtxt">${"🪑".repeat(Math.min(num(x.seats),12))} ${esc(x.seats)}${x.zone?" · "+esc(x.zone):""}</div>
+      <div class="dimtxt">👤 ${x.waiter?`<b>${esc(x.waiter)}</b>`:tt("No waiter","Sin mesero")}</div>
       ${rs.length?`<ul class="slots">${rs.map(r=>`<li><b>${esc(r.time)}–${esc(endTime(r.time))}</b> ${esc(r.name)} (${esc(r.party)})${r.status==="confirmed"?"":` <span class="badge warn">${tt("pending","pendiente")}</span>`}</li>`).join("")}</ul>`:`<div class="dimtxt">${tt("Free all day","Libre todo el día")}</div>`}</div>`;}).join(""):`<p class="empty">${tt("Add tables to see the floor.","Agrega mesas para ver el salón.")}</p>`)
     +(noTbl.length?`<p class="hint" style="grid-column:1/-1">${noTbl.length} ${tt("booking(s) this day without a table (made before the layout existed).","reserva(s) este día sin mesa (hechas antes de definir las mesas).")}</p>`:""));
 }
@@ -2046,7 +2063,8 @@ function ordBookingHint(){
   const el=document.getElementById("oBook"); if(!el) return;
   const tv=val("oTable"), b=tv?tableBookingNow(tv):null;
   el.dataset.res=b?b.id:"";
-  el.innerHTML=b?`📅 ${tt("Booking now at this table","Reserva ahora en esta mesa")}: <b>${esc(b.name)}</b> (${esc(b.party)}) ${esc(b.time)}–${esc(endTime(b.time))}${b.notes?` · <span class="alltxt">${tt("Booking notes","Notas de la reserva")}: ${esc(b.notes)}</span>`:""}`:"";
+  const wt=tv?tableWaiter(tv):"";
+  el.innerHTML=(wt?`👤 ${tt("Waiter","Mesero")}: <b>${esc(wt)}</b>${b?" · ":""}`:"")+(b?`📅 ${tt("Booking now at this table","Reserva ahora en esta mesa")}: <b>${esc(b.name)}</b> (${esc(b.party)}) ${esc(b.time)}–${esc(endTime(b.time))}${b.notes?` · <span class="alltxt">${tt("Booking notes","Notas de la reserva")}: ${esc(b.notes)}</span>`:""}`:"");
   if(b&&document.getElementById("oGuests").dataset.touched!=="1") document.getElementById("oGuests").value=b.party;
 }
 // warn the waiter while typing: dishes in this order that are out of stock or exceed the portions left
@@ -2079,7 +2097,7 @@ function wireOrders(){
     const alTxt=val("oAllergyTxt"); if(alTxt) al.push(alTxt);
     const resId=document.getElementById("oBook").dataset.res||"", b=D.reservations.find(r=>r.id===resId);
     const stamp=new Date().toISOString();
-    await dbAdd("orders",{date:today(),table,guests:Math.max(1,Math.round(num(val("oGuests")))),items,itemsText:itemsText(items),allergies:al.join(", "),message:val("oMsg"),status:"new",resId,booking:b?b.name:"",by:SESSION?SESSION.name:"",created:stamp,updated:stamp});
+    await dbAdd("orders",{date:today(),table,guests:Math.max(1,Math.round(num(val("oGuests")))),items,itemsText:itemsText(items),allergies:al.join(", "),message:val("oMsg"),status:"new",resId,booking:b?b.name:"",waiter:tableWaiter(table),by:SESSION?SESSION.name:"",created:stamp,updated:stamp});
     msg.textContent=tt(`Order for table ${table} sent to the kitchen.`,`Orden de la mesa ${table} enviada a cocina.`);
     e.target.reset(); box.innerHTML=itemRow(); document.getElementById("oGuests").dataset.touched=""; ordBookingHint(); ordStockCheck(); applyRoleUI();
   };
@@ -2100,7 +2118,7 @@ function listOrders(){
   const all=D.orders.filter(o=>o.date===t||["new","prep","ready"].includes(o.status)).sort((a,b)=>String(a.created).localeCompare(String(b.created)));
   const cols=[["new"],["prep"],["ready"]].concat(ordShowServed?[["served","cancelled"]]:[]);
   const next={new:["prep",tt("Start","Empezar")],prep:["ready",tt("Ready","Lista")],ready:["served",tt("Served","Entregada")]};
-  const card=o=>`<article class="ocard${o.allergies?" hasal":""}"><div class="ohead"><b>${tt("Table","Mesa")} ${esc(o.table)}</b><span class="dimtxt">${esc(o.guests||"")} ${tt("diners","comensales")} · ${mins(o)} min</span><span class="badge ${(OSTAT[o.status]||OSTAT.new)[2]}">${ostat(o.status)}</span></div>
+  const card=o=>`<article class="ocard${o.allergies?" hasal":""}"><div class="ohead"><b>${tt("Table","Mesa")} ${esc(o.table)}</b><span class="dimtxt">${esc(o.guests||"")} ${tt("diners","comensales")} · ${mins(o)} min${o.waiter?` · 👤 ${esc(o.waiter)}`:""}</span><span class="badge ${(OSTAT[o.status]||OSTAT.new)[2]}">${ostat(o.status)}</span></div>
     ${o.allergies?`<div class="alban">⚠ ${tt("ALLERGIES","ALERGIAS")}: ${esc(o.allergies)}</div>`:""}
     <ul class="oitems">${(o.items||[]).map(i=>`<li><b>${esc(i.qty)}×</b> ${esc(i.dish)}${i.doneness?` <span class="don">${esc(donName(i.doneness))}</span>`:""}${i.note?`<small>${esc(i.note)}</small>`:""}</li>`).join("")||`<li>${esc(o.itemsText||"")}</li>`}</ul>
     ${o.message?`<div class="omsg">💬 ${esc(o.message)}</div>`:""}
