@@ -183,6 +183,11 @@ textarea{resize:vertical}
 .kpi .lbl{font-size:13px;color:var(--muted)}
 .kpi.bad{background:var(--bad-bg);border-color:transparent}.kpi.bad .big{color:var(--bad)}
 .kpi.warn{background:var(--warn-bg);border-color:transparent}.kpi.warn .big{color:var(--warn)}
+.invnote{padding:10px 12px;border-radius:10px;margin:0 0 10px;color:var(--ink);line-height:1.9}
+.invnote.bad{background:var(--bad-bg);border-left:4px solid var(--bad)}.invnote.warn{background:var(--warn-bg);border-left:4px solid var(--warn)}
+.invnote .badge{cursor:pointer;background:var(--surface);border:1px solid currentColor;font-size:12px;margin:2px 4px 2px 0}
+tr.invlow td{background:var(--bad-bg)}tr.invlow td:first-child{box-shadow:inset 4px 0 0 var(--bad)}
+tr.invover td{background:var(--warn-bg)}tr.invover td:first-child{box-shadow:inset 4px 0 0 var(--warn)}
 .badge{display:inline-block;font:600 11px var(--mono);letter-spacing:.04em;padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:1px;white-space:nowrap}
 .badge.ok{background:var(--ok-bg);color:var(--ok)}.badge.warn{background:var(--warn-bg);color:var(--warn)}.badge.bad{background:var(--bad-bg);color:var(--bad)}
 ul.rows{list-style:none;margin:0;padding:0}
@@ -2742,7 +2747,7 @@ async function kardexHeal(){
 const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobreproducción"],["spill","Spilled / broken","Derramado / roto"],["quality","Quality","Calidad"],["other","Other","Otro"]];
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
-   <div class="kpis" id="invKpis"></div>
+   <div class="kpis" id="invKpis"></div><div id="invAlerts"></div>
    <div class="panel"><h3>${tt("Items","Artículos")}</h3>
     <form id="invForm" class="fgrid wide">
      ${field("iName",tt("Description","Descripción"),`<input id="iName" required>`)}
@@ -2857,6 +2862,8 @@ function wireM2(){
   // stock table: rows are read-only until ✏ Edit; changes are kept as a draft and saved with ✓ Save
   document.getElementById("invTable").addEventListener("input",e=>{ const inp=e.target.closest("[data-f]"); if(!inp||inp.dataset.id!==invEdit) return; invDraft[inp.dataset.f]=inp.value; if(inp.getAttribute("aria-invalid")==="true") inp.setAttribute("aria-invalid","false"); });
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
+  document.getElementById("invAlerts").addEventListener("click",e=>{ const a=e.target.closest("[data-add]"); if(!a) return;
+    const f=document.getElementById("addStockForm"); if(!f) return; document.getElementById("asItem").value=a.dataset.add; asForm(); f.scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("asBig").focus({preventScroll:true}); });
   document.getElementById("invTable").addEventListener("click",async e=>{
     const ed=e.target.closest("[data-invedit]"); if(ed){ invEdit=ed.dataset.invedit; invDraft={}; listM2(); const f=document.querySelector(`#invTable [data-f="name"][data-id="${invEdit}"]`); if(f) f.focus(); return; }
     if(e.target.closest("[data-invcancel]")){ invEdit=null; invDraft={}; listM2(); return; }
@@ -2910,7 +2917,14 @@ function wireM2(){
   document.getElementById("poBox").addEventListener("click",e=>{if(e.target.closest("#poCopy")) copyText(poText());});
   document.getElementById("fcAI").onclick=forecastAI;
 }
-function invStatus(i){ if(!(num(i.min)>0)||!(num(i.par)>0)||!String(i.supplier||"").trim()) return ["warn",tt("Missing data","Faltan datos")]; if(i.min>0&&i.qty<=i.min) return ["bad",tt("Low","Bajo")]; if(i.par>0&&i.qty>i.par) return ["warn",tt("Overstock","Exceso")]; return ["ok","OK"]; }
+function invStatus(i){ const q=stockQty(i);
+  if(num(i.min)>0&&q<=num(i.min)) return ["bad",tt("Below alert level","Bajo el nivel de alerta"),"low"];
+  if(num(i.par)>0&&q>num(i.par)) return ["warn",tt("Overstocked","Con exceso"),"over"];
+  if(!(num(i.min)>0)||!(num(i.par)>0)||!String(i.supplier||"").trim()) return ["warn",tt("Missing data","Faltan datos"),"missing"];
+  return ["ok","OK","ok"]; }
+// colours shared by the KPI tiles, the notice, the item rows and the item lists: red = below alert level, amber = overstocked
+const invStyle=i=>{ const k=invStatus(i)[2]; return k==="low"?"background:var(--bad-bg);color:var(--bad)":k==="over"?"background:var(--warn-bg);color:var(--warn)":""; };
+const invTag=i=>{ const k=invStatus(i)[2]; return k==="low"?" — ⛔ "+tt("below alert","bajo alerta"):k==="over"?" — ▲ "+tt("overstocked","con exceso"):""; };
 function poLines(){ return D.inventory.filter(i=>i.min>0&&i.qty<=i.min&&i.par>i.qty).map(i=>({...i,order:i.par-i.qty,est:toBaseI(i.par-i.qty,i)*num(i.cost)})); }
 function poText(){ const L=poLines(); const by={}; L.forEach(l=>{(by[l.supplier||tt("No supplier","Sin proveedor")] ||= []).push(l);});
   return tt("PURCHASE ORDER","ORDEN DE COMPRA")+" — "+today()+"\n"+Object.entries(by).map(([s,ls])=>`\n${s}\n`+ls.map(l=>`• ${l.name}: ${+l.order.toFixed(2)} ${l.unit}`).join("\n")).join("\n"); }
@@ -2939,18 +2953,21 @@ function listM2(){
   setHTML(document.getElementById("ppBox"),ppListHTML());
   setHTML(document.getElementById("rsBox"),recentStockHTML());
   const inv=[...D.inventory].sort((a,b)=>a.name.localeCompare(b.name));
-  const low=inv.filter(i=>invStatus(i)[0]==="bad"), over=inv.filter(i=>invStatus(i)[0]==="warn");
+  const low=inv.filter(i=>invStatus(i)[2]==="low"), over=inv.filter(i=>invStatus(i)[2]==="over");
   const stockVal=inv.reduce((s,i)=>s+stockValue(i),0);
   const since=addDays(today(),-30), w30=D.waste.filter(w=>w.date>=since), wCost=w30.reduce((s,w)=>s+num(w.cost),0);
   document.getElementById("invKpis").innerHTML=[
     [inv.length,tt("items tracked","artículos")],[low.length,tt("below alert level","bajo el nivel de alerta"),low.length?"bad":""],
     [over.length,tt("overstocked","con exceso"),over.length?"warn":""],[money(stockVal),tt("stock value","valor del stock")],[money(wCost),tt("waste, last 30 days","merma, últimos 30 días")]
   ].map(k=>`<div class="kpi ${k[2]||""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("");
+  const nb=document.getElementById("invAlerts"), chip=(i,cls)=>`<button type="button" class="badge ${cls}" data-add="${i.id}" title="${tt("Add stock","Agregar stock")}">${esc(i.name)} · ${fmtQ(stockQty(i))} ${esc(unitLbl(i.unit))} (${cls==="bad"?tt("alert","alerta")+" "+fmtQ(num(i.min)):tt("max","máx")+" "+fmtQ(num(i.par))} ${esc(unitLbl(i.unit))})</button>`;
+  setHTML(nb,(low.length?`<div class="capnote invnote bad"><b>⛔ ${tt("Below alert level","Bajo el nivel de alerta")} (${low.length}):</b> ${low.map(i=>chip(i,"bad")).join(" ")}</div>`:"")
+    +(over.length?`<div class="capnote invnote warn"><b>▲ ${tt("Overstocked","Con exceso")} (${over.length}):</b> ${over.map(i=>chip(i,"warn")).join(" ")}</div>`:""));
   if(invEdit&&!invItem(invEdit)){ invEdit=null; invDraft={}; }
   const canInv=canWrite("inventory"), dv=(i,f,d)=>i.id===invEdit&&invDraft[f]!=null?invDraft[f]:d;
   const actIn=document.activeElement&&tb.contains(document.activeElement)&&document.activeElement.matches("input,select,textarea");
   if(!actIn) tb.innerHTML=inv.length?`<table class="dt invt"><thead><tr><th>${tt("Description","Descripción")}</th><th>${tt("Unit","Unidad")}</th><th>${tt("Minimum (alert)","Mínimo (alerta)")}</th><th>${tt("Maximum","Máximo")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), ed=i.id===invEdit, u=esc(unitLbl(i.unit));
-     if(!ed) return `<tr><td><b>${esc(i.name)}</b>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
+     if(!ed) return `<tr class="${s[2]==="low"?"invlow":s[2]==="over"?"invover":""}"><td><b>${esc(i.name)}</b>${s[2]==="low"||s[2]==="over"?` <span class="badge ${s[0]}">${s[2]==="low"?"⛔":"▲"} ${esc(s[1])}</span>`:""}${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
      <td>${u}</td><td class="nw">${fmtQ(num(i.min))} ${u}</td><td class="nw">${fmtQ(num(i.par))} ${u}</td>
      <td class="nw">${canInv?`<button class="btn sm ghost" data-invedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> `:""}<button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button>${canInv?` <button class="btn sm ghost" data-del="${i.id}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete","Eliminar")} ${esc(i.name)}">✕</button>`:""}</td></tr>`;
      return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}">${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
@@ -2962,7 +2979,7 @@ function listM2(){
   const po=poLines(), poBox=document.getElementById("poBox");
   poBox.innerHTML=po.length?`<p>${tt("Items at or below their alert level, ordered up to the maximum quantity:","Artículos en o bajo su nivel de alerta, pedidos hasta la cantidad máxima:")}</p><ul class="rows">${po.map(l=>`<li><div><b>${esc(l.name)}</b>: ${+l.order.toFixed(2)} ${esc(l.unit)}<small>${esc(l.supplier||tt("No supplier","Sin proveedor"))}${l.cost?" · ≈ "+money(l.est):""}</small></div></li>`).join("")}</ul><p><b>${tt("Estimated total","Total estimado")}: ${money(po.reduce((s,l)=>s+l.est,0))}</b></p><button class="btn" id="poCopy">${tt("Copy order","Copiar orden")}</button>`
     :`<p class="empty">${tt("Nothing to order. Items appear here when stock falls to the alert level (set the alert level and maximum quantity first).","Nada que pedir. Los artículos aparecen aquí cuando el stock llega al nivel de alerta (primero define la alerta y la cantidad máxima).")}</p>`;
-  const as=document.getElementById("asItem"); if(as){const cur=as.value; as.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)})</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(as.value!==cur) asForm();}
+  const as=document.getElementById("asItem"); if(as){const cur=as.value; as.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""} style="${invStyle(i)}">${esc(i.name)} (${esc(i.unit)})${invTag(i)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; if(as.value!==cur) asForm();}
   const ws=document.getElementById("wItem"); if(ws){const cur=ws.value; ws.innerHTML=inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(i.unit)})</option>`).join("");}
   const byR={},byI={}; w30.forEach(w=>{byR[w.reason]=(byR[w.reason]||0)+num(w.cost);byI[w.item]=(byI[w.item]||0)+num(w.cost);});
   document.getElementById("wBox").innerHTML=w30.length?`<h4 class="minih">${tt("Last 30 days — cost by reason","Últimos 30 días — costo por motivo")}</h4><ul class="rows">${REASONS.filter(r=>r[0] in byR).map(r=>`<li><div>${tt(r[1],r[2])}</div><b>${money(byR[r[0]])}</b></li>`).join("")}</ul>
@@ -2977,6 +2994,7 @@ function asPurchase(it){ if(!it) return null; const n=num(val("asQty")), cost=va
   if(it.unit==="pc"){ const pk=Math.max(1,Math.round(num(val("asPack"))||1)); return {q:n*pk,pk,uc:cost!==""?Math.round(toCAD(cost)/pk*10000)/10000:null,pkg:cost!==""?toCAD(cost):null}; }
   return {q:n,pk:1,uc:cost!==""?toCAD(cost):null}; }
 function asForm(){ const it=invItem(val("asItem")), pc=it&&it.unit==="pc", pf=document.getElementById("asPackF"); if(!pf) return;
+  document.getElementById("asItem").setAttribute("style",it?invStyle(it):"");
   pf.hidden=!pc; if(pc) document.getElementById("asPack").value=packOf(it);
   const sp=document.getElementById("asSup"); if(sp&&it&&document.activeElement!==sp) sp.value=it.supplier||"";
   document.getElementById("asBigL").textContent=asBigLbl(it);
@@ -3281,7 +3299,7 @@ function wireM3(){
     kxArm=0; b.disabled=true; b.textContent=tt("Restarting…","Reiniciando…");
     const r=await kardexReset(); if(!r) return;
     kxItem=""; toast(tt(`Kardex cleared: ${r.del} movements erased. New entries come from purchases.`,`Kardex limpio: ${r.del} movimientos borrados. Las nuevas entradas vienen de las compras.`)); render(); };
-  const kmSet=()=>{ const it=invItem(g("kmItem").value), pc=it&&it.unit==="pc", inn=g("kmType").value==="in";
+  const kmSet=()=>{ const it=invItem(g("kmItem").value), pc=it&&it.unit==="pc", inn=g("kmType").value==="in"; g("kmItem").setAttribute("style",it?invStyle(it):"");
     g("kmQtyL").textContent=pc&&inn?tt("Packages","Paquetes"):tt(`Quantity (${it?unitLbl(it.unit):"—"})`,`Cantidad (${it?unitLbl(it.unit):"—"})`);
     g("kmCostL").textContent=(pc?tt(`Price per package (${packOf(it)} pieces)`,`Precio por paquete (${packOf(it)} piezas)`):tt(`Unit cost per ${it?costPerLbl(it.unit):"kg / L"}`,`Costo unitario por ${it?costPerLbl(it.unit):"kg / L"}`))+` (${curSym()})`;
     ["kmCostF","kmLotF","kmExpF","kmTotF"].forEach(id=>g(id).hidden=!inn);
@@ -3355,9 +3373,9 @@ function prodStats(n){
 function listM3(){
   if(m3Sub==="kardex"){
   const inv=[...D.inventory].sort((a,b)=>String(a.name).localeCompare(String(b.name)));
-  const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""}>${esc(i.name)}</option>`).join("");
+  const ks=document.getElementById("kxItem"); if(ks&&document.activeElement!==ks) ks.innerHTML=`<option value="">${tt("All items","Todos los artículos")}</option>`+inv.map(i=>`<option value="${i.id}"${i.id===kxItem?" selected":""} style="${invStyle(i)}">${esc(i.name)}${invTag(i)}</option>`).join("");
   const km=document.getElementById("kmItem"); const ke=kxEdit?D.kardex.find(k=>k.id===kxEdit):null; if(km) km.disabled=!!ke;
-  if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""}>${esc(i.name)} (${esc(unitLbl(i.unit))})</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
+  if(km&&document.activeElement!==km){ const cur=ke?ke.itemId:(km.value||kxItem); km.innerHTML=inv.length?inv.map(i=>`<option value="${i.id}"${i.id===cur?" selected":""} style="${invStyle(i)}">${esc(i.name)} (${esc(unitLbl(i.unit))})${invTag(i)}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; km.dispatchEvent(new Event("change")); }
     setHTML(document.getElementById("kxMonthBox"),kxMonthHTML());
     listKardex(); return; }
   const cb=document.getElementById("costBox");
