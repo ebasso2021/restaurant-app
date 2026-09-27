@@ -2197,14 +2197,14 @@ function billTotals(){
 }
 function billView(){
   const t=billTotals(), pend=tablesToBill();
-  const tabs=activeTables(), opts=[...new Set(tabs.map(x=>String(x.num)).concat(pend))].sort((a,b)=>num(a)-num(b));
+  const opts=billTableNums();
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Billing","Facturación"),tt("Billing by table","Facturación por mesa"),tt("Bring a table's orders into one bill, apply a discount, GST and tip, split it, charge it and print the receipt. Paying frees the table, closes its orders and adds the drinks to the day's sales.","Junta las órdenes de una mesa en una cuenta, aplica descuento, GST y propina, divídela, cóbrala e imprime el recibo. Al pagar se libera la mesa, se cierran sus órdenes y las bebidas se suman a las ventas del día."))}
    <div class="kpis" id="blKpis"></div>
    <div class="grid">
     <div class="stack">
      <div class="panel"><h3>${tt("Bill","Cuenta")}</h3>
       <div class="f" style="max-width:260px"><label for="blTable">${tt("Table","Mesa")}</label>
-       <select id="blTable"><option value="">${tt("Choose a table…","Elige una mesa…")}</option>${opts.map(n=>`<option value="${esc(n)}"${String(n)===String(billTable)?" selected":""}>${tt("Table","Mesa")} ${esc(n)}${pend.includes(String(n))?" · "+tt("served, to bill","servida, por cobrar"):kitchenOrders(n).length?" · "+tt("in the kitchen","en cocina"):""}</option>`).join("")}</select></div>
+       <select id="blTable">${billTableOptions()}</select><div id="blOccHint">${billOccHint()}</div></div>
       <div id="blBody"></div>${dishDatalist("dishList2")}
      </div>
      <div class="panel" id="blReceiptPanel"${lastBill?"":" hidden"}><h3>${tt("Receipt","Recibo")}</h3><pre class="receipt" id="blReceipt"></pre>
@@ -2250,6 +2250,12 @@ function billCostsHTML(){
   return `<div class="tablewrap"><table class="dt bcost"><thead><tr><th>${tt("Time","Hora")}</th><th>${tt("Bill no.","N° de cuenta")}</th><th>${tt("Table","Mesa")}</th><th>${tt("Items","Ítems")}</th><th>${tt("Sales (no GST/tip)","Venta (sin GST/propina)")}</th><th>${tt("Cost (Kardex)","Costo (Kardex)")}</th><th>${tt("Margin","Margen")}</th><th>%</th></tr></thead>
     <tbody>${rows}</tbody><tfoot><tr><td colspan="4"><b>${tt("Total","Total")}</b> · ${T.n} ${tt("bill(s)","cuenta(s)")}</td><td class="nw"><b>${money2(T.rev)}</b></td><td class="nw"><b>${money2(T.cost)}</b></td><td class="nw"><b>${money2(T.rev-T.cost)}</b></td><td class="nw">${T.rev>0?Math.round((T.rev-T.cost)/T.rev*100)+"%":"—"}</td></tr></tfoot></table></div>`;
 }
+// Billing by table: only occupied tables (plus the one whose bill is open)
+const billTableNums=()=>[...new Set(occupiedTables().map(t=>String(t.num)).concat(billTable?[String(billTable)]:[]))].sort((a,b)=>num(a)-num(b));
+function billTableOptions(){ const pend=tablesToBill(), opts=billTableNums();
+  return `<option value="">${opts.length?tt("Choose an occupied table…","Elige una mesa ocupada…"):tt("No occupied tables","No hay mesas ocupadas")}</option>`+opts.map(n=>{ const t=D.tables.find(x=>String(x.num)===String(n));
+    return `<option value="${esc(n)}"${String(n)===String(billTable)?" selected":""}>${tt("Table","Mesa")} ${esc(n)}${t&&t.waiter?" · 👤 "+esc(t.waiter):""}${pend.includes(String(n))?" · "+tt("served, to bill","servida, por cobrar"):kitchenOrders(n).length?" · "+tt("in the kitchen","en cocina"):""}</option>`; }).join(""); }
+const billOccHint=()=>occupiedTables().length||billTable?"":`<p class="hint warnnote">🪑 ${tt("No table is occupied. Tables appear here when they are marked occupied in","Ninguna mesa está ocupada. Las mesas aparecen aquí cuando se marcan ocupadas en")} <button type="button" class="linkbtn" data-aiview="tables">${tt("Tables layout","Distribución de mesas")}</button>.</p>`;
 function billKitchenNote(){ if(!billTable) return ""; const ks=kitchenOrders(billTable); if(!ks.length) return "";
   return `<p class="hint warnnote">🍳 ${tt(`${ks.length} order(s) of this table are still in the kitchen — they are added to the bill when marked “Served”:`,`${ks.length} orden(es) de esta mesa siguen en cocina — se agregan a la cuenta cuando se marcan “Entregada”:`)} ${ks.map(o=>`${esc(itemsText(o.items||[]))} (${esc(ostat(o.status))})`).join(" · ")}</p>`; }
 function billBody(){
@@ -2308,6 +2314,7 @@ function receiptText(b){
 }
 function wireBill(){
   const sel=document.getElementById("blTable");
+  document.getElementById("blOccHint").onclick=e=>{ const a=e.target.closest("[data-aiview]"); if(a){ state.aiView=a.dataset.aiview; save(); render(); } };
   sel.onchange=()=>{ billMsg=""; billTable=sel.value; if(billTable) loadTableLines(); else billLines=null; billBody(); };
   if(billTable&&!billLines) loadTableLines();
   billBody();
@@ -2405,6 +2412,8 @@ function billAddServed(){
 function listBill(){
   const k=document.getElementById("blKpis"); if(!k) return;
   billAddServed(); const kn=document.getElementById("blKitchen"); if(kn) setHTML(kn,billKitchenNote());
+  const bs=document.getElementById("blTable"); if(bs&&document.activeElement!==bs){ const h=billTableOptions(); if(bs.innerHTML!==h) bs.innerHTML=h; }
+  setHTML(document.getElementById("blOccHint"),billOccHint());
   const t=today(), day=D.bills.filter(b=>b.date===t), sum=day.reduce((s,b)=>s+num(b.total),0), tips=day.reduce((s,b)=>s+num(b.tip),0);
   setHTML(k,[[day.length,tt("bills today","cuentas de hoy")],[money(sum),tt("charged today","cobrado hoy")],[day.length?money(sum/day.length):"—",tt("average bill","cuenta promedio")],[money(tips),tt("tips today","propinas de hoy")],[tablesToBill().length,tt("tables with served dishes to bill","mesas con platos servidos por cobrar"),tablesToBill().length?"warn":""]]
     .map(x=>`<div class="kpi${x[2]?" "+x[2]:""}"><div class="big">${x[0]}</div><div class="lbl">${x[1]}</div></div>`).join(""));
