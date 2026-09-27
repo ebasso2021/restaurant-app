@@ -266,8 +266,9 @@ table.dt.menutbl td:first-child{width:40%}
 table.dt tr.grp th{padding-top:14px;color:var(--accent);font:600 12px var(--body);letter-spacing:.04em;text-transform:uppercase}
 .receipt{font:13px/1.45 var(--mono);white-space:pre-wrap;background:var(--sunk);padding:12px;border-radius:10px;margin:0;overflow-x:auto}
 body.locked .wrap{display:none}
-.builtby{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;line-height:0;opacity:.9;pointer-events:none;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-.builtby img{display:block;height:28px;width:auto;border-radius:6px}
+.builtby{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.92;pointer-events:none}
+.builtby span{font:600 10px/1.2 var(--body,sans-serif);letter-spacing:.03em;color:#e8e6f0;background:#0b0f1c;padding:2px 7px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.25);white-space:nowrap}
+.builtby img{display:block;height:28px;width:auto;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 @media (max-width:600px){.builtby img{height:22px}}
 @media print{.builtby{display:none}}
 .loginwrap{position:fixed;inset:0;z-index:50;overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:24px 16px;box-sizing:border-box;
@@ -387,7 +388,7 @@ small.packf input{width:56px!important;padding:2px 4px!important;font-size:12px!
 </style>
 
 <div id="login" class="loginwrap" hidden></div>
-<div class="builtby" aria-label="Built by Aibuildapp"><img src="img/aibuildapp-logo.png" alt="Aibuildapp" width="99" height="28"></div>
+<div class="builtby"><span id="builtLbl">Construido por</span><img src="img/aibuildapp-logo.png" alt="Aibuildapp" width="99" height="28"></div>
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -1703,6 +1704,7 @@ function showLogin(msg){
       <button class="btn ghost" type="button" id="lgGuest" style="width:100%">👤 ${tt("Guest","Invitado")} — ${tt("customer assistant & table requests","asistente para clientes y solicitud de mesa")}</button>
       <p class="lgmsg" id="lgMsg" role="alert">${msg?esc(msg):""}</p>
     </form></div>`;
+  { const bl=document.getElementById("builtLbl"); if(bl) bl.textContent=state.lang==="es"?"Construido por":"Built by"; }
   box.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;save();showLogin(msg);});
   document.getElementById(needUrl?"lgUrl":"lgUser").focus();
   document.getElementById("lgGuest").onclick=async()=>{
@@ -4111,6 +4113,7 @@ function render(){
   document.getElementById("btnEn").setAttribute("aria-pressed",state.lang==="en");
   document.getElementById("btnEs").setAttribute("aria-pressed",state.lang==="es");
   document.getElementById("appTitle").textContent=state.lang==="es"?"Taste of Peru":"Taste of Peru";
+  { const bl=document.getElementById("builtLbl"); if(bl) bl.textContent=state.lang==="es"?"Construido por":"Built by"; }
   document.getElementById("appSub").textContent=isGuest()?tt("Peruvian drinks, desserts and dishes in Edmonton.","Bebidas, postres y platos peruanos en Edmonton."):T(UI.sub);
   document.getElementById("disc").textContent=T(UI.disc);
   if(isGuest()){ state.tab="ai"; state.aiView="m1"; }
