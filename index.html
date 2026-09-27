@@ -1675,10 +1675,8 @@ function showLogin(msg){
       <div class="lgor"><span>${tt("or","o")}</span></div>
       <button class="btn ghost" type="button" id="lgGuest" style="width:100%">👤 ${tt("Guest","Invitado")} — ${tt("customer assistant & table requests","asistente para clientes y solicitud de mesa")}</button>
       <p class="lgmsg" id="lgMsg" role="alert">${msg?esc(msg):""}</p>
-      ${needUrl?"":`<p class="hint"><button type="button" class="linkbtn" id="lgChangeUrl">${tt("Change server","Cambiar servidor")}</button></p>`}
     </form></div>`;
   box.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;save();showLogin(msg);});
-  const cu=document.getElementById("lgChangeUrl"); if(cu) cu.onclick=()=>{document.getElementById("urlRow").hidden=false;cu.parentElement.hidden=true;};
   document.getElementById(needUrl?"lgUrl":"lgUser").focus();
   document.getElementById("lgGuest").onclick=async()=>{
     const m=t=>{document.getElementById("lgMsg").textContent=t;}, gb=document.getElementById("lgGuest");
