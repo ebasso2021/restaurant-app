@@ -1745,7 +1745,8 @@ const val=id=>{const el=document.getElementById(id);return el?el.value.trim():""
 const prodOptions=(sel)=>P.map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(T(p.name))}</option>`).join("");
 // Sales log: app products + every other menu item (dishes and drinks)
 const saleOptions=sel=>{ const extra=(D.menu||[]).filter(m=>m.active!==false&&!m.prodId).map(m=>({id:"m_"+m.id,n:itemName(m)||m.name,c:m.cat}));
-  const all=[...P.map(p=>({id:p.id,n:T(p.name),c:p.cat||"bebida"})),...extra];
+  const onMenu=p=>!(D.menu||[]).length||(D.menu||[]).some(m=>m.active!==false&&m.prodId===p.id);   // built-in products only when they are on the menu
+  const all=[...P.filter(onMenu).map(p=>({id:p.id,n:T(p.name),c:p.cat||"bebida"})),...extra];
   const grp=(c,l)=>{ const xs=all.filter(x=>(x.c==="comida")===(c==="comida")); return xs.length?`<optgroup label="${l}">${xs.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.n)}</option>`).join("")}</optgroup>`:""; };
   return grp("bebida",tt("Drinks","Bebidas"))+grp("comida",tt("Dishes","Platos")); };
 async function copyText(txt){ try{await navigator.clipboard.writeText(txt);toast(tt("Copied","Copiado"));}catch(e){toast(tt("Select the text and copy it manually.","Selecciona el texto y cópialo manualmente."));} }
@@ -3517,7 +3518,10 @@ function costBoxHTML(){
 }
 function prodStats(n){
   const days=salesDays(n), st={};
-  P.forEach(p=>st[p.id]={cups:0,rev:0}); (D.menu||[]).filter(m=>m.active!==false&&!m.prodId).forEach(m=>st["m_"+m.id]={cups:0,rev:0});
+  // listed: what is on the active menu (app products through their menu entry) + anything that sold in the period;
+  // built-in products that are not on the menu and did not sell (old data) are left out
+  (D.menu||[]).filter(m=>m.active!==false).forEach(m=>{ const k=m.prodId&&P.some(p=>p.id===m.prodId)?m.prodId:"m_"+m.id; st[k]={cups:0,rev:0}; });
+  if(!(D.menu||[]).length) P.forEach(p=>st[p.id]={cups:0,rev:0});
   days.forEach(d=>Object.entries(d.items).forEach(([pid,it])=>{ if(!st[pid]) st[pid]={cups:0,rev:0}; st[pid].cups+=num(it.cups); st[pid].rev+=num(it.revenue); }));
   return Object.entries(st).map(([pid,s])=>{const pcx=prodCost(pid), c=pcx.c, partial=!!pcx.partial;const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0,partial};});
 }
