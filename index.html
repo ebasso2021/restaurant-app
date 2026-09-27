@@ -811,7 +811,7 @@ function portionCost(std){
 }
 // cost per cup / plate of an app product (sales are kept per product): the saved recipe × Kardex; manual cost only as a fallback
 function recipeForProd(pid){ const m=D.menu.find(x=>x.prodId===pid&&recipeOf(x.id)&&recipeOf(x.id).locked); return m?recipeOf(m.id):null; }
-function prodCost(pid){ const r=recipeForProd(pid); if(r){ const pc=portionCost(r); if(pc.cost>0) return {c:pc.cost,src:"kardex",pc,partial:!pc.known}; }
+function prodCost(pid){ const r=String(pid).startsWith("m_")?(()=>{ const x=recipeOf(String(pid).slice(2)); return x&&x.locked?x:null; })():recipeForProd(pid); if(r){ const pc=portionCost(r); if(pc.cost>0) return {c:pc.cost,src:"kardex",pc,partial:!pc.known}; }
   const c=num(D.costs&&D.costs[pid]); return {c,src:c>0?"manual":"",pc:null}; }
 // how many portions the current stock allows, and which ingredient runs out first
 // a recipe ingredient linked to an inventory item that was deleted afterwards
@@ -1297,7 +1297,11 @@ const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth
 const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
 const dow=iso=>new Date(iso+"T12:00:00").getDay();
 const DOWN={en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],es:["dom","lun","mar","mié","jue","vie","sáb"]};
-const pname=id=>{const p=P.find(x=>x.id===id);return p?T(p.name):id;};
+const pname=id=>{ const p=P.find(x=>x.id===id); if(p) return T(p.name); if(String(id).startsWith("m_")){ const m=(D.menu||[]).find(x=>x.id===String(id).slice(2)); if(m) return itemName(m)||m.name; } return id; };
+// drink or dish of a sales key (app products carry their category; menu items m_<id> use the menu's)
+const saleCat=id=>{ const p=P.find(x=>x.id===id); if(p) return p.cat||"bebida"; const m=String(id).startsWith("m_")?(D.menu||[]).find(x=>x.id===String(id).slice(2)):null; return m?m.cat||"comida":"bebida"; };
+// what a bill line counts as in Sales: the app product, or the menu item (dishes and other drinks)
+const saleKeyOf=d=>{ const pid=matchProduct(d); if(pid) return pid; const m=menuFind(d); return m?"m_"+m.id:""; };
 
 let DB=null, SAMPLE=null, DL=null, capsReady=false;
 async function saveFile(filename,text){
@@ -1739,6 +1743,11 @@ const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow
 const field=(id,label,input)=>`<div class="f"><label for="${id}">${label}</label>${input}</div>`;
 const val=id=>{const el=document.getElementById(id);return el?el.value.trim():"";};
 const prodOptions=(sel)=>P.map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(T(p.name))}</option>`).join("");
+// Sales log: app products + every other menu item (dishes and drinks)
+const saleOptions=sel=>{ const extra=(D.menu||[]).filter(m=>m.active!==false&&!m.prodId).map(m=>({id:"m_"+m.id,n:itemName(m)||m.name,c:m.cat}));
+  const all=[...P.map(p=>({id:p.id,n:T(p.name),c:p.cat||"bebida"})),...extra];
+  const grp=(c,l)=>{ const xs=all.filter(x=>(x.c==="comida")===(c==="comida")); return xs.length?`<optgroup label="${l}">${xs.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.n)}</option>`).join("")}</optgroup>`:""; };
+  return grp("bebida",tt("Drinks","Bebidas"))+grp("comida",tt("Dishes","Platos")); };
 async function copyText(txt){ try{await navigator.clipboard.writeText(txt);toast(tt("Copied","Copiado"));}catch(e){toast(tt("Select the text and copy it manually.","Selecciona el texto y cópialo manualmente."));} }
 
 /* ================= MODULE 1 — CUSTOMER SERVICE ================= */
@@ -2379,6 +2388,7 @@ async function payBill(){
   const rest=lines.map(l=>{ const k=dishKey(l.dish), take=Math.min(num(l.qty),num(done[k])); done[k]=num(done[k])-take; return {dish:l.dish,qty:r3(num(l.qty)-take)}; }).filter(l=>l.qty>0);
   const use=stockUseForLines(rest);
   bill.stockLines=rest; bill.stockUse=use; bill.stockText=useText(use);
+  bill.salesAll=true;   // every line (drinks and dishes) is counted in Sales
   { const bc=billCostOf(lines); bill.cost=bc.cost; bill.costLines=bc.lines; bill.costKnown=bc.known; }
   const id="b"+today().replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7);
   await dbSet("bills/"+id,bill);
@@ -2391,11 +2401,11 @@ async function payBill(){
   let counted=0, skipped=0;
   const cur=D.sales.find(s=>s.id===today())||{items:{},hours:{}};
   const items={...(cur.items||{})}, hours={...(cur.hours||{})};
-  lines.forEach(l=>{ const pid=matchProduct(l.dish);
+  lines.forEach(l=>{ const pid=saleKeyOf(l.dish);
     if(!pid){ skipped++; return; }
     counted++; const it=items[pid]||{cups:0,revenue:0};
     it.cups=num(it.cups)+num(l.qty); it.revenue=r2(num(it.revenue)+num(l.qty)*num(l.price)); items[pid]=it; });
-  if(counted){ const h=String(new Date().getHours()).padStart(2,"0"); hours[h]=num(hours[h])+lines.reduce((s,l)=>s+(matchProduct(l.dish)?num(l.qty):0),0); await dbSet("sales/"+today(),{items,hours}); }
+  if(counted){ const h=String(new Date().getHours()).padStart(2,"0"); hours[h]=num(hours[h])+lines.reduce((s,l)=>s+(saleKeyOf(l.dish)?num(l.qty):0),0); await dbSet("sales/"+today(),{items,hours}); }
   showReceipt({...bill,id});
   billMsg=tt(`Charged ${money(bill.total)} for table ${bill.table}. The table is free again and its orders are closed.`,`Cobrado ${money(bill.total)} de la mesa ${bill.table}. La mesa quedó libre y sus órdenes cerradas.`)+(skipped?" "+tt(`${skipped} line(s) are not menu drinks, so they are not counted in module 3 · Costs, sales & analytics.`,`${skipped} línea(s) no son bebidas del menú, así que no se cuentan en el módulo 3 · Costos, ventas y análisis.`):"");
   billTable=""; billLines=null; billTip=0; billTipPct=null; billDisc={v:0,mode:"pct",why:""}; billSplit=1;
@@ -3175,7 +3185,10 @@ function listKardex(){
 }
 
 /* ---------- sales helpers (used by modules 2, 3, 5) ---------- */
-function salesDays(n){ const out=[]; for(let i=n-1;i>=0;i--){const d=addDays(today(),-i); const s=D.sales.find(x=>x.id===d); out.push({date:d,items:(s&&s.items)||{},hours:(s&&s.hours)||{}});} return out; }
+function salesDays(n){ const out=[]; for(let i=n-1;i>=0;i--){const d=addDays(today(),-i); const s=D.sales.find(x=>x.id===d); const items={...((s&&s.items)||{})};
+    (D.bills||[]).filter(b=>b.date===d&&!b.salesAll).forEach(b=>(b.lines||[]).forEach(l=>{ if(matchProduct(l.dish)) return; const k=saleKeyOf(l.dish); if(!k) return;   // older bills: dishes were not counted then
+      const it=items[k]?{...items[k]}:{cups:0,revenue:0}; it.cups=num(it.cups)+num(l.qty); it.revenue=num(it.revenue)+num(l.qty)*num(l.price); items[k]=it; }));
+    out.push({date:d,items,hours:(s&&s.hours)||{}});} return out; }
 function dayTotals(day){ let cups=0,rev=0,cost=0; Object.entries(day.items).forEach(([pid,it])=>{cups+=num(it.cups);rev+=num(it.revenue);cost+=num(it.cups)*prodCost(pid).c;}); return {cups,rev,cost}; }
 function weekdayForecast(){
   const hist=salesDays(56).filter(d=>Object.keys(d.items).length);
@@ -3353,7 +3366,7 @@ function m3(){
       <form id="sForm" class="fgrid">
        ${field("sDate",tt("Date","Fecha"),`<input id="sDate" type="date" value="${today()}" required>`)}
        ${field("sHour",tt("Hour (optional)","Hora (opcional)"),`<select id="sHour"><option value="">—</option>${Array.from({length:24},(_,h)=>`<option value="${String(h).padStart(2,"0")}">${String(h).padStart(2,"0")}:00</option>`).join("")}</select>`)}
-       ${field("sProd",tt("Drink","Bebida"),`<select id="sProd">${prodOptions()}</select>`)}
+       ${field("sProd",tt("Drink / dish","Bebida / plato"),`<select id="sProd">${saleOptions()}</select>`)}
        ${field("sCups",tt("Cups sold","Vasos vendidos"),`<input id="sCups" type="number" min="1" step="1" required>`)}
        ${field("sPrice",tt("Price per cup","Precio por vaso")+" ("+curSym()+")",`<input id="sPrice" type="number" min="0" step="0.01" required>`)}
        <button class="btn" type="submit">${tt("Add","Agregar")}</button>
@@ -3364,7 +3377,7 @@ function m3(){
    <div class="kpis" id="sKpis" style="margin-top:20px"></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Daily revenue","Ingresos diarios")}</h3><div id="sChart" class="chartbox"></div>
     <h4 class="minih" style="margin-top:14px">${tt("Day by day","Día por día")} · ${range} ${tt("days","días")}</h4><div class="tablewrap" id="sDays"></div></div>
-   <div class="panel" style="margin-top:20px"><h3>${tt("By drink","Por bebida")}</h3><div class="tablewrap" id="sTable"></div></div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("By drink & dish","Por bebida y plato")}</h3><div class="tablewrap" id="sTable"></div></div>
 `;
   else body=`${period}
    <div class="kpis" id="sKpis" style="margin-top:20px"></div>
@@ -3504,7 +3517,7 @@ function costBoxHTML(){
 }
 function prodStats(n){
   const days=salesDays(n), st={};
-  P.forEach(p=>st[p.id]={cups:0,rev:0});
+  P.forEach(p=>st[p.id]={cups:0,rev:0}); (D.menu||[]).filter(m=>m.active!==false&&!m.prodId).forEach(m=>st["m_"+m.id]={cups:0,rev:0});
   days.forEach(d=>Object.entries(d.items).forEach(([pid,it])=>{ if(!st[pid]) st[pid]={cups:0,rev:0}; st[pid].cups+=num(it.cups); st[pid].rev+=num(it.revenue); }));
   return Object.entries(st).map(([pid,s])=>{const pcx=prodCost(pid), c=pcx.c, partial=!!pcx.partial;const cost=s.cups*c;const m=s.rev-cost;return {pid,...s,unitCost:c,cost,margin:m,pct:s.rev?m/s.rev*100:0,hasCost:c>0,partial};});
 }
@@ -3525,7 +3538,7 @@ function listM3(){
   const days=salesDays(range), tot=days.map(dayTotals);
   const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
   const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
-  const kp=document.getElementById("sKpis"); if(kp) kp.innerHTML=[[money(rev),tt("revenue","ingresos")],[cups,tt("cups sold","vasos vendidos")],[cups?money(rev/cups):"—",tt("average price","precio promedio")],
+  const kp=document.getElementById("sKpis"); if(kp) kp.innerHTML=[[money(rev),tt("revenue","ingresos")],[cups,tt("drinks & dishes sold","bebidas y platos vendidos")],[cups?money(rev/cups):"—",tt("average price","precio promedio")],
     [costKnown&&rev?money(rev-cost):"—",tt("gross margin","margen bruto")],[costKnown&&rev?Math.round((rev-cost)/rev*100)+"%":"—",tt("margin %","margen %")],
     ...(opexMonthly()>0?[[money(opexDaily()*range),tt("operating costs","costos operativos")],
       [costKnown&&rev?money(rev-cost-opexDaily()*range):"—",tt("net profit","utilidad neta"),costKnown&&rev?(rev-cost-opexDaily()*range<0?"bad":"okk"):""]]:[])]
@@ -3535,17 +3548,17 @@ function listM3(){
   if(sdEl){ const tgt=num(D.costs._target)||60; let T={c:0,r:0,k:0};
     const rowsD=days.map((d,i)=>{ const x=tot[i]; T.c+=x.cups; T.r+=x.rev; T.k+=x.cost; const has=x.rev>0, mg=has&&costKnown?(x.rev-x.cost)/x.rev*100:null;
       return `<tr${d.date===today()?' class="editing"':""}><td class="nw">${esc(d.date)}</td><td class="nw">${esc((state.lang==="es"?DOWN.es:DOWN.en)[dow(d.date)]||"")}</td><td class="nw">${x.cups||"—"}</td><td class="nw">${has?money(x.rev):"—"}</td><td class="nw">${has?money(x.cost):"—"}</td><td class="nw">${has?money(x.rev-x.cost):"—"}</td><td class="nw">${mg==null?"—":`<span class="badge ${mg<tgt?"bad":"ok"}">${Math.round(mg)}%</span>`}</td></tr>`; }).reverse().join("");
-    setHTML(sdEl,`<table class="dt"><thead><tr><th>${tt("Date","Fecha")}</th><th>${tt("Day","Día")}</th><th>${tt("Cups","Vasos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th></tr></thead><tbody>${rowsD}</tbody>
+    setHTML(sdEl,`<table class="dt"><thead><tr><th>${tt("Date","Fecha")}</th><th>${tt("Day","Día")}</th><th>${tt("Sold","Vendidos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th></tr></thead><tbody>${rowsD}</tbody>
       <tfoot><tr><td colspan="2"><b>${tt("Total","Total")}</b></td><td class="nw"><b>${T.c}</b></td><td class="nw"><b>${money(T.r)}</b></td><td class="nw"><b>${money(T.k)}</b></td><td class="nw"><b>${money(T.r-T.k)}</b></td><td class="nw">${T.r>0&&costKnown?Math.round((T.r-T.k)/T.r*100)+"%":"—"}</td></tr></tfoot></table>`); }
   const sc=document.getElementById("sChart"); if(sc) sc.innerHTML=rev?barChart(days.map((d,i)=>({x:d.date,y:tot[i].rev})),sc.clientWidth):`<p class="empty">${tt("No sales in this period yet.","Aún no hay ventas en este periodo.")}</p>`;
   const target=num(D.costs._target)||60, sold=st.filter(s=>s.cups>0), avgCups=sold.length?sold.reduce((a,s)=>a+s.cups,0)/sold.length:0;
-  const rows=[...st].sort((a,b)=>b.margin-a.margin);
-  const stb=document.getElementById("sTable"); if(stb) stb.innerHTML=`<table class="dt"><thead><tr><th>${tt("Drink","Bebida")}</th><th>${tt("Cups","Vasos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th><th>${tt("Note","Nota")}</th></tr></thead><tbody>${rows.map((s,i)=>{
+  const rows=[...st].sort((a,b)=>(saleCat(a.pid)==="comida")-(saleCat(b.pid)==="comida")||b.margin-a.margin);   // drinks first, then dishes
+  const stb=document.getElementById("sTable"); if(stb) stb.innerHTML=`<table class="dt"><thead><tr><th>${tt("Drink / dish","Bebida / plato")}</th><th>${tt("Type","Tipo")}</th><th>${tt("Sold","Vendidos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th><th>${tt("Note","Nota")}</th></tr></thead><tbody>${rows.map((s,i)=>{
      let note=""; if(s.cups&&!s.hasCost) note=`<span class="badge warn">${tt("No cost set","Sin costo")}</span>`;
      else if(s.cups&&s.partial) note=`<span class="badge warn">${tt("Cost incomplete — an ingredient has no Kardex cost","Costo incompleto — un ingrediente no tiene costo en Kardex")}</span>`;
      else if(s.cups>=avgCups&&s.cups>0&&s.pct<target) note=`<span class="badge bad">${tt("Sells well, low margin","Se vende bien, margen bajo")}</span>`;
      else if(i===0&&s.margin>0) note=`<span class="badge ok">${tt("Most profitable","Más rentable")}</span>`;
-     return `<tr><td>${esc(pname(s.pid))}</td><td>${s.cups}</td><td>${money(s.rev)}</td><td>${s.hasCost?money(s.cost):"—"}</td><td>${s.hasCost?money(s.margin):"—"}</td><td>${s.hasCost&&s.rev?Math.round(s.pct)+"%":"—"}</td><td>${note}</td></tr>`;}).join("")}</tbody></table>`;
+     return `<tr><td>${esc(pname(s.pid))}</td><td class="nw">${saleCat(s.pid)==="comida"?"🍽 "+tt("Dish","Plato"):"🥤 "+tt("Drink","Bebida")}</td><td>${s.cups}</td><td>${money(s.rev)}</td><td>${s.hasCost?money(s.cost):"—"}</td><td>${s.hasCost?money(s.margin):"—"}</td><td>${s.hasCost&&s.rev?Math.round(s.pct)+"%":"—"}</td><td>${note}</td></tr>`;}).join("")}</tbody></table>`;
   const f=weekdayForecast();
   const sp=document.getElementById("sProj"); if(sp) sp.innerHTML=f?`<ul class="rows">${f.map(r=>`<li><div>${DOWN[state.lang][dow(r.date)]} ${r.date.slice(5)}</div><b>${Math.round(r.cups)} ${tt("cups","vasos")} · ${money(r.rev)}</b></li>`).join("")}</ul><p><b>${tt("Next 7 days","Próximos 7 días")}: ${Math.round(f.reduce((s,r)=>s+r.cups,0))} ${tt("cups","vasos")} · ${money(f.reduce((s,r)=>s+r.rev,0))}</b></p><p class="hint">${tt("Average of the same weekday over the last 4 weeks.","Promedio del mismo día de la semana en las últimas 4 semanas.")}</p>`
     :`<p class="empty">${tt("Needs at least 7 days of sales.","Necesita al menos 7 días de ventas.")}</p>`;
