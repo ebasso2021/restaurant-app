@@ -3362,7 +3362,8 @@ function m3(){
     <div class="stack">${period}</div>
    </div>
    <div class="kpis" id="sKpis" style="margin-top:20px"></div>
-   <div class="panel" style="margin-top:20px"><h3>${tt("Daily revenue","Ingresos diarios")}</h3><div id="sChart" class="chartbox"></div></div>
+   <div class="panel" style="margin-top:20px"><h3>${tt("Daily revenue","Ingresos diarios")}</h3><div id="sChart" class="chartbox"></div>
+    <h4 class="minih" style="margin-top:14px">${tt("Day by day","Día por día")} · ${range} ${tt("days","días")}</h4><div class="tablewrap" id="sDays"></div></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("By drink","Por bebida")}</h3><div class="tablewrap" id="sTable"></div></div>
 `;
   else body=`${period}
@@ -3530,6 +3531,12 @@ function listM3(){
       [costKnown&&rev?money(rev-cost-opexDaily()*range):"—",tt("net profit","utilidad neta"),costKnown&&rev?(rev-cost-opexDaily()*range<0?"bad":"okk"):""]]:[])]
     .map(k=>`<div class="kpi${k[2]?" "+k[2]:""}"><div class="big">${k[0]}</div><div class="lbl">${k[1]} · ${range} ${tt("days","días")}</div></div>`).join("")
     +(opexMonthly()>0&&costKnown&&cups&&rev>cost?`<p class="hint" style="grid-column:1/-1">⚖ ${tt("Break-even","Punto de equilibrio")}: ${tt(`about <b>${Math.ceil(opexDaily()/((rev-cost)/cups))}</b> cups a day (${money(opexMonthly())} of operating costs per month ÷ ${money((rev-cost)/cups)} average margin per cup). You sold ${Math.round(cups/range)} a day in this period.`,`unos <b>${Math.ceil(opexDaily()/((rev-cost)/cups))}</b> vasos al día (${money(opexMonthly())} de costos operativos al mes ÷ ${money((rev-cost)/cups)} de margen promedio por vaso). En este periodo vendiste ${Math.round(cups/range)} al día.`)}</p>`:"")+(!costKnown&&rev?`<p class="hint" style="grid-column:1/-1">${tt("Enter the cost per cup of every drink sold to see margins.","Ingresa el costo por vaso de cada bebida vendida para ver márgenes.")}</p>`:"");
+  const sdEl=document.getElementById("sDays");
+  if(sdEl){ const tgt=num(D.costs._target)||60; let T={c:0,r:0,k:0};
+    const rowsD=days.map((d,i)=>{ const x=tot[i]; T.c+=x.cups; T.r+=x.rev; T.k+=x.cost; const has=x.rev>0, mg=has&&costKnown?(x.rev-x.cost)/x.rev*100:null;
+      return `<tr${d.date===today()?' class="editing"':""}><td class="nw">${esc(d.date)}</td><td class="nw">${esc((state.lang==="es"?DOWN.es:DOWN.en)[dow(d.date)]||"")}</td><td class="nw">${x.cups||"—"}</td><td class="nw">${has?money(x.rev):"—"}</td><td class="nw">${has?money(x.cost):"—"}</td><td class="nw">${has?money(x.rev-x.cost):"—"}</td><td class="nw">${mg==null?"—":`<span class="badge ${mg<tgt?"bad":"ok"}">${Math.round(mg)}%</span>`}</td></tr>`; }).reverse().join("");
+    setHTML(sdEl,`<table class="dt"><thead><tr><th>${tt("Date","Fecha")}</th><th>${tt("Day","Día")}</th><th>${tt("Cups","Vasos")}</th><th>${tt("Revenue","Ingresos")}</th><th>${tt("Cost","Costo")}</th><th>${tt("Margin","Margen")}</th><th>%</th></tr></thead><tbody>${rowsD}</tbody>
+      <tfoot><tr><td colspan="2"><b>${tt("Total","Total")}</b></td><td class="nw"><b>${T.c}</b></td><td class="nw"><b>${money(T.r)}</b></td><td class="nw"><b>${money(T.k)}</b></td><td class="nw"><b>${money(T.r-T.k)}</b></td><td class="nw">${T.r>0&&costKnown?Math.round((T.r-T.k)/T.r*100)+"%":"—"}</td></tr></tfoot></table>`); }
   const sc=document.getElementById("sChart"); if(sc) sc.innerHTML=rev?barChart(days.map((d,i)=>({x:d.date,y:tot[i].rev})),sc.clientWidth):`<p class="empty">${tt("No sales in this period yet.","Aún no hay ventas en este periodo.")}</p>`;
   const target=num(D.costs._target)||60, sold=st.filter(s=>s.cups>0), avgCups=sold.length?sold.reduce((a,s)=>a+s.cups,0)/sold.length:0;
   const rows=[...st].sort((a,b)=>b.margin-a.margin);
@@ -3550,7 +3557,7 @@ function barChart(pts,W0){
   const ticks=[0,top/2,top];
   return `<svg viewBox="0 0 ${W} ${H}" class="bars" role="img" aria-label="${tt("Daily revenue","Ingresos diarios")}">
    ${ticks.map(t=>`<line x1="${pl}" x2="${W}" y1="${y(t)}" y2="${y(t)}" class="grid"/><text x="${pl-6}" y="${y(t)+4}" text-anchor="end" class="ax">$${Math.round(t)}</text>`).join("")}
-   ${pts.map((p,i)=>{const x=pl+i*bw+2,w=Math.max(2,bw-4),h=H-pb-y(p.y);return `<g class="bar"><rect x="${pl+i*bw}" y="${pt}" width="${bw}" height="${H-pb-pt}" fill="transparent"><title>${p.x}: ${money(p.y)}</title></rect>${p.y>0?`<path d="M${x},${H-pb} v${-(h-Math.min(4,h))} q0,-${Math.min(4,h)} ${Math.min(4,w/2)},-${Math.min(4,h)} h${w-2*Math.min(4,w/2)} q${Math.min(4,w/2)},0 ${Math.min(4,w/2)},${Math.min(4,h)} v${h-Math.min(4,h)} z" class="mark"><title>${p.x}: ${money(p.y)}</title></path>`:""}${(i%Math.ceil(n/Math.max(4,Math.floor(W/44)))===0)?`<text x="${pl+i*bw+bw/2}" y="${H-6}" text-anchor="middle" class="ax">${p.x.slice(8)}</text>`:""}</g>`;}).join("")}
+   ${pts.map((p,i)=>{const x=pl+i*bw+2,w=Math.max(2,bw-4),h=H-pb-y(p.y);return `<g class="bar"><rect x="${pl+i*bw}" y="${pt}" width="${bw}" height="${H-pb-pt}" fill="transparent"><title>${p.x}: ${money(p.y)}</title></rect>${p.y>0?`<path d="M${x},${H-pb} v${-(h-Math.min(4,h))} q0,-${Math.min(4,h)} ${Math.min(4,w/2)},-${Math.min(4,h)} h${w-2*Math.min(4,w/2)} q${Math.min(4,w/2)},0 ${Math.min(4,w/2)},${Math.min(4,h)} v${h-Math.min(4,h)} z" class="mark"><title>${p.x}: ${money(p.y)}</title></path>`:""}<text x="${pl+i*bw+bw/2}" y="${H-6}" text-anchor="middle" class="ax"${n>16?' style="font-size:9px"':""}>${p.x.slice(8)}</text></g>`;}).join("")}
   </svg>`;
 }
 async function salesAI(){
