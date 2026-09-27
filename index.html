@@ -1434,44 +1434,92 @@ async function sheetCall(url,body){
 function makeSheetDB(url){
   const cache={}, loaded={}, subs={}, rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   const notify=col=>setTimeout(()=>(subs[col]||new Set()).forEach(f=>f()),0);
-  const snap=(col,id)=>({id,exists:!!(cache[col]&&cache[col][id]),data:()=>cache[col]&&cache[col][id]?JSON.parse(JSON.stringify(cache[col][id])):undefined,metadata:{fromCache:false,hasPendingWrites:false}});
+  const snap=(col,id)=>({id,exists:!!(cache[col]&&cache[col][id]),data:()=>cache[col]&&cache[col][id]?JSON.parse(JSON.stringify(cache[col][id])):undefined,metadata:{fromCache:false,hasPendingWrites:hasPending(col,id)}});
   const fails={}; // consecutive failed loads per tab
-  async function load(col){
-    let j=null, err=null;
+  const ver={}; // last version of each tab we loaded (from the server's change stamps)
+  /* ---- background save queue: the screen updates at once, the Sheet is written in batches ---- */
+  let queue=[], inflight=[], flushTimer=null, flushing=null, backoff=0, legacy=false; const touched={}; // touched[col] = time of the last write that reached the Sheet
+  const key=o=>o.col+"/"+o.id;
+  function hasPending(col,id){ const k=col+"/"+id; return queue.some(o=>key(o)===k)||inflight.some(o=>key(o)===k); }
+  function overlay(col,m){ [...inflight,...queue].forEach(o=>{ if(o.col!==col) return; if(o.op==="delete") delete m[o.id]; else m[o.id]=JSON.parse(JSON.stringify(o.data)); }); return m; }
+  function pendingCount(){ return queue.length+inflight.length; }
+  function showSaving(){ let el=document.getElementById("sheetSaving"); const n=pendingCount();
+    if(!el){ if(!n) return; el=document.createElement("div"); el.id="sheetSaving"; el.setAttribute("role","status");
+      el.style.cssText="position:fixed;left:12px;bottom:12px;z-index:9999;background:#1f2937;color:#fff;padding:6px 12px;border-radius:16px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.25);pointer-events:none;transition:opacity .3s";
+      document.body.appendChild(el); }
+    if(n){ el.textContent=(backoff?tt("Waiting for the Google Sheet… ","Esperando la hoja de Google… "):tt("Saving… ","Guardando… "))+n; el.style.opacity="1"; }
+    else { el.textContent=tt("Saved ✓","Guardado ✓"); clearTimeout(el._t); el._t=setTimeout(()=>{ if(!pendingCount()) el.style.opacity="0"; },1200); } }
+  window.addEventListener("beforeunload",e=>{ if(pendingCount()){ e.preventDefault(); e.returnValue=""; return ""; } });
+  function enqueue(o){ const k=key(o); queue=queue.filter(x=>key(x)!==k); queue.push(o); showSaving(); schedule(backoff||350); }
+  function schedule(ms){ if(flushTimer||flushing) return; flushTimer=setTimeout(()=>{ flushTimer=null; flush(); },ms); }
+  const opErr=(code)=>{ if(code==="forbidden") denied();
+    else if(code==="too_big") toast(tt("Too much text to save in one record. Shorten it and try again.","Demasiado texto para guardar en un registro. Acórtalo e inténtalo de nuevo."));
+    else if(code!=="auth") toast(tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo.")); };
+  async function sendOps(ops){ // → one result per op
+    if(!legacy){ try{ const j=await sheetCall(url,{action:"batch",ops}); if(Array.isArray(j.results)) return j.results; legacy=true; }
+      catch(e){ if(e.code!=="bad_action"&&e.code!=="bad_collection") throw e; legacy=true; } } // server not updated yet → one call per change
+    const res=[]; for(const o of ops){ try{ await sheetCall(url,o.op==="delete"?{action:"delete",col:o.col,id:o.id}:{action:"set",col:o.col,id:o.id,data:o.data}); res.push({ok:true}); }
+      catch(e){ if(e.code==="busy"||e.code==="unavailable"||e.code==="auth"){ if(!res.length) throw e; break; } res.push({ok:false,error:e.code}); } }
+    return res; }
+  function flush(){ if(flushing) return flushing; if(!queue.length) return Promise.resolve();
+    flushing=(async()=>{ inflight=queue.splice(0,40); showSaving();
+      try{ const res=await sendOps(inflight); const partial=res.length<inflight.length; backoff=0; const bad=new Set();
+        inflight.forEach((o,i)=>{ const r=res[i]; if(!r) { if(!queue.some(x=>key(x)===key(o))) queue.unshift(o); return; } // not sent yet → back in the queue
+          touched[o.col]=Date.now(); if(!r.ok){ opErr(r.error); bad.add(o.col); } });
+        if(partial) backoff=Math.min(30000,backoff?backoff*2:2000); // the server was busy part-way
+        inflight=[]; bad.forEach(c=>load(c)); }
+      catch(e){ const back=inflight.filter(o=>!queue.some(x=>key(x)===key(o))); inflight=[]; queue=back.concat(queue); // keep them, retry later
+        backoff=Math.min(30000,backoff?backoff*2:2000); console.warn("Sheet save failed, retrying in",backoff,"ms",e);
+        if(backoff>=8000&&e.code!=="auth") toast(tt("The Google Sheet is slow — your changes are kept and will be saved.","La hoja de Google está lenta — tus cambios se guardan y se enviarán.")); }
+      finally{ flushing=null; showSaving(); if(queue.length) schedule(backoff||50); } })();
+    return flushing; }
+  async function drain(){ for(let i=0;i<20&&(queue.length||flushing);i++){ if(flushTimer){ clearTimeout(flushTimer); flushTimer=null; } await flush(); if(backoff) break; } }
+  async function load(col,depth=0){
+    let j=null, err=null; const t0=Date.now();
     for(let i=0;i<3;i++){ // retry brief network / "busy" hiccups before warning
       try{ j=await sheetCall(url,{action:"list",col}); err=null; break; }
       catch(e){ err=e; if(e.code==="auth"||e.code==="forbidden"||e.code==="bad_collection") break; await new Promise(r=>setTimeout(r,1500*(i+1))); } }
-    if(j){ fails[col]=0; const m={}; j.docs.forEach(d=>{m[d.id]=d.data;});
+    if(j){ fails[col]=0;
+      if((touched[col]||0)>t0&&depth<3) return load(col,depth+1); // one of our saves landed while reading → read again so it isn't shown as undone
+      const m={}; j.docs.forEach(d=>{m[d.id]=d.data;}); overlay(col,m);
+      if(j.version!=null) ver[col]=String(j.version);
       const same=loaded[col]&&JSON.stringify(cache[col])===JSON.stringify(m);
       cache[col]=m; loaded[col]=true; if(!same) notify(col); return; }
     fails[col]=(fails[col]||0)+1; console.warn("Sheet load failed:",col,err);
     // background refreshes stay quiet unless the problem persists
     if(err.code!=="auth"&&(!loaded[col]||fails[col]>=3)) toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora."));
   }
+  /* ---- smart refresh: ask which tabs changed (one tiny call) and only re-read those ---- */
+  let versionsOK=true, syncing=null;
+  async function sync(only){ if(syncing) return syncing;
+    syncing=(async()=>{ const cols=(only||Object.keys(subs)).filter(c=>subs[c]&&subs[c].size);
+      if(!cols.length) return;
+      if(versionsOK){ try{ const j=await sheetCall(url,{action:"versions"}); const v=j.versions||{};
+          for(const c of cols){ if(!loaded[c]||ver[c]===undefined||String(v[c])!==ver[c]) await load(c); } return; }
+        catch(e){ if(e.code!=="bad_action"&&e.code!=="bad_collection") return; versionsOK=false; } } // older server → full reload
+      for(const c of cols) await load(c); })();
+    try{ await syncing; } finally{ syncing=null; } }
   const denied=()=>toast(tt("Your role can't make this change.","Tu rol no permite este cambio."));
-  async function write(col,id,data){ if(!canWrite(col)){ denied(); await load(col); throw {code:"forbidden"}; }
-    try{ try{ await sheetCall(url,{action:"set",col,id,data}); }
-         catch(e){ if(e.code!=="busy") throw e; await new Promise(r=>setTimeout(r,1500)); await sheetCall(url,{action:"set",col,id,data}); } } // one retry when the server is busy
-    catch(e){ if(e.code==="forbidden") denied();
-      else if(e.code==="too_big") toast(tt("Too much text to save in one record. Shorten it and try again.","Demasiado texto para guardar en un registro. Acórtalo e inténtalo de nuevo."));
-      else if(e.code==="busy") toast(tt("The Google Sheet is busy. Try again in a moment.","La hoja de Google está ocupada. Inténtalo de nuevo en un momento."));
-      else if(e.code!=="auth") toast(tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo."));
-      await load(col); throw e; } }
+  function write(col,id,data){ if(!canWrite(col)){ denied(); load(col); return Promise.reject({code:"forbidden"}); }
+    enqueue({op:"set",col,id,data:JSON.parse(JSON.stringify(data))}); return Promise.resolve(); }
   function docRef(path){ const [col,id]=path.split("/"); return {id,path,
     async get(){ if(!loaded[col]) await load(col); return snap(col,id); },
-    async set(d){ (cache[col] ||= {})[id]=JSON.parse(JSON.stringify(d)); notify(col); await write(col,id,cache[col][id]); },
-    async update(d){ if(!(cache[col]&&cache[col][id])) throw {code:"invalid_argument"}; Object.assign(cache[col][id],JSON.parse(JSON.stringify(d))); notify(col); await write(col,id,cache[col][id]); },
-    async delete(){ if(!canWrite(col)){ denied(); return; } if(cache[col]) delete cache[col][id]; notify(col); try{ await sheetCall(url,{action:"delete",col,id}); }catch(e){ if(e.code==="forbidden") denied(); else if(e.code!=="auth") toast(tt("Not deleted in the Google Sheet.","No se borró en la hoja de Google.")); await load(col); } },
+    async set(d){ if(!canWrite(col)){ denied(); throw {code:"forbidden"}; } (cache[col] ||= {})[id]=JSON.parse(JSON.stringify(d)); notify(col); await write(col,id,cache[col][id]); },
+    async update(d){ if(!(cache[col]&&cache[col][id])) throw {code:"invalid_argument"}; if(!canWrite(col)){ denied(); throw {code:"forbidden"}; } Object.assign(cache[col][id],JSON.parse(JSON.stringify(d))); notify(col); await write(col,id,cache[col][id]); },
+    async delete(){ if(!canWrite(col)){ denied(); return; } if(cache[col]) delete cache[col][id]; notify(col); enqueue({op:"delete",col,id}); },
     onSnapshot(next){ const f=()=>next(snap(col,id)); (subs[col] ||= new Set()).add(f); if(!loaded[col]) load(col); else setTimeout(f,0); return ()=>subs[col].delete(f); } }; }
   function colRef(col){ return {path:col,
     doc(id){ return docRef(col+"/"+(id||rid())); },
     async add(d){ const r=this.doc(); await r.set(d); return r; },
     onSnapshot(next){ const f=()=>{ const docs=Object.keys(cache[col]||{}).sort().map(id=>snap(col,id)); next({docs,size:docs.length,empty:!docs.length,metadata:{fromCache:false,hasPendingWrites:false}}); }; (subs[col] ||= new Set()).add(f); if(!loaded[col]) load(col); else setTimeout(f,0); return ()=>subs[col].delete(f); } }; }
-  // refresh every 30 s while the page is visible, so other devices' changes show up
-  setInterval(()=>{ if(document.visibilityState==="visible") Object.keys(subs).forEach(c=>{ if(subs[c].size) load(c); }); },30000);
-  return {collection:colRef,doc:docRef,_refresh:c=>load(c),
-    _dump:async()=>{ for(const c of SHEET_COLS) if(!loaded[c]) await load(c); const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
-    _load:async obj=>{ for(const [k,d] of Object.entries(obj||{})){ const [c,id]=k.split("/"); if(SHEET_COLS.includes(c)&&id){ (cache[c] ||= {})[id]=d; await sheetCall(url,{action:"set",col:c,id,data:d}); } } SHEET_COLS.forEach(notify); },
+  // every 20 s while the page is visible (and when it comes back to the front), pick up other devices' changes
+  setInterval(()=>{ if(document.visibilityState==="visible") sync(); },20000);
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") sync(); else if(queue.length) flush(); });
+  return {collection:colRef,doc:docRef,
+    _refresh:async c=>{ await drain(); await load(c); }, // after our own saves land, re-read (e.g. Kardex rows the server added)
+    _sync:cols=>sync(cols), _flush:()=>drain(), _pending:()=>pendingCount(),
+    _dump:async()=>{ await drain(); for(const c of SHEET_COLS) if(!loaded[c]) await load(c); const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
+    _load:async obj=>{ for(const [k,d] of Object.entries(obj||{})){ const [c,id]=k.split("/"); if(SHEET_COLS.includes(c)&&id){ (cache[c] ||= {})[id]=d; enqueue({op:"set",col:c,id,data:d}); } } SHEET_COLS.forEach(notify); await drain(); },
     _empty:()=>false };
 }
 
@@ -2158,7 +2206,7 @@ function wireKitchen(){
         :tt(`Table ${o.table} served · no saved recipe linked to stock, nothing taken out.`,`Mesa ${o.table} servida · sin receta guardada vinculada al stock, no se descontó nada.`)); return; }
     await dbUpd("orders",id,{status:b.dataset.ost,updated:new Date().toISOString()});
   };
-  clearInterval(ordTimer); ordTimer=setInterval(()=>{ if(state.tab!=="ai"||state.aiView!=="kitchen"){clearInterval(ordTimer);return;} if(DB&&DB._refresh&&document.visibilityState==="visible") DB._refresh("orders"); else listOrders(); },15000);
+  clearInterval(ordTimer); ordTimer=setInterval(()=>{ if(state.tab!=="ai"||state.aiView!=="kitchen"){clearInterval(ordTimer);return;} if(DB&&DB._sync&&document.visibilityState==="visible") DB._sync(["orders"]); else if(DB&&DB._refresh&&document.visibilityState==="visible") DB._refresh("orders"); else listOrders(); },15000);
 }
 function listOrders(){
   const el=document.getElementById("ordBoard"); if(!el) return;

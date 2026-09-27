@@ -174,7 +174,20 @@ function doPost(e) {
   try { body = JSON.parse(e.postData && e.postData.contents || "{}"); } catch (err) { return out_({ ok: false, error: "bad_json" }); }
   return handle_(body);
 }
-const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1 };
+const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1, versions: 1 };
+/* ---- change versions: every write stamps its tab, so the app only re-reads tabs that changed ---- */
+const TOUCHED_ = {};
+function touch_(col) { if (SHEETS[col]) TOUCHED_[col] = 1; }
+function flushVersions_() {
+  const cols = Object.keys(TOUCHED_); if (!cols.length) return;
+  const v = Date.now().toString(36) + Math.random().toString(36).slice(2, 6), o = {};
+  cols.forEach(function (c) { o["v_" + c] = v; delete TOUCHED_[c]; });
+  try { PropertiesService.getScriptProperties().setProperties(o); } catch (e) {}
+}
+function versions_() {
+  let p = {}; try { p = PropertiesService.getScriptProperties().getProperties(); } catch (e) {}
+  const o = {}; Object.keys(SHEETS).forEach(function (c) { o[c] = p["v_" + c] || "0"; }); return o;
+}
 function handle_(req) {
   const action = String(req.action || ""), col = String(req.col || "");
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -183,6 +196,23 @@ function handle_(req) {
   const lock = LockService.getScriptLock();
   if (needLock && !lock.tryLock(15000)) return out_({ ok: false, error: "busy" });
   try {
+    if (action === "versions") {
+      const s0 = session_(req.token); if (!s0) return out_({ ok: false, error: "auth" });
+      return out_({ ok: true, versions: versions_() });
+    }
+    if (action === "batch") { // many saves / deletes in one call and one lock
+      const s1 = session_(req.token); if (!s1) return out_({ ok: false, error: "auth" });
+      const ops = Array.isArray(req.ops) ? req.ops.slice(0, 100) : [];
+      return out_({ ok: true, results: ops.map(function (o) {
+        try {
+          o = o || {};
+          if (!SHEETS[String(o.col || "")]) return { ok: false, error: "bad_collection" };
+          if (o.op === "delete") return deleteOp_(s1, String(o.col), o.id);
+          if (o.op === "set") return setOp_(s1, String(o.col), o.id, o.data);
+          return { ok: false, error: "bad_action" };
+        } catch (err) { return { ok: false, error: "server", message: String(err && err.message || err) }; }
+      }) });
+    }
     if (action === "ping") return out_({ ok: true, hasUsers: usersSheet_().getLastRow() >= 2 });
     if (action === "login") return out_(login_(req.user, req.password));
     const s = session_(req.token);
@@ -219,49 +249,52 @@ function handle_(req) {
     if (action === "list") {
       if (!s) return out_({ ok: false, error: "auth" });
       if (!canRead_(s, col)) return out_({ ok: false, error: "forbidden" });
-      return out_({ ok: true, docs: list_(col) });
+      const ver = versions_()[col]; // read the version first: a write during the read just triggers one more refresh
+      return out_({ ok: true, docs: list_(col), version: ver });
     }
-    if (action === "set") {
-      const id = String(req.id || "");
-      if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof req.data !== "object" || req.data === null || Array.isArray(req.data)) return out_({ ok: false, error: "bad_request" });
-      if (!s) return out_({ ok: false, error: "auth" });
-      if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
-      const keys = Object.keys(req.data);
-      if (keys.length > 60 || keys.some(function (k) { return !/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(k); })) return out_({ ok: false, error: "bad_request", message: "campos inválidos" });
-      const isNew = rowOf_(sheet_(col), id) < 0;
-      let data = req.data;
-      // a new paid bill discounts the stock its recipes use; the server works it out itself
-      let uses = null;
-      // a bill only takes out the dishes that were not already served from the Kitchen board (the app sends them in stockLines)
-      if (col === "bills" && isNew && data.stockDone !== true) { uses = stockForBill_(Array.isArray(data.stockLines) ? { lines: data.stockLines } : data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
-      // an order marked "served" on the Kitchen board takes its recipes' ingredients out of the Kardex (type out), once
-      let orderRef = "";
-      if (col === "orders") {
-        const old = isNew ? null : docData_(col, id);
-        if (old && old.stockDone === true) { data.stockDone = true; if (old.stockUse) data.stockUse = old.stockUse; if (old.stockText) data.stockText = old.stockText; }
-        else if (data.status === "served" && data.stockDone !== true) {
-          uses = stockForBill_({ lines: (Array.isArray(data.items) ? data.items : []).map(function (i) { return { dish: i && i.dish, qty: i && i.qty }; }) });
-          data.stockDone = true; data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; ");
-          orderRef = "Servido · mesa " + (data.table || "");
-        }
-      }
-      if (JSON.stringify(data).length > 45000) return out_({ ok: false, error: "too_big" }); // a cell holds at most 50 000 characters
-      write_(col, id, data);
-      if (uses && uses.length) useStock_(uses, orderRef || ("Factura " + id), s.name || s.user || "");
-      return out_({ ok: true });
-    }
-    if (action === "delete") {
-      if (!s) return out_({ ok: false, error: "auth" });
-      if (!canWrite_(s, col)) return out_({ ok: false, error: "forbidden" });
-      const sh = sheet_(col), id = String(req.id || ""), r = rowOf_(sh, id);
-      if (r > 0) sh.deleteRow(r);
-      if (col === "sales") salesDetail_(id, null);
-      return out_({ ok: true });
-    }
+    if (action === "set") { if (!s) return out_({ ok: false, error: "auth" }); return out_(setOp_(s, col, req.id, req.data)); }
+    if (action === "delete") { if (!s) return out_({ ok: false, error: "auth" }); return out_(deleteOp_(s, col, req.id)); }
     return out_({ ok: false, error: "bad_action" });
   } finally {
+    flushVersions_();
     if (needLock) lock.releaseLock();
   }
+}
+function setOp_(s, col, id, data) {
+  id = String(id || "");
+  if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof data !== "object" || data === null || Array.isArray(data)) return { ok: false, error: "bad_request" };
+  if (!canWrite_(s, col)) return { ok: false, error: "forbidden" };
+  const keys = Object.keys(data);
+  if (keys.length > 60 || keys.some(function (k) { return !/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(k); })) return { ok: false, error: "bad_request", message: "campos inválidos" };
+  const isNew = rowOf_(sheet_(col), id) < 0;
+  // a new paid bill discounts the stock its recipes use; the server works it out itself
+  let uses = null;
+  // a bill only takes out the dishes that were not already served from the Kitchen board (the app sends them in stockLines)
+  if (col === "bills" && isNew && data.stockDone !== true) { uses = stockForBill_(Array.isArray(data.stockLines) ? { lines: data.stockLines } : data); data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; "); }
+  // an order marked "served" on the Kitchen board takes its recipes' ingredients out of the Kardex (type out), once
+  let orderRef = "";
+  if (col === "orders") {
+    const old = isNew ? null : docData_(col, id);
+    if (old && old.stockDone === true) { data.stockDone = true; if (old.stockUse) data.stockUse = old.stockUse; if (old.stockText) data.stockText = old.stockText; }
+    else if (data.status === "served" && data.stockDone !== true) {
+      uses = stockForBill_({ lines: (Array.isArray(data.items) ? data.items : []).map(function (i) { return { dish: i && i.dish, qty: i && i.qty }; }) });
+      data.stockDone = true; data.stockUse = uses; data.stockText = uses.map(function (u) { return u.name + " −" + u.qty + " " + u.unit; }).join("; ");
+      orderRef = "Servido · mesa " + (data.table || "");
+    }
+  }
+  if (JSON.stringify(data).length > 45000) return { ok: false, error: "too_big" }; // a cell holds at most 50 000 characters
+  write_(col, id, data);
+  if (uses && uses.length) useStock_(uses, orderRef || ("Factura " + id), s.name || s.user || "");
+  return { ok: true };
+}
+function deleteOp_(s, col, id) {
+  if (!canWrite_(s, col)) return { ok: false, error: "forbidden" };
+  id = String(id || "");
+  const sh = sheet_(col), r = rowOf_(sh, id);
+  if (r > 0) sh.deleteRow(r);
+  if (col === "sales") salesDetail_(id, null);
+  touch_(col);
+  return { ok: true };
 }
 
 /* ---------------- spreadsheet menu: create the first admin and manage users ---------------- */
@@ -381,6 +414,7 @@ function write_(col, id, data) {
   const range = sh.getRange(r, 1, 1, row.length);
   range.setNumberFormats([fmts]);
   range.setValues([row]);
+  touch_(col);
   if (col === "sales") salesDetail_(id, data);
 }
 // one row per product and day in "Ventas detalle", rebuilt from the app's daily sales record
@@ -415,9 +449,13 @@ function out_(obj) {
  * (once) and update the unit cost if one was entered. Column K records when it was applied. */
 function onEdit(e) {
   const sh = e.range.getSheet();
-  if (sh.getName() !== "Compras" || e.range.getColumn() > 10 || e.range.getRow() < 2) return;
+  // a hand edit in one of the app's tabs → stamp it so every device reloads that tab
+  Object.keys(SHEETS).forEach(function (c) { if (SHEETS[c] === sh.getName()) touch_(c); });
+  if (sh.getName() === "Compras") { touch_("inventory"); touch_("kardex"); }
+  try { if (sh.getName() !== "Compras" || e.range.getColumn() > 10 || e.range.getRow() < 2) return;
   const first = e.range.getRow(), last = first + e.range.getNumRows() - 1;
   for (let r = first; r <= last; r++) applyPurchase_(sh, r);
+  } finally { flushVersions_(); }
 }
 function applyPurchase_(sh, r) {
   const v = sh.getRange(r, 1, 1, 11).getValues()[0]; // A Fecha … J Estado, K Aplicado
@@ -526,6 +564,7 @@ function formatoKardex() {
   });
 }
 function useStock_(uses, ref, by) {
+  touch_("inventory"); touch_("kardex");
   const inv = sheet_("inventory"), w = inv.getLastColumn(), headers = inv.getRange(1, 1, 1, w).getDisplayValues()[0];
   const cQty = headers.indexOf("Stock") + 1, cUpd = headers.indexOf("Actualizado") + 1; if (cQty < 1) return;
   const now = new Date().toISOString();
