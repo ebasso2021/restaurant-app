@@ -1932,6 +1932,16 @@ function pickTable(party,date,time,want){
   if(!free.length) return {err:tt(`Full: no free table for ${party} between ${time} and ${endTime(time)}. Try another time.`,`Completo: no hay mesa libre para ${party} entre ${time} y ${endTime(time)}. Prueba otra hora.`)};
   return {table:num(free[0].num)};
 }
+// Orders by table: only the tables marked "Occupied" in Tables layout (guests seated)
+const occupiedTables=()=>activeTables().filter(t=>t.occupied);
+function occTableOptions(sel){ const ts=occupiedTables();
+  return ts.length?`<option value="">${tt("Choose an occupied table…","Elige una mesa ocupada…")}</option>`+ts.map(t=>`<option value="${esc(t.num)}"${String(t.num)===String(sel)?" selected":""}>${tt("Table","Mesa")} ${esc(t.num)} · ${esc(t.seats)} ${tt("chairs","sillas")}${t.waiter?" · 👤 "+esc(t.waiter):""}</option>`).join("")
+    :`<option value="">${tt("No occupied tables","No hay mesas ocupadas")}</option>`; }
+const occTableHint=()=>occupiedTables().length?"":`<p class="hint warnnote f full">🪑 ${tt("No table is occupied. Mark the table as occupied when the guests sit down in","Ninguna mesa está ocupada. Marca la mesa como ocupada cuando se sienten los clientes en")} <button type="button" class="linkbtn" data-aiview="tables">${tt("Tables layout","Distribución de mesas")}</button>.</p>`;
+// free a table (after its bill is charged / printed)
+async function freeTable(num){ const tb=D.tables.find(x=>String(x.num)===String(num)); if(!tb||!tb.occupied) return false;
+  if(!canWrite("tables")){ toast(tt(`Mark table ${num} as free in Tables layout (your role can't change tables).`,`Marca la mesa ${num} como libre en Distribución de mesas (tu rol no puede cambiar mesas).`)); return false; }
+  await dbUpd("tables",tb.id,{occupied:false,occSince:""}); return true; }
 function tableOptions(sel,withAuto){
   return (withAuto?`<option value="">${tt("Automatic (smallest free table)","Automática (mesa libre más pequeña)")}</option>`:"")+activeTables().map(t=>`<option value="${esc(t.num)}"${String(t.num)===String(sel)?" selected":""}>${tt("Table","Mesa")} ${esc(t.num)} · ${esc(t.seats)} ${tt("chairs","sillas")}${t.zone?" · "+esc(t.zone):""}</option>`).join("");
 }
@@ -2034,8 +2044,9 @@ function ordersView(){
    <div class="grid">
     <div class="stack"><div class="panel"><h3>${tt("New order","Nueva orden")}</h3>
      <form id="ordForm" class="fgrid">
-      ${field("oTable",tt("Table","Mesa"),tabs.length?`<select id="oTable" required>${tableOptions("",false)}</select>`:`<input id="oTable" type="number" min="1" required>`)}
+      ${field("oTable",tt("Table","Mesa"),tabs.length?`<select id="oTable" required>${occTableOptions("")}</select>`:`<input id="oTable" type="number" min="1" required>`)}
       ${field("oGuests",tt("Diners","Comensales"),`<input id="oGuests" type="number" min="1" value="2">`)}
+      <div class="f full" id="oOccHint">${occTableHint()}</div>
       <p class="hint f full" id="oBook" aria-live="polite"></p>
       <div class="f full"><span>${tt("Dishes","Platos")}</span><div id="oItems">${itemRow()}</div>
        ${dishDatalist("dishList")}
@@ -2088,13 +2099,17 @@ function ordByTableHTML(){
   return tabs.map(t=>{ const to=os.filter(o=>String(o.table)===t), wt=tableWaiter(t);
     return `<div class="obt"><h4 class="minih">${tt("Table","Mesa")} ${esc(t)}${wt?` · 👤 ${esc(wt)}`:""}</h4><ul class="rows">${to.map(o=>`<li><div>${esc(itemsText(o.items||[])||o.itemsText||"")}<small>${esc(o.created?kxStamp(new Date(o.created)).slice(11,16):"")}${o.allergies?` · ⚠ ${esc(o.allergies)}`:""}</small></div><span class="badge ${(OSTAT[o.status]||OSTAT.new)[2]}">${o.status==="served"?"✓ "+tt("Served · in the bill","Entregada · en la cuenta"):esc(ostat(o.status))}</span></li>`).join("")}</ul></div>`; }).join("");
 }
-function listOrdPP(){ setHTML(document.getElementById("ordPP"),ppListHTML()); setHTML(document.getElementById("ordByTable"),ordByTableHTML()); ordStockCheck(); }
+function listOrdPP(){
+  const ot=document.getElementById("oTable"); if(ot&&ot.tagName==="SELECT"&&document.activeElement!==ot){ const v=ot.value, h=occTableOptions(v); if(ot.innerHTML!==h){ ot.innerHTML=h; if(ot.value!==v) ordBookingHint(); } }
+  setHTML(document.getElementById("oOccHint"),occTableHint());
+  setHTML(document.getElementById("ordPP"),ppListHTML()); setHTML(document.getElementById("ordByTable"),ordByTableHTML()); ordStockCheck(); }
 function wireOrders(){
   const box=document.getElementById("oItems");
   box.addEventListener("input",ordStockCheck); box.addEventListener("change",ordStockCheck);
   document.getElementById("oAdd").onclick=()=>{box.insertAdjacentHTML("beforeend",itemRow());box.lastElementChild.querySelector(".odish").focus();applyRoleUI();};
   box.onclick=e=>{const b=e.target.closest("[data-orm]"); if(!b) return; if(box.children.length>1) b.closest(".oitem").remove(); else b.closest(".oitem").querySelectorAll("input").forEach(i=>{i.value=i.classList.contains("oqty")?1:"";});};
   document.getElementById("oTable").onchange=ordBookingHint;
+  document.getElementById("oOccHint").onclick=e=>{ const a=e.target.closest("[data-aiview]"); if(a){ state.aiView=a.dataset.aiview; save(); render(); } };
   document.getElementById("oGuests").oninput=e=>{e.target.dataset.touched="1";};
   ordBookingHint();
   let ordBusy=false;
@@ -2323,7 +2338,7 @@ function wireBill(){
   document.getElementById("blPen").onchange=async e=>{ await dbSet("settings/bill",{...(D.bill||{}),ratePEN:Math.max(0,num(e.target.value))}); };
   if(!canWrite("settings")) ["blUsd","blPen"].forEach(id=>{const el=document.getElementById(id); if(el){el.disabled=true;el.classList.add("ro");}});
   document.getElementById("blList").onclick=e=>{ const b=e.target.closest("[data-bill]"); if(!b) return; const bill=D.bills.find(x=>x.id===b.dataset.bill); if(bill) showReceipt(bill); };
-  document.getElementById("blPrint").onclick=()=>printReceipt();
+  document.getElementById("blPrint").onclick=async()=>{ printReceipt(); if(lastBill&&lastBill.table!=null&&await freeTable(lastBill.table)) toast(tt(`Receipt printed — table ${lastBill.table} is free again.`,`Recibo impreso — la mesa ${lastBill.table} quedó libre.`)); };
   document.getElementById("blCopy").onclick=()=>copyText(document.getElementById("blReceipt").textContent);
   // the price list and the GST rate belong to the administrator
   if(!canWrite("settings")){ const r=document.getElementById("blRate"); r.disabled=true; r.classList.add("ro"); r.title=tt("Only an administrator can change the GST rate","Solo un administrador puede cambiar la tasa de GST"); }
@@ -2365,8 +2380,7 @@ async function payBill(){
   else if(use.length&&DB&&DB._refresh) setTimeout(()=>{ DB._refresh("inventory"); DB._refresh("kardex"); },800);
   // close the table's orders (their stock is now taken out by the bill), free the table and add the menu drinks to the day's sales
   for(const o of os) await dbUpd("orders",o.id,{status:"served",billId:id,stockDone:true,updated:stamp});
-  const tb=D.tables.find(x=>String(x.num)===String(billTable));
-  if(tb&&tb.occupied) await dbUpd("tables",tb.id,{occupied:false,occSince:""});
+  await freeTable(billTable);
   let counted=0, skipped=0;
   const cur=D.sales.find(s=>s.id===today())||{items:{},hours:{}};
   const items={...(cur.items||{})}, hours={...(cur.hours||{})};
