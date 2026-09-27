@@ -239,6 +239,7 @@ fieldset.allerg legend{font:600 12px var(--body);color:var(--bad);padding:0 4px}
 .chip{white-space:nowrap;display:inline-flex;align-items:center;gap:4px;font-size:13px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
 .chip:has(input:checked){background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
 .alltxt{color:var(--bad)}
+.oktxt{color:var(--ok)}
 .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .bcol{background:var(--sunk);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .bcol h4{margin:2px 4px;font:600 13px var(--body)}
@@ -271,6 +272,7 @@ body.locked .wrap{display:none}
 .loginCard form{display:flex;flex-direction:column;gap:12px;margin-top:16px;clear:both}
 .loginCard .btn{width:100%;min-height:42px}
 .lgmsg{color:var(--bad);font-size:14px;min-height:1.2em;margin:0}
+.lgor{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:4px 0}.lgor::before,.lgor::after{content:"";flex:1;border-top:1px solid var(--line,#ddd)}
 .userbox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .userbox b{color:var(--ink)}
 .netbox{display:inline-flex;align-items:center;gap:8px;padding:3px 8px;border:1px solid var(--line,#ddd);border-radius:999px;background:var(--card,#fff)}
@@ -704,6 +706,8 @@ function conv(q,u){
 /* ---------- RENDER ---------- */
 const tabsEl=document.getElementById("tabs"), main=document.getElementById("main");
 function renderTabs(){
+  const nav=tabsEl.closest("nav"); if(nav) nav.hidden=isGuest();
+  if(isGuest()){ tabsEl.innerHTML=""; return; }
   const items=[{id:"recipes",label:state.lang==="es"?"Recetas":"Recipes",c:"var(--accent)"},{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"menu",label:state.lang==="es"?"Menú":"Menu",c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
   tabsEl.innerHTML=items.map(it=>it.sep?'<span class="sep" aria-hidden="true"></span>':
     `<button role="tab" id="tab-${it.id}" aria-selected="${state.tab===it.id}" data-tab="${it.id}" style="--c:${it.c}"><span class="dot"></span>${it.label}</button>`).join("");
@@ -1520,6 +1524,7 @@ function makeSheetDB(url){
   function enqueue(o){ const k=key(o); queue=queue.filter(x=>key(x)!==k); queue.push(o); showSaving(); schedule(backoff||350); }
   function schedule(ms){ if(flushTimer||flushing) return; flushTimer=setTimeout(()=>{ flushTimer=null; flush(); },ms); }
   const opErr=(code)=>{ if(code==="forbidden") denied();
+    else if(code==="too_many") toast(tt("Too many requests from this device. Please try again later or ask our staff.","Demasiadas solicitudes desde este dispositivo. Inténtalo más tarde o pregunta a nuestro personal."));
     else if(code==="too_big") toast(tt("Too much text to save in one record. Shorten it and try again.","Demasiado texto para guardar en un registro. Acórtalo e inténtalo de nuevo."));
     else if(code!=="auth") toast(tt("Not saved to the Google Sheet. Try again.","No se guardó en la hoja de Google. Inténtalo de nuevo.")); };
   async function sendOps(ops){ // → one result per op
@@ -1534,7 +1539,7 @@ function makeSheetDB(url){
         inflight.forEach((o,i)=>{ const r=res[i]; if(!r) { if(!queue.some(x=>key(x)===key(o))) queue.unshift(o); return; } // not sent yet → back in the queue
           touched[o.col]=Date.now(); if(!r.ok){ failed++; if(!quiet) opErr(r.error); bad.add(o.col); } });
         if(partial) backoff=Math.min(30000,backoff?backoff*2:2000); // the server was busy part-way
-        inflight=[]; bad.forEach(c=>load(c)); }
+        inflight=[]; bad.forEach(c=>{ if(canRead(c)) load(c); }); }
       catch(e){ const back=inflight.filter(o=>!queue.some(x=>key(x)===key(o))); inflight=[]; queue=back.concat(queue); // keep them, retry later
         backoff=Math.min(30000,backoff?backoff*2:2000); console.warn("Sheet save failed, retrying in",backoff,"ms",e);
         if(backoff>=8000&&e.code!=="auth") toast(tt("The Google Sheet is slow — your changes are kept and will be saved.","La hoja de Google está lenta — tus cambios se guardan y se enviarán.")); }
@@ -1585,7 +1590,7 @@ function makeSheetDB(url){
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") sync(); else if(queue.length) flush(); });
   return {collection:colRef,doc:docRef,
     _refresh:async c=>{ await drain(); await load(c); }, // after our own saves land, re-read (e.g. Kardex rows the server added)
-    _sync:cols=>sync(cols), _flush:()=>drain(), _pending:()=>pendingCount(),
+    _sync:cols=>sync(cols), _flush:()=>drain(), _pending:()=>pendingCount(), _failed:()=>failed,
     // backup: re-read every tab fresh (in parallel — reads don't lock) so the file matches the Sheet right now
     _dump:async()=>{ await drain(); if(pendingCount()) throw {code:"pending"};
       const ok={}, todo=[...SHEET_COLS]; // 4 tabs at a time, so the Apps Script isn't flooded
@@ -1621,12 +1626,13 @@ function ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
 function ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
 function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
 function serverUrl(){ return lsGet(LS_SURL)||DEFAULT_SERVER_URL; }
-const ROLE_LABEL={admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
+const ROLE_LABEL={invitado:["Guest","Invitado"],admin:["Administrator","Administrador"],chef:["Chef","Chef"],cocinero:["Cook","Cocinero"],mesero:["Waiter","Mesero"],lectura:["Read only","Solo lectura"]};
 // roles limited to some modules (others see every module)
-const ROLE_HOME={cocinero:"m2",mesero:"m1"};
-const ROLE_VIEWS={mesero:["m1","tables","orders","kitchen","bill","settings"]};
-const ROLE_READ={mesero:["reservations","tables","orders","menu","bills","recipes","settings","inventory","kardex"]};
-const ROLE_WRITE={chef:["inventory","waste","settings","orders","recipes","kardex"],cocinero:["inventory","waste","kardex"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
+const ROLE_HOME={cocinero:"m2",mesero:"m1",invitado:"m1"};
+const ROLE_VIEWS={invitado:["m1"],mesero:["m1","tables","orders","kitchen","bill","settings"]};
+const ROLE_READ={invitado:["menu"],mesero:["reservations","tables","orders","menu","bills","recipes","settings","inventory","kardex"]};
+const ROLE_WRITE={invitado:["reservations"],chef:["inventory","waste","settings","orders","recipes","kardex"],cocinero:["inventory","waste","kardex"],mesero:["reservations","tables","orders","bills","sales"],lectura:[]};
+const isGuest=()=>MODE==="sheet"&&!!SESSION&&SESSION.role==="invitado";
 const myRole=()=>MODE==="sheet"&&SESSION?SESSION.role:null;
 const canView=v=>{const r=myRole(); return !r||!ROLE_VIEWS[r]||ROLE_VIEWS[r].includes(v);};
 const canRead=c=>{const r=myRole(); return !r||!ROLE_READ[r]||ROLE_READ[r].includes(c);};
@@ -1639,6 +1645,9 @@ function renderUserBox(){
   const el=document.getElementById("userBox"); if(!el) return;
   if(MODE!=="sheet"||!SESSION){ el.hidden=true; return; }
   el.hidden=false;
+  if(isGuest()){ el.innerHTML=`<span class="who">👤 <b>${tt("Guest","Invitado")}</b></span><button type="button" class="btn sm ghost" id="logoutBtn">${tt("Exit","Salir")}</button>`;
+    document.getElementById("logoutBtn").onclick=async()=>{ const t=SESSION&&SESSION.token; SESSION=null; ssDel(SS_TOK); try{ await sheetCall(serverUrl(),{action:"logout",token:t}); }catch(e){} location.reload(); };
+    return; }
   el.innerHTML=`<span class="netbox"><button type="button" class="netdot" id="netDot" data-s="${NET.s}"><span class="dot" aria-hidden="true"></span><span id="netLbl"></span></button><label class="sw" title="${tt("Connect: tries to connect to the Google Sheet now, and keeps retrying every 10 s while it's offline","Conectar: intenta conectarse a la hoja de Google ahora y sigue reintentando cada 10 s mientras no haya conexión")}"><input type="checkbox" id="netAuto" ${NET.auto?"checked":""}><span class="trk" aria-hidden="true"></span><span>${tt("Connect","Conectar")}</span></label></span><span class="who">👤 ${esc(SESSION.name||SESSION.user)} · <b>${esc(roleName(SESSION.role))}</b></span><button type="button" class="btn sm ghost" id="logoutBtn">${tt("Sign out","Cerrar sesión")}</button>`;
   paintNet();
   document.getElementById("netDot").onclick=()=>netConnect(); document.getElementById("netDot").onmouseenter=paintNet;
@@ -1659,12 +1668,25 @@ function showLogin(msg){
       <div class="f"><label for="lgUser">${tt("Username","Usuario")}</label><input id="lgUser" autocomplete="username" autocapitalize="none" required></div>
       <div class="f"><label for="lgPass">${tt("Password","Contraseña")}</label><input id="lgPass" type="password" autocomplete="current-password" required></div>
       <button class="btn" type="submit" id="lgBtn">${tt("Sign in","Entrar")}</button>
+      <div class="lgor"><span>${tt("or","o")}</span></div>
+      <button class="btn ghost" type="button" id="lgGuest" style="width:100%">👤 ${tt("Guest","Invitado")} — ${tt("customer assistant & table requests","asistente para clientes y solicitud de mesa")}</button>
       <p class="lgmsg" id="lgMsg" role="alert">${msg?esc(msg):""}</p>
       ${needUrl?"":`<p class="hint"><button type="button" class="linkbtn" id="lgChangeUrl">${tt("Change server","Cambiar servidor")}</button></p>`}
     </form></div>`;
   box.querySelectorAll("[data-lang]").forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;save();showLogin(msg);});
   const cu=document.getElementById("lgChangeUrl"); if(cu) cu.onclick=()=>{document.getElementById("urlRow").hidden=false;cu.parentElement.hidden=true;};
   document.getElementById(needUrl?"lgUrl":"lgUser").focus();
+  document.getElementById("lgGuest").onclick=async()=>{
+    const m=t=>{document.getElementById("lgMsg").textContent=t;}, gb=document.getElementById("lgGuest");
+    const url=(document.getElementById("lgUrl").value||"").trim()||serverUrl();
+    if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){ m(tt("Paste the Apps Script web app URL (script.google.com/.../exec).","Pega la URL de la app web de Apps Script (script.google.com/.../exec).")); document.getElementById("urlRow").hidden=false; return; }
+    gb.disabled=true; m(tt("Opening…","Abriendo…"));
+    try{ const j=await sheetCall(url,{action:"guest"});
+      lsSet(LS_SURL,url); ssSet(SS_TOK,j.token); SESSION={token:j.token,user:j.user,name:j.name,role:j.role}; state.tab="ai"; state.aiView="m1"; startSheet(url); }
+    catch(err){ gb.disabled=false;
+      m(err.code==="bad_collection"||err.code==="bad_action"?tt("Guest access needs the updated Apps Script — ask the administrator to redeploy it.","El acceso de invitado necesita el Apps Script actualizado — pide al administrador que lo vuelva a implementar.")
+        :tt("Can't reach the server right now. Try again in a moment.","No se puede conectar con el servidor ahora. Inténtalo en un momento.")); }
+  };
   document.getElementById("loginForm").onsubmit=async e=>{
     e.preventDefault();
     const m=t=>{document.getElementById("lgMsg").textContent=t;}, btn=document.getElementById("lgBtn");
@@ -1832,6 +1854,7 @@ function aiSys(){
   const banner = !capsReady ? `<p class="capnote">${tt("Connecting to data and AI…","Conectando con datos e IA…")}</p>`
     : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
+  if(isGuest()) return m1();
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
   let body = v==="m1"?m1():v==="m2"?m2():v==="m3"?m3():v==="m4"?m4():v==="m5"?m5():v==="settings"?settingsView():v==="tables"?tablesView():v==="orders"?ordersView():v==="kitchen"?kitchenView():v==="bill"?billView():aiOverview();
   return nav+banner+body;
@@ -1895,31 +1918,33 @@ async function copyText(txt){ try{await navigator.clipboard.writeText(txt);toast
 /* ================= MODULE 1 — CUSTOMER SERVICE ================= */
 let chatTurns=[], chatCtl=null;
 function m1(){
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 1","Módulo 1"),tt("Customer service","Atención al cliente"),tt("Test the customer assistant, take bookings and confirm tables. The assistant only knows your menu, allergens and the claim rules in this app.","Prueba el asistente para clientes, toma reservas y confirma mesas. El asistente solo conoce tu menú, los alérgenos y las reglas de afirmaciones de esta app."))}
+  const G=isGuest();
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${G?head(tt("Welcome","Bienvenido"),"Taste of Peru",tt("Ask our assistant about the menu, allergens and recommendations, or request a table.","Pregunta a nuestro asistente sobre el menú, alérgenos y recomendaciones, o solicita una mesa."))
+   :head(tt("Module 1","Módulo 1"),tt("Customer service","Atención al cliente"),tt("Test the customer assistant, take bookings and confirm tables. The assistant only knows your menu, allergens and the claim rules in this app.","Prueba el asistente para clientes, toma reservas y confirma mesas. El asistente solo conoce tu menú, los alérgenos y las reglas de afirmaciones de esta app."))}
   <div class="grid">
    <div class="stack">
     <div class="panel"><h3>${tt("Customer assistant","Asistente para clientes")}</h3>
-     <div class="chat" id="chatLog" aria-live="polite">${chatTurns.length?chatTurns.map(bubble).join(""):`<p class="empty">${tt("Write as if you were a customer: “What do you recommend without milk?”, “Can I book for 4 on Friday?”","Escribe como si fueras un cliente: “¿Qué me recomiendas sin leche?”, “¿Puedo reservar para 4 el viernes?”")}</p>`}</div>
+     <div class="chat" id="chatLog" aria-live="polite">${chatTurns.length?chatTurns.map(bubble).join(""):`<p class="empty">${G?tt("Ask us anything: “What do you recommend without milk?”, “What's in the chicha morada?”","Pregúntanos lo que quieras: “¿Qué me recomiendas sin leche?”, “¿Qué lleva la chicha morada?”"):tt("Write as if you were a customer: “What do you recommend without milk?”, “Can I book for 4 on Friday?”","Escribe como si fueras un cliente: “¿Qué me recomiendas sin leche?”, “¿Puedo reservar para 4 el viernes?”")}</p>`}</div>
      <form id="chatForm" class="chatbar"><label class="sr" for="chatIn">${tt("Message","Mensaje")}</label><input id="chatIn" autocomplete="off" placeholder="${tt("Type a message…","Escribe un mensaje…")}"><button type="button" class="btn ghost mic" id="chatMic" aria-pressed="false" data-needs-ai title="${tt("Speak","Hablar")}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/></svg><span id="micLbl">${tt("Speak","Hablar")}</span></button><button type="submit" class="btn" data-needs-ai>${tt("Send","Enviar")}</button><button type="button" class="btn ghost" id="chatStop" hidden>${tt("Stop","Detener")}</button><button type="button" class="btn ghost" id="chatReset">${tt("Clear","Limpiar")}</button></form>
      <div class="voicebar"><label class="f inline"><span>${tt("Voice language","Idioma de voz")}</span><select id="vLang"><option value="es-PE"${voiceLang()==="es-PE"?" selected":""}>Español</option><option value="en-CA"${voiceLang()==="en-CA"?" selected":""}>English</option></select></label>
       <label class="chk"><input type="checkbox" id="vSpeak"${speakOn()?" checked":""}> ${tt("Read replies aloud","Leer respuestas en voz alta")}</label></div>
      <p class="hint" id="vMsg" aria-live="polite"></p>
-     <p class="hint">${tt("To answer on WhatsApp, Instagram or Facebook you need a Meta Business account and a messaging provider; use this console to test the answers first.","Para responder en WhatsApp, Instagram o Facebook necesitas una cuenta Meta Business y un proveedor de mensajería; usa esta consola para probar las respuestas primero.")}</p>
+     ${G?(capsReady&&!SAMPLE?`<p class="hint">${tt("The assistant isn't available on this device right now — please ask our staff.","El asistente no está disponible en este dispositivo ahora — por favor pregunta a nuestro personal.")}</p>`:""):`<p class="hint">${tt("To answer on WhatsApp, Instagram or Facebook you need a Meta Business account and a messaging provider; use this console to test the answers first.","Para responder en WhatsApp, Instagram o Facebook necesitas una cuenta Meta Business y un proveedor de mensajería; usa esta consola para probar las respuestas primero.")}</p>`}
     </div>
    </div>
    <div class="stack">
-    <div class="panel"><h3>${tt("New booking","Nueva reserva")}</h3>
+    <div class="panel"><h3>${G?tt("Request a table","Solicitar una mesa"):tt("New booking","Nueva reserva")}</h3>
      <form id="resForm" class="fgrid">
       ${field("rName",tt("Name","Nombre"),`<input id="rName" required>`)}
       ${field("rContact",tt("Phone or email","Teléfono o correo"),`<input id="rContact">`)}
       ${field("rDate",tt("Date","Fecha"),`<input id="rDate" type="date" required value="${today()}">`)}
       ${field("rTime",tt("Time","Hora"),`<input id="rTime" type="time" required>`)}
       ${field("rParty",tt("People","Personas"),`<input id="rParty" type="number" min="1" value="2">`)}
-      ${field("rTable",tt("Table","Mesa"),`<select id="rTable">${tableOptions("",true)}</select>`)}
+      ${G?"":field("rTable",tt("Table","Mesa"),`<select id="rTable">${tableOptions("",true)}</select>`)}
       ${field("rNotes",tt("Notes (allergies…)","Notas (alergias…)"),`<input id="rNotes">`)}
-      <button class="btn" type="submit">${tt("Save booking","Guardar reserva")}</button>
+      <button class="btn" type="submit">${G?tt("Send request","Enviar solicitud"):tt("Save booking","Guardar reserva")}</button>
      </form><p class="hint" id="rMsg" aria-live="polite"></p><p class="hint" id="rCap"></p></div>
-    <div class="panel"><h3>${tt("Bookings","Reservas")}</h3><div id="resList"></div></div>
+    ${G?`<p class="hint">${tt("Our staff will confirm your table by phone or email.","Nuestro personal confirmará tu mesa por teléfono o correo.")}</p>`:`<div class="panel"><h3>${tt("Bookings","Reservas")}</h3><div id="resList"></div></div>`}
    </div>
   </div></section>`;
 }
@@ -1987,13 +2012,27 @@ function wireM1(){
   document.getElementById("resForm").onsubmit=async e=>{
     e.preventDefault(); if(!val("rName")||!val("rDate")||!val("rTime")) return;
     const party=Math.max(1,Math.round(num(val("rParty")))), rm=document.getElementById("rMsg");
+    if(isGuest()){ // a request only: no table, no list of other bookings
+      if(val("rDate")<today()){ rm.innerHTML=`<span class="alltxt">✕ ${tt("Choose today or a later date.","Elige hoy o una fecha posterior.")}</span>`; return; }
+      if(!val("rContact")){ rm.innerHTML=`<span class="alltxt">✕ ${tt("Add a phone or email so we can confirm.","Agrega un teléfono o correo para poder confirmar.")}</span>`; return; }
+      const btn=e.target.querySelector("button[type=submit]"); btn.disabled=true; const nm=val("rName"), dt=val("rDate"), tm=val("rTime");
+      const before=DB._failed?DB._failed():0;
+      try{ await DB.collection("reservations").add({name:nm,contact:val("rContact"),date:dt,time:tm,end:endTime(tm),party,notes:val("rNotes"),status:"pending",source:"guest",created:new Date().toISOString()});
+        await DB._flush();
+        if(DB._pending&&DB._pending()) throw {code:"pending"};
+        if(DB._failed&&DB._failed()>before) throw {code:"rejected"};
+        rm.innerHTML=`<span class="oktxt">✓ ${tt(`Thank you, ${esc(nm)}! Your request for ${party} on ${dt} at ${tm} was sent. Our staff will confirm it.`,`¡Gracias, ${esc(nm)}! Tu solicitud para ${party} el ${dt} a las ${tm} fue enviada. Nuestro personal la confirmará.`)}</span>`;
+        e.target.reset(); document.getElementById("rDate").value=today(); document.getElementById("rParty").value=2; }
+      catch(err){ rm.innerHTML=`<span class="alltxt">✕ ${err&&err.code==="pending"?tt("No connection right now — your request will be sent as soon as it's back.","Sin conexión ahora — tu solicitud se enviará en cuanto vuelva."):tt("Couldn't send the request. Please ask our staff.","No se pudo enviar la solicitud. Por favor pregunta a nuestro personal.")}</span>`; }
+      finally{ btn.disabled=false; }
+      return; }
     const pick=pickTable(party,val("rDate"),val("rTime"),val("rTable"));
     if(pick.err){ rm.innerHTML=`<span class="alltxt">✕ ${esc(pick.err)}</span>`; return; }
     await dbAdd("reservations",{name:val("rName"),contact:val("rContact"),date:val("rDate"),time:val("rTime"),end:endTime(val("rTime")),party,table:pick.table,notes:val("rNotes"),status:"pending",created:new Date().toISOString()});
     rm.textContent=pick.table!==""?tt(`Booking saved: table ${pick.table}, ${val("rTime")}–${endTime(val("rTime"))}.`,`Reserva guardada: mesa ${pick.table}, ${val("rTime")}–${endTime(val("rTime"))}.`):tt("Booking saved without a table — define your tables in “Tables layout”.","Reserva guardada sin mesa — define tus mesas en “Distribución de mesas”.");
     e.target.reset(); document.getElementById("rDate").value=today(); document.getElementById("rParty").value=2;
   };
-  document.getElementById("resList").onclick=async e=>{
+  if(document.getElementById("resList")) document.getElementById("resList").onclick=async e=>{
     const b=e.target.closest("[data-act]"); if(!b) return; const id=b.dataset.id, r=D.reservations.find(x=>x.id===id); if(!r) return;
     if(b.dataset.act==="confirm"){ const clash=r.table!==""&&r.table!=null?tableBooking(r.table,r.date,r.time,r.id):null;
       if(clash){ toast(tt(`Table ${r.table} is already taken by ${clash.name} at ${clash.time}.`,`La mesa ${r.table} ya está tomada por ${clash.name} a las ${clash.time}.`)); return; }
@@ -2022,7 +2061,7 @@ function listM1(){
   const r=rows.find(x=>x.id===resSel);
   setHTML(el,`<div class="f" style="margin-bottom:8px"><label for="resFilt">${tt("Show","Mostrar")}</label><select id="resFilt">${filt.map(f=>`<option value="${f[0]}"${f[0]===resFilter?" selected":""}>${f[1]}</option>`).join("")}</select></div>
    ${rows.length?`<label class="sr" for="resBox">${tt("Bookings","Reservas")}</label>
-   <select id="resBox" class="listbox" size="${Math.min(12,Math.max(5,rows.length))}">${rows.map(x=>`<option value="${esc(x.id)}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)})${x.table!==""&&x.table!=null?" · "+tt("T","M")+esc(x.table):""} · ${st(x)}</option>`).join("")}</select>
+   <select id="resBox" class="listbox" size="${Math.min(12,Math.max(5,rows.length))}">${rows.map(x=>`<option value="${esc(x.id)}"${x.id===resSel?" selected":""}>${esc(x.date.slice(5))} ${esc(x.time)} · ${esc(x.name)} (${esc(x.party)})${x.table!==""&&x.table!=null?" · "+tt("T","M")+esc(x.table):""} · ${st(x)}${x.source==="guest"?" · 👤 "+tt("Guest request","Solicitud de invitado"):""}</option>`).join("")}</select>
    <p class="hint">${rows.length} ${tt("booking(s)","reserva(s)")}</p>`:`<p class="empty">${tt("No bookings in this view.","No hay reservas en esta vista.")}</p>`}
    ${r?`<div class="resdetail"><div><b>${esc(r.name)}</b><span class="badge ${r.status==="confirmed"?"ok":r.status==="cancelled"?"bad":"warn"}">${st(r)}</span></div>
     <div>${esc(r.date)} · ${esc(r.time)}–${esc(r.end||endTime(r.time))} · ${esc(r.party)} ${tt("people","personas")}${r.table!==""&&r.table!=null?" · "+tt("Table","Mesa")+" "+esc(r.table):""}</div>
@@ -4042,8 +4081,9 @@ function render(){
   document.getElementById("btnEn").setAttribute("aria-pressed",state.lang==="en");
   document.getElementById("btnEs").setAttribute("aria-pressed",state.lang==="es");
   document.getElementById("appTitle").textContent=state.lang==="es"?"Taste of Peru":"Taste of Peru";
-  document.getElementById("appSub").textContent=T(UI.sub);
+  document.getElementById("appSub").textContent=isGuest()?tt("Peruvian drinks, desserts and dishes in Edmonton.","Bebidas, postres y platos peruanos en Edmonton."):T(UI.sub);
   document.getElementById("disc").textContent=T(UI.disc);
+  if(isGuest()){ state.tab="ai"; state.aiView="m1"; }
   renderTabs();
   if(P.some(x=>x.id===state.tab)){ state.recipe=state.tab; state.tab="recipes"; save(); renderTabs(); } // old saved tab
   if(state.tab==="recipes"){ main.innerHTML=recipesTab(); wireRecipes(); }

@@ -61,6 +61,9 @@ const ROLES = {
               desc: "Acceso total a Cocina e inventario (stock, mermas); el resto solo lectura. / Full access to Kitchen & inventory; everything else read only." },
   mesero:   { label: "Mesero", write: ["reservations", "tables", "orders", "bills", "sales"], read: ["reservations", "tables", "orders", "menu", "bills", "recipes", "settings", "inventory", "kardex"],
               desc: "Clientes (reservas), Distribución de mesas, Órdenes por mesa y Facturación por mesa (al cobrar suma a Ventas y descuenta stock); no cambia el menú ni los precios. / Customers, Tables layout, Orders and Billing by table (charging adds to sales and discounts stock); cannot change the menu or prices." },
+  // Guest: no user account — the "Guest" button on the sign-in screen. Only the customer assistant and booking REQUESTS.
+  invitado: { label: "Invitado", write: ["reservations"], read: ["menu"], guestOnly: true,
+              desc: "Solo el asistente para clientes y pedir una reserva (queda pendiente). / Only the customer assistant and booking requests (saved as pending)." },
   lectura:  { label: "Solo lectura", write: [], read: "*",
               desc: "Ve todo, no cambia nada. / Sees everything, changes nothing." }
 };
@@ -84,7 +87,7 @@ function usersSheet_() {
     if (r.getLastRow() > 0) r.getRange(1, 1, r.getLastRow(), 3).clearContent();
     r.getRange(1, 1, rows.length, 3).setValues(rows);
     r.getRange("A1:C1").setFontWeight("bold").setBackground("#5B2366").setFontColor("#FFFFFF");
-    const rule = SpreadsheetApp.newDataValidation().requireValueInList(Object.keys(ROLES), true).build();
+    const rule = SpreadsheetApp.newDataValidation().requireValueInList(Object.keys(ROLES).filter(function (k) { return !ROLES[k].guestOnly; }), true).build();
     sh.getRange("C2:C200").setDataValidation(rule);
   }
   cache.put("roles_ok", ver, 21600);
@@ -106,7 +109,7 @@ function findUser_(sh, user) {
 function saveUser_(user, name, role, active, password) {
   user = String(user || "").trim().toLowerCase();
   if (!/^[a-z0-9._-]{3,40}$/.test(user)) throw new Error("usuario inválido (3-40: letras, números, . _ -)");
-  if (!ROLES[role]) throw new Error("rol inválido");
+  if (!ROLES[role] || ROLES[role].guestOnly) throw new Error("rol inválido");
   const sh = usersSheet_(); let r = findUser_(sh, user);
   if (r < 0 && !password) throw new Error("falta la contraseña");
   if (password && String(password).length < 8) throw new Error("la contraseña debe tener al menos 8 caracteres");
@@ -125,13 +128,14 @@ function session_(token) {
   const v = CacheService.getScriptCache().get("s_" + token);
   if (!v) return null;
   const s = JSON.parse(v);
+  if (s.guest) { s.role = "invitado"; s.token = token; return s; } // guest sessions have no row in "Usuarios"
   // role changes and deactivations take effect at once, without waiting for the session to expire
   const sh = usersSheet_(), r = findUser_(sh, s.user);
   if (r < 0) return null;
   const row = sh.getRange(r, 1, 1, 4).getValues()[0];
   if (row[3] === false) return null;
   const role = String(row[2] || "").trim();
-  if (!ROLES[role]) return null;
+  if (!ROLES[role] || ROLES[role].guestOnly) return null; // "invitado" is only for the Guest button, never a user account
   s.role = role;
   return s;
 }
@@ -144,6 +148,27 @@ function canWrite_(s, col) {
   if (!s || !ROLES[s.role]) return false;
   const w = ROLES[s.role].write;
   return w === "*" || w.indexOf(col) >= 0;
+}
+const GUEST_SECONDS = 14400; // 4 h
+function guest_() {
+  const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, "");
+  const s = { user: "guest", name: "Invitado", role: "invitado", guest: true };
+  CacheService.getScriptCache().put("s_" + token, JSON.stringify(s), GUEST_SECONDS);
+  return { ok: true, token: token, user: s.user, name: s.name, role: s.role, roleLabel: ROLES.invitado.label };
+}
+// a guest can only ADD a booking request: known fields, short text, status "pending", and a few per hour
+function guestBooking_(s, id, data) {
+  const c = CacheService.getScriptCache(), k1 = "gb_" + (s.token || s.user), k2 = "gb_all";
+  const n1 = Number(c.get(k1) || 0), n2 = Number(c.get(k2) || 0);
+  if (n1 >= 5 || n2 >= 60) return { error: "too_many" };
+  const txt = function (v, n) { return String(v == null ? "" : v).replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n); };
+  const d = { name: txt(data.name, 80), contact: txt(data.contact, 80), date: txt(data.date, 10), time: txt(data.time, 5),
+              end: txt(data.end, 5), party: Math.max(1, Math.min(30, Math.round(Number(data.party) || 1))), notes: txt(data.notes, 300),
+              status: "pending", source: "guest", created: new Date().toISOString() };
+  if (!d.name || !/^\d{4}-\d{2}-\d{2}$/.test(d.date) || !/^\d{2}:\d{2}$/.test(d.time)) return { error: "bad_request" };
+  if (!/^\d{2}:\d{2}$/.test(d.end)) delete d.end;
+  c.put(k1, String(n1 + 1), 3600); c.put(k2, String(n2 + 1), 3600);
+  return { data: d };
 }
 function login_(user, password) {
   const cache = CacheService.getScriptCache(), key = "f_" + String(user || "").trim().toLowerCase();
@@ -174,7 +199,7 @@ function doPost(e) {
   try { body = JSON.parse(e.postData && e.postData.contents || "{}"); } catch (err) { return out_({ ok: false, error: "bad_json" }); }
   return handle_(body);
 }
-const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1, versions: 1 };
+const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1, versions: 1, guest: 1 };
 /* ---- change versions: every write stamps its tab, so the app only re-reads tabs that changed ---- */
 const TOUCHED_ = {};
 function touch_(col) { if (SHEETS[col]) TOUCHED_[col] = 1; }
@@ -215,6 +240,7 @@ function handle_(req) {
     }
     if (action === "ping") return out_({ ok: true, hasUsers: usersSheet_().getLastRow() >= 2 });
     if (action === "login") return out_(login_(req.user, req.password));
+    if (action === "guest") return out_(guest_());
     const s = session_(req.token);
     if (action === "logout") { if (req.token) CacheService.getScriptCache().remove("s_" + req.token); return out_({ ok: true }); }
     if (action === "me") return s ? out_({ ok: true, user: s.user, name: s.name, role: s.role, roleLabel: ROLES[s.role].label }) : out_({ ok: false, error: "auth" });
@@ -264,6 +290,10 @@ function setOp_(s, col, id, data) {
   id = String(id || "");
   if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(id) || typeof data !== "object" || data === null || Array.isArray(data)) return { ok: false, error: "bad_request" };
   if (!canWrite_(s, col)) return { ok: false, error: "forbidden" };
+  if (s.guest) {
+    if (col !== "reservations" || rowOf_(sheet_(col), id) >= 0) return { ok: false, error: "forbidden" }; // new requests only, never someone else's booking
+    const g = guestBooking_(s, id, data); if (g.error) return { ok: false, error: g.error }; data = g.data;
+  }
   const keys = Object.keys(data);
   if (keys.length > 60 || keys.some(function (k) { return !/^[A-Za-z_][A-Za-z0-9_]{0,40}$/.test(k); })) return { ok: false, error: "bad_request", message: "campos inválidos" };
   const isNew = rowOf_(sheet_(col), id) < 0;
@@ -288,7 +318,7 @@ function setOp_(s, col, id, data) {
   return { ok: true };
 }
 function deleteOp_(s, col, id) {
-  if (!canWrite_(s, col)) return { ok: false, error: "forbidden" };
+  if (!canWrite_(s, col) || s.guest) return { ok: false, error: "forbidden" };
   id = String(id || "");
   const sh = sheet_(col), r = rowOf_(sh, id);
   if (r > 0) sh.deleteRow(r);
