@@ -1416,11 +1416,18 @@ function wireSettings(){
   const test=document.getElementById("keyTest"); if(test) test.onclick=async()=>{msg(tt("Testing…","Probando…")); try{await SAMPLE("Reply with the single word OK.",{modelTier:"quick"}); msg(tt("The key works.","La clave funciona."));}catch(e){msg(aiErr(e));}};
   const bk=t=>{document.getElementById("bkMsg").textContent=t;};
   const bkBusy=on=>{ document.getElementById("expBtn").disabled=on; document.getElementById("impFile").disabled=on; };
+  let bkUrl=null;
   document.getElementById("expBtn").onclick=async()=>{ bkBusy(true); bk(tt("Reading every tab of the Google Sheet…","Leyendo todas las pestañas de la hoja de Google…"));
-    try{ const data=await DB._dump(), n=Object.keys(data).length;
-      if(await saveFile("taste-of-peru-backup-"+today()+".json",JSON.stringify({app:"taste-of-peru",version:1,exported:new Date().toISOString(),count:n,data},null,2))) bk(tt(`Backup downloaded (${n} records).`,`Respaldo descargado (${n} registros).`)); else bk(""); }
-    catch(err){ bk(err&&err.code==="pending"?tt("Some changes are still being saved — try again in a moment.","Algunos cambios aún se están guardando — inténtalo en un momento.")
-      :tt("Backup NOT downloaded: could not read "+((err&&err.cols)||[]).join(", ")+" from the Google Sheet. Try again.","Respaldo NO descargado: no se pudo leer "+((err&&err.cols)||[]).join(", ")+" de la hoja de Google. Inténtalo de nuevo.")); }
+    try{ const data=await DB._dump(), n=Object.keys(data).length, name="taste-of-peru-backup-"+today()+".json";
+      const text=JSON.stringify({app:"taste-of-peru",version:1,exported:new Date().toISOString(),count:n,data},null,2);
+      if(DL){ if(await saveFile(name,text)) bk(tt(`Backup downloaded (${n} records).`,`Respaldo descargado (${n} registros).`)); else bk(""); return; }
+      // website: start the download, and also leave a link — a browser may block a download that starts several seconds after the click
+      if(bkUrl) URL.revokeObjectURL(bkUrl); bkUrl=URL.createObjectURL(new Blob([text],{type:"application/json"}));
+      const a=document.createElement("a"); a.href=bkUrl; a.download=name; a.style.display="none"; document.body.appendChild(a); a.click(); a.remove();
+      document.getElementById("bkMsg").innerHTML=`${tt(`Backup ready (${n} records).`,`Respaldo listo (${n} registros).`)} <a class="btn sm" href="${bkUrl}" download="${name}">⬇ ${tt("Download the file","Descargar el archivo")}</a><br><span class="dimtxt">${tt("If it didn't download by itself, click the button. It goes to your Downloads folder as ","Si no se descargó solo, pulsa el botón. Queda en tu carpeta Descargas como ")}${name}</span>`; }
+    catch(err){ console.warn("Export failed",err); bk(err&&err.code==="pending"?tt("Some changes are still being saved — try again in a moment.","Algunos cambios aún se están guardando — inténtalo en un momento.")
+      :err&&err.cols?tt("Backup NOT downloaded: could not read "+err.cols.join(", ")+" from the Google Sheet. Try again.","Respaldo NO descargado: no se pudo leer "+err.cols.join(", ")+" de la hoja de Google. Inténtalo de nuevo.")
+      :tt("Backup NOT downloaded: ","Respaldo NO descargado: ")+String(err&&(err.message||err.code)||err)); }
     finally{ bkBusy(false); } };
   document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return;
     let j; try{ j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object"||Array.isArray(j.data)||(j.app&&j.app!=="taste-of-peru")) throw 0; }
@@ -1440,10 +1447,12 @@ function wireSettings(){
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
 const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","menu","bills","recipes","kardex","settings"];
-async function sheetCall(url,body){
+async function sheetCall(url,body,opt){
   if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
-  let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow"}); }
-  catch(e){ throw {code:"unavailable",message:String(e)}; }
+  const ac=opt&&opt.timeout&&window.AbortController?new AbortController():null, to=ac?setTimeout(()=>ac.abort(),opt.timeout):null;
+  let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow",signal:ac?ac.signal:undefined}); }
+  catch(e){ throw {code:ac&&ac.signal.aborted?"timeout":"unavailable",message:String(e)}; }
+  finally{ if(to) clearTimeout(to); }
   if(!r.ok) throw {code:"unavailable",message:"HTTP "+r.status};
   let j; try{ j=await r.json(); }catch(e){ throw {code:"unavailable",message:"not json"}; }
   if(!j.ok){ if(j.error==="auth") onAuthLost(); throw {code:j.error==="bad_request"?"invalid_argument":j.error,message:j.message||j.error}; }
@@ -1495,7 +1504,7 @@ function makeSheetDB(url){
   async function load(col,depth=0){
     let j=null, err=null; const t0=Date.now();
     for(let i=0;i<3;i++){ // retry brief network / "busy" hiccups before warning
-      try{ j=await sheetCall(url,{action:"list",col}); err=null; break; }
+      try{ j=await sheetCall(url,{action:"list",col},{timeout:60000}); err=null; break; } // a read never hangs forever
       catch(e){ err=e; if(e.code==="auth"||e.code==="forbidden"||e.code==="bad_collection") break; await new Promise(r=>setTimeout(r,1500*(i+1))); } }
     if(j){ fails[col]=0;
       if((touched[col]||0)>t0&&depth<3) return load(col,depth+1); // one of our saves landed while reading → read again so it isn't shown as undone
@@ -1539,8 +1548,9 @@ function makeSheetDB(url){
     _sync:cols=>sync(cols), _flush:()=>drain(), _pending:()=>pendingCount(),
     // backup: re-read every tab fresh (in parallel — reads don't lock) so the file matches the Sheet right now
     _dump:async()=>{ await drain(); if(pendingCount()) throw {code:"pending"};
-      const ok=await Promise.all(SHEET_COLS.map(c=>load(c)));
-      const miss=SHEET_COLS.filter((c,i)=>!ok[i]); if(miss.length) throw {code:"unavailable",cols:miss};
+      const ok={}, todo=[...SHEET_COLS]; // 4 tabs at a time, so the Apps Script isn't flooded
+      await Promise.all([0,1,2,3].map(async()=>{ while(todo.length){ const c=todo.shift(); ok[c]=await load(c); } }));
+      const miss=SHEET_COLS.filter(c=>!ok[c]); if(miss.length) throw {code:"unavailable",cols:miss};
       const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
     // restore: copy every record into the Sheet (records not in the file are kept); returns what happened
     _load:async(obj,onProgress)=>{ const r={saved:0,skipped:0,failed:0,pending:0}, touchedCols=new Set();
