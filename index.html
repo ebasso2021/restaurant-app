@@ -273,6 +273,21 @@ body.locked .wrap{display:none}
 .lgmsg{color:var(--bad);font-size:14px;min-height:1.2em;margin:0}
 .userbox{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .userbox b{color:var(--ink)}
+.netbox{display:inline-flex;align-items:center;gap:8px;padding:3px 8px;border:1px solid var(--line,#ddd);border-radius:999px;background:var(--card,#fff)}
+.netdot{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:2px;font:inherit;color:inherit;cursor:pointer}
+.netdot .dot{width:10px;height:10px;border-radius:50%;background:#9aa0a6;box-shadow:0 0 0 2px rgba(154,160,166,.25);flex:none}
+.netdot[data-s="ok"] .dot{background:#1e9e45;box-shadow:0 0 0 2px rgba(30,158,69,.25)}
+.netdot[data-s="down"] .dot{background:#d93636;box-shadow:0 0 0 2px rgba(217,54,54,.25)}
+.netdot[data-s="checking"] .dot{background:#e0a100;animation:netpulse 1s ease-in-out infinite}
+@keyframes netpulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.netdot[data-s="checking"] .dot{animation:none}}
+.sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw .trk{width:30px;height:17px;border-radius:999px;background:#b9bdc3;position:relative;transition:background .2s;flex:none}
+.sw .trk::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.sw input:checked+.trk{background:#1e9e45}
+.sw input:checked+.trk::after{transform:translateX(13px)}
+.sw input:focus-visible+.trk{outline:2px solid var(--accent);outline-offset:2px}
 .ro{opacity:.5;cursor:not-allowed}
 .listbox{width:100%;font:14px var(--body);border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:4px}
 .listbox option{padding:6px 8px;border-radius:5px}
@@ -1447,14 +1462,39 @@ function wireSettings(){
 /* ===== Google Sheets (Google Drive) database, via the Apps Script web app in google-apps-script/Code.gs ===== */
 const LS_SURL="top-sheet-url", LS_SPIN="top-sheet-pin";
 const SHEET_COLS=["reservations","inventory","waste","sales","posts","reviews","tables","orders","menu","bills","recipes","kardex","settings"];
+/* ===== connection light (green / red dot) + "Connect" switch ===== */
+const NET={s:"checking",at:0,err:"",timer:null,busy:false,auto:(()=>{ try{ return localStorage.getItem("top-autoconn")!=="0"; }catch(e){ return true; } })()};
+function setNet(st,err){ const ch=NET.s!==st; NET.s=st; NET.at=Date.now(); if(err!=null) NET.err=err; if(st==="ok") NET.err="";
+  paintNet(); if(st==="down"&&NET.auto) netRetryLater(); if(st==="ok"&&NET.timer){ clearTimeout(NET.timer); NET.timer=null; }
+  if(ch&&st==="ok"&&DB&&DB._sync){ DB._flush&&DB._flush(); DB._sync(); } } // back online → send waiting changes and pick up others' changes
+function netText(){ const t=NET.at?new Date(NET.at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):"";
+  const n=DB&&DB._pending?DB._pending():0, w=n?tt(` · ${n} change(s) waiting to be saved`,` · ${n} cambio(s) esperando guardarse`):"";
+  return NET.s==="ok"?tt("Connected to the Google Sheet","Conectado a la hoja de Google")+(t?" ("+t+")":"")+w
+    :NET.s==="down"?tt("Not connected to the Google Sheet","Sin conexión con la hoja de Google")+(NET.err?" — "+NET.err:"")+w+tt(" · click to retry"," · clic para reintentar")
+    :tt("Connecting to the Google Sheet…","Conectando con la hoja de Google…"); }
+function paintNet(){ const b=document.getElementById("netDot"); if(!b) return; b.dataset.s=NET.s; const t=netText(); b.title=t; b.setAttribute("aria-label",t);
+  const l=document.getElementById("netLbl"); if(l) l.textContent=NET.s==="ok"?tt("Online","En línea"):NET.s==="down"?tt("Offline","Sin conexión"):tt("Connecting…","Conectando…");
+  const sw=document.getElementById("netAuto"); if(sw) sw.checked=NET.auto; }
+function netRetryLater(){ if(NET.timer||!NET.auto) return; NET.timer=setTimeout(()=>{ NET.timer=null; if(NET.s!=="ok"&&NET.auto) netConnect(); },10000); }
+async function netConnect(){ // try (force) the connection now
+  if(NET.busy) return; const url=serverUrl(); if(!url){ setNet("down",tt("no server URL","sin URL del servidor")); return; }
+  NET.busy=true; setNet("checking");
+  try{ if(typeof navigator!=="undefined"&&navigator.onLine===false) throw {code:"unavailable",offline:true,message:tt("this device has no internet","este dispositivo no tiene internet")};
+    await sheetCall(url,{action:SESSION?"me":"ping"},{timeout:20000}); setNet("ok");
+    if(DB&&DB._flush) await DB._flush(); if(DB&&DB._sync) await DB._sync(); paintNet(); }
+  catch(e){ if(e&&(e.code==="auth"||e.code==="forbidden")) setNet("ok"); else setNet("down",e&&e.code==="timeout"?tt("no answer in 20 s","sin respuesta en 20 s"):e&&e.offline?e.message:null); }
+  finally{ NET.busy=false; } }
+window.addEventListener("offline",()=>setNet("down",tt("this device has no internet","este dispositivo no tiene internet")));
+window.addEventListener("online",()=>{ if(NET.auto) netConnect(); });
 async function sheetCall(url,body,opt){
   if(SESSION&&SESSION.token&&!body.token) body={...body,token:SESSION.token};
   const ac=opt&&opt.timeout&&window.AbortController?new AbortController():null, to=ac?setTimeout(()=>ac.abort(),opt.timeout):null;
   let r; try{ r=await fetch(url,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify(body),redirect:"follow",signal:ac?ac.signal:undefined}); }
-  catch(e){ throw {code:ac&&ac.signal.aborted?"timeout":"unavailable",message:String(e)}; }
+  catch(e){ const code=ac&&ac.signal.aborted?"timeout":"unavailable"; setNet("down",code==="timeout"?tt("the Google Sheet didn't answer","la hoja de Google no respondió"):tt("can't reach the Google Sheet","no se puede llegar a la hoja de Google")); throw {code,message:String(e)}; }
   finally{ if(to) clearTimeout(to); }
-  if(!r.ok) throw {code:"unavailable",message:"HTTP "+r.status};
-  let j; try{ j=await r.json(); }catch(e){ throw {code:"unavailable",message:"not json"}; }
+  if(!r.ok){ setNet("down","HTTP "+r.status); throw {code:"unavailable",message:"HTTP "+r.status}; }
+  let j; try{ j=await r.json(); }catch(e){ setNet("down",tt("unexpected answer from the server","respuesta inesperada del servidor")); throw {code:"unavailable",message:"not json"}; }
+  if(NET.s!=="ok") setNet("ok");
   if(!j.ok){ if(j.error==="auth") onAuthLost(); throw {code:j.error==="bad_request"?"invalid_argument":j.error,message:j.message||j.error}; }
   return j;
 }
@@ -1599,7 +1639,11 @@ function renderUserBox(){
   const el=document.getElementById("userBox"); if(!el) return;
   if(MODE!=="sheet"||!SESSION){ el.hidden=true; return; }
   el.hidden=false;
-  el.innerHTML=`<span class="who">👤 ${esc(SESSION.name||SESSION.user)} · <b>${esc(roleName(SESSION.role))}</b></span><button type="button" class="btn sm ghost" id="logoutBtn">${tt("Sign out","Cerrar sesión")}</button>`;
+  el.innerHTML=`<span class="netbox"><button type="button" class="netdot" id="netDot" data-s="${NET.s}"><span class="dot" aria-hidden="true"></span><span id="netLbl"></span></button><label class="sw" title="${tt("Connect: tries to connect to the Google Sheet now, and keeps retrying every 10 s while it's offline","Conectar: intenta conectarse a la hoja de Google ahora y sigue reintentando cada 10 s mientras no haya conexión")}"><input type="checkbox" id="netAuto" ${NET.auto?"checked":""}><span class="trk" aria-hidden="true"></span><span>${tt("Connect","Conectar")}</span></label></span><span class="who">👤 ${esc(SESSION.name||SESSION.user)} · <b>${esc(roleName(SESSION.role))}</b></span><button type="button" class="btn sm ghost" id="logoutBtn">${tt("Sign out","Cerrar sesión")}</button>`;
+  paintNet();
+  document.getElementById("netDot").onclick=()=>netConnect(); document.getElementById("netDot").onmouseenter=paintNet;
+  document.getElementById("netAuto").onchange=e=>{ NET.auto=e.target.checked; try{ localStorage.setItem("top-autoconn",NET.auto?"1":"0"); }catch(err){}
+    if(NET.auto) netConnect(); else if(NET.timer){ clearTimeout(NET.timer); NET.timer=null; } paintNet(); };
   document.getElementById("logoutBtn").onclick=async()=>{ const t=SESSION&&SESSION.token; SESSION=null; ssDel(SS_TOK); try{ await sheetCall(serverUrl(),{action:"logout",token:t}); }catch(e){} location.reload(); };
 }
 function showLogin(msg){
