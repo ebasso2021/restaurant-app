@@ -266,8 +266,12 @@ table.dt.menutbl td:first-child{width:40%}
 table.dt tr.grp th{padding-top:14px;color:var(--accent);font:600 12px var(--body);letter-spacing:.04em;text-transform:uppercase}
 .receipt{font:13px/1.45 var(--mono);white-space:pre-wrap;background:var(--sunk);padding:12px;border-radius:10px;margin:0;overflow-x:auto}
 body.locked .wrap{display:none}
-.loginwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 0}
-.loginCard{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px}
+.loginwrap{position:fixed;inset:0;z-index:50;overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:24px 16px;box-sizing:border-box;
+  background:url("img/taste-of-peru-login.jpg") center/min(100vw,100vh,1024px) no-repeat,#000}
+@media (max-width:899px){.loginwrap{align-items:flex-start;padding-top:calc(min(92vw,440px) * .80);background-position:center 8px;background-size:min(92vw,440px)}}
+.loginCard{width:100%;max-width:400px;background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:24px;
+  box-shadow:0 12px 40px rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+@media (min-width:900px){.loginwrap{justify-content:flex-end;padding-right:max(24px,calc(50vw - 560px));background-position:calc(50% - 230px) center}}
 .loginCard h1{font-family:var(--display);font-weight:400;font-size:30px;margin:0 0 4px}
 .loginCard form{display:flex;flex-direction:column;gap:12px;margin-top:16px;clear:both}
 .loginCard .btn{width:100%;min-height:42px}
