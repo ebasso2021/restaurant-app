@@ -2068,6 +2068,7 @@ function wireM1(){
     const b=e.target.closest("[data-act]"); if(!b) return; const id=b.dataset.id, r=D.reservations.find(x=>x.id===id); if(!r) return;
     if(b.dataset.act==="confirm"){ const clash=r.table!==""&&r.table!=null?tableBooking(r.table,r.date,r.time,r.id):null;
       if(clash){ toast(tt(`Table ${r.table} is already taken by ${clash.name} at ${clash.time}.`,`La mesa ${r.table} ya está tomada por ${clash.name} a las ${clash.time}.`)); return; }
+      notifyBooking(r); // SMS to the customer's phone (or e-mail) — opened before saving so the phone allows it
       await dbUpd("reservations",id,{status:"confirmed"}); }
     if(b.dataset.act==="cancel") await dbUpd("reservations",id,{status:"cancelled"});
     if(b.dataset.act==="del") await dbDel("reservations",id);
@@ -2079,6 +2080,22 @@ function confirmMsg(r){
    ? `Hola ${r.name}, confirmamos tu reserva en Taste of Peru para ${r.party} persona(s) el ${r.date} a las ${r.time}. ¡Te esperamos!`
    : `Hi ${r.name}, your Taste of Peru booking for ${r.party} is confirmed for ${r.date} at ${r.time}. See you soon!`;
 }
+/* ---- send the confirmation to the customer: SMS app on phones/tablets/Mac, e-mail app for e-mail addresses ---- */
+function resPhone(c){ c=String(c||""); if(/@/.test(c)) return null; const plus=/^\s*\+/.test(c), d=c.replace(/\D/g,"");
+  if(d.length<7||d.length>15) return null; if(plus) return "+"+d; if(d.length===10) return "+1"+d; if(d.length===11&&d[0]==="1") return "+"+d; return d; }
+function resEmail(c){ const m=String(c||"").match(/[^\s@<>,;]+@[^\s@<>,;]+\.[A-Za-z]{2,}/); return m?m[0]:null; }
+const isIOS=()=>/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const isMacDesk=()=>/Macintosh/.test(navigator.userAgent)&&!(navigator.maxTouchPoints>1);
+const smsOK=()=>matchMedia("(pointer:coarse)").matches||isIOS()||isMacDesk(); // devices with a Messages / SMS app
+function smsHref(num,body){ return "sms:"+num+(isIOS()||isMacDesk()?"&":"?")+"body="+encodeURIComponent(body); }
+function mailHref(to,body){ return "mailto:"+to+"?subject="+encodeURIComponent(tt("Your booking at Taste of Peru","Tu reserva en Taste of Peru"))+"&body="+encodeURIComponent(body); }
+function openLink(href){ const a=document.createElement("a"); a.href=href; a.rel="noopener"; a.style.display="none"; document.body.appendChild(a); a.click(); a.remove(); }
+function notifyBooking(r){ // must run inside the click (before any await) so the phone lets the app open
+  const body=confirmMsg(r), ph=resPhone(r.contact), em=resEmail(r.contact);
+  if(ph&&smsOK()){ openLink(smsHref(ph,body)); toast(tt(`Messages opened for ${ph} — tap Send.`,`Se abrió Mensajes para ${ph} — pulsa Enviar.`)); return; }
+  if(ph){ try{ navigator.clipboard.writeText(body).catch(()=>{}); }catch(e){} toast(tt(`Booking confirmed. This computer can't send SMS: the message was copied — send it to ${ph} from your phone, or use the 📱 SMS button on a phone or tablet.`,`Reserva confirmada. Esta computadora no envía SMS: el mensaje se copió — envíalo a ${ph} desde tu teléfono, o usa el botón 📱 SMS en un teléfono o tablet.`)); return; }
+  if(em){ openLink(mailHref(em,body)); return; }
+  toast(tt("Booking confirmed. No phone number or e-mail to send the confirmation to.","Reserva confirmada. No hay teléfono ni correo para enviar la confirmación.")); }
 let resSel=null, resFilter="all";
 function listM1(){
   const el=document.getElementById("resList"); if(!el) return;
@@ -2098,7 +2115,7 @@ function listM1(){
    ${r?`<div class="resdetail"><div><b>${esc(r.name)}</b><span class="badge ${r.status==="confirmed"?"ok":r.status==="cancelled"?"bad":"warn"}">${st(r)}</span></div>
     <div>${esc(r.date)} · ${esc(r.time)}–${esc(r.end||endTime(r.time))} · ${esc(r.party)} ${tt("people","personas")}${r.table!==""&&r.table!=null?" · "+tt("Table","Mesa")+" "+esc(r.table):""}</div>
     ${r.contact?`<div>${esc(r.contact)}</div>`:""}${r.notes?`<div class="dimtxt">${esc(r.notes)}</div>`:""}
-    <div class="acts">${r.status==="pending"?`<button class="btn sm" data-act="confirm" data-id="${esc(r.id)}">${tt("Confirm","Confirmar")}</button>`:""}<button class="btn sm ghost" data-act="msg" data-id="${esc(r.id)}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${esc(r.id)}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${esc(r.id)}">${tt("Delete","Borrar")}</button></div></div>`:""}`);
+    <div class="acts">${r.status==="pending"?`<button class="btn sm" data-act="confirm" data-id="${esc(r.id)}">${tt("Confirm","Confirmar")}</button>`:""}${r.status==="confirmed"&&resPhone(r.contact)?`<a class="btn sm ghost" href="${esc(smsHref(resPhone(r.contact),confirmMsg(r)))}">📱 ${tt("SMS","SMS")}</a>`:""}${r.status==="confirmed"&&!resPhone(r.contact)&&resEmail(r.contact)?`<a class="btn sm ghost" href="${esc(mailHref(resEmail(r.contact),confirmMsg(r)))}">✉ ${tt("E-mail","Correo")}</a>`:""}<button class="btn sm ghost" data-act="msg" data-id="${esc(r.id)}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${esc(r.id)}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${esc(r.id)}">${tt("Delete","Borrar")}</button></div></div>`:""}`);
   const box=document.getElementById("resBox"); if(box) box.onchange=()=>{resSel=box.value;listM1();document.getElementById("resBox")?.focus();};
   document.getElementById("resFilt").onchange=e=>{resFilter=e.target.value;resSel=null;listM1();};
 }
