@@ -1414,8 +1414,26 @@ function wireSettings(){
   document.getElementById("keyForm").onsubmit=e=>{e.preventDefault(); const k=val("apiKey"); if(!/^sk-ant-/.test(k)){msg(tt("That doesn't look like an Anthropic key.","Eso no parece una clave de Anthropic."));return;} lsSet(LS_KEY,k); MODELS=null; SAMPLE=makeApiSample(); render();};
   const del=document.getElementById("keyDel"); if(del) del.onclick=()=>{lsDel(LS_KEY); SAMPLE=null; MODELS=null; render();};
   const test=document.getElementById("keyTest"); if(test) test.onclick=async()=>{msg(tt("Testing…","Probando…")); try{await SAMPLE("Reply with the single word OK.",{modelTier:"quick"}); msg(tt("The key works.","La clave funciona."));}catch(e){msg(aiErr(e));}};
-  document.getElementById("expBtn").onclick=async()=>{ if(await saveFile("taste-of-peru-backup-"+today()+".json",JSON.stringify({app:"taste-of-peru",exported:new Date().toISOString(),data:await DB._dump()},null,2))) document.getElementById("bkMsg").textContent=tt("Backup downloaded.","Respaldo descargado."); };
-  document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; if(!f) return; try{ const j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object") throw 0; if(!confirm(tt("Copy all records from this backup into the Google Sheet?","¿Copiar todos los registros de este respaldo a la hoja de Google?"))) return; await DB._load(j.data); document.getElementById("bkMsg").textContent=tt("Data restored.","Datos restaurados."); }catch(err){ document.getElementById("bkMsg").textContent=tt("That file is not a valid backup.","Ese archivo no es un respaldo válido."); } };
+  const bk=t=>{document.getElementById("bkMsg").textContent=t;};
+  const bkBusy=on=>{ document.getElementById("expBtn").disabled=on; document.getElementById("impFile").disabled=on; };
+  document.getElementById("expBtn").onclick=async()=>{ bkBusy(true); bk(tt("Reading every tab of the Google Sheet…","Leyendo todas las pestañas de la hoja de Google…"));
+    try{ const data=await DB._dump(), n=Object.keys(data).length;
+      if(await saveFile("taste-of-peru-backup-"+today()+".json",JSON.stringify({app:"taste-of-peru",version:1,exported:new Date().toISOString(),count:n,data},null,2))) bk(tt(`Backup downloaded (${n} records).`,`Respaldo descargado (${n} registros).`)); else bk(""); }
+    catch(err){ bk(err&&err.code==="pending"?tt("Some changes are still being saved — try again in a moment.","Algunos cambios aún se están guardando — inténtalo en un momento.")
+      :tt("Backup NOT downloaded: could not read "+((err&&err.cols)||[]).join(", ")+" from the Google Sheet. Try again.","Respaldo NO descargado: no se pudo leer "+((err&&err.cols)||[]).join(", ")+" de la hoja de Google. Inténtalo de nuevo.")); }
+    finally{ bkBusy(false); } };
+  document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return;
+    let j; try{ j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object"||Array.isArray(j.data)||(j.app&&j.app!=="taste-of-peru")) throw 0; }
+    catch(err){ bk(tt("That file is not a valid backup.","Ese archivo no es un respaldo válido.")); return; }
+    const n=Object.keys(j.data).length; if(!n){ bk(tt("That backup has no records.","Ese respaldo no tiene registros.")); return; }
+    if(!confirm(tt(`Copy ${n} records from this backup (${String(j.exported||"").slice(0,10)}) into the Google Sheet? Records with the same ID are replaced; others are kept.`,`¿Copiar ${n} registros de este respaldo (${String(j.exported||"").slice(0,10)}) a la hoja de Google? Los registros con el mismo ID se reemplazan; los demás se conservan.`))) return;
+    bkBusy(true); bk(tt("Restoring…","Restaurando…"));
+    try{ const r=await DB._load(j.data,(done,total)=>bk(tt(`Restoring… ${done} / ${total}`,`Restaurando… ${done} / ${total}`)));
+      bk(tt(`Restored ${r.saved} records.`,`Se restauraron ${r.saved} registros.`)+(r.skipped?tt(` Skipped ${r.skipped} (unknown or invalid).`,` Omitidos ${r.skipped} (desconocidos o inválidos).`):"")
+        +(r.failed?tt(` ${r.failed} were rejected by the Sheet.`,` ${r.failed} fueron rechazados por la hoja.`):"")
+        +(r.pending?tt(` ${r.pending} are still waiting and will be saved when the Sheet answers.`,` ${r.pending} siguen en espera y se guardarán cuando la hoja responda.`):"")); }
+    catch(err){ bk(tt("Restore failed. Try again.","La restauración falló. Inténtalo de nuevo.")); }
+    finally{ bkBusy(false); } };
 }
 
 
@@ -1438,7 +1456,7 @@ function makeSheetDB(url){
   const fails={}; // consecutive failed loads per tab
   const ver={}; // last version of each tab we loaded (from the server's change stamps)
   /* ---- background save queue: the screen updates at once, the Sheet is written in batches ---- */
-  let queue=[], inflight=[], flushTimer=null, flushing=null, backoff=0, legacy=false; const touched={}; // touched[col] = time of the last write that reached the Sheet
+  let queue=[], inflight=[], flushTimer=null, flushing=null, backoff=0, legacy=false, failed=0, quiet=false; const touched={}; // touched[col] = time of the last write that reached the Sheet
   const key=o=>o.col+"/"+o.id;
   function hasPending(col,id){ const k=col+"/"+id; return queue.some(o=>key(o)===k)||inflight.some(o=>key(o)===k); }
   function overlay(col,m){ [...inflight,...queue].forEach(o=>{ if(o.col!==col) return; if(o.op==="delete") delete m[o.id]; else m[o.id]=JSON.parse(JSON.stringify(o.data)); }); return m; }
@@ -1465,7 +1483,7 @@ function makeSheetDB(url){
     flushing=(async()=>{ inflight=queue.splice(0,40); showSaving();
       try{ const res=await sendOps(inflight); const partial=res.length<inflight.length; backoff=0; const bad=new Set();
         inflight.forEach((o,i)=>{ const r=res[i]; if(!r) { if(!queue.some(x=>key(x)===key(o))) queue.unshift(o); return; } // not sent yet → back in the queue
-          touched[o.col]=Date.now(); if(!r.ok){ opErr(r.error); bad.add(o.col); } });
+          touched[o.col]=Date.now(); if(!r.ok){ failed++; if(!quiet) opErr(r.error); bad.add(o.col); } });
         if(partial) backoff=Math.min(30000,backoff?backoff*2:2000); // the server was busy part-way
         inflight=[]; bad.forEach(c=>load(c)); }
       catch(e){ const back=inflight.filter(o=>!queue.some(x=>key(x)===key(o))); inflight=[]; queue=back.concat(queue); // keep them, retry later
@@ -1484,10 +1502,11 @@ function makeSheetDB(url){
       const m={}; j.docs.forEach(d=>{m[d.id]=d.data;}); overlay(col,m);
       if(j.version!=null) ver[col]=String(j.version);
       const same=loaded[col]&&JSON.stringify(cache[col])===JSON.stringify(m);
-      cache[col]=m; loaded[col]=true; if(!same) notify(col); return; }
+      cache[col]=m; loaded[col]=true; if(!same) notify(col); return true; }
     fails[col]=(fails[col]||0)+1; console.warn("Sheet load failed:",col,err);
     // background refreshes stay quiet unless the problem persists
     if(err.code!=="auth"&&(!loaded[col]||fails[col]>=3)) toast(tt("Can't reach the Google Sheet right now.","No se puede conectar con la hoja de Google ahora."));
+    return false;
   }
   /* ---- smart refresh: ask which tabs changed (one tiny call) and only re-read those ---- */
   let versionsOK=true, syncing=null;
@@ -1518,8 +1537,28 @@ function makeSheetDB(url){
   return {collection:colRef,doc:docRef,
     _refresh:async c=>{ await drain(); await load(c); }, // after our own saves land, re-read (e.g. Kardex rows the server added)
     _sync:cols=>sync(cols), _flush:()=>drain(), _pending:()=>pendingCount(),
-    _dump:async()=>{ await drain(); for(const c of SHEET_COLS) if(!loaded[c]) await load(c); const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
-    _load:async obj=>{ for(const [k,d] of Object.entries(obj||{})){ const [c,id]=k.split("/"); if(SHEET_COLS.includes(c)&&id){ (cache[c] ||= {})[id]=d; enqueue({op:"set",col:c,id,data:d}); } } SHEET_COLS.forEach(notify); await drain(); },
+    // backup: re-read every tab fresh (in parallel — reads don't lock) so the file matches the Sheet right now
+    _dump:async()=>{ await drain(); if(pendingCount()) throw {code:"pending"};
+      const ok=await Promise.all(SHEET_COLS.map(c=>load(c)));
+      const miss=SHEET_COLS.filter((c,i)=>!ok[i]); if(miss.length) throw {code:"unavailable",cols:miss};
+      const o={}; SHEET_COLS.forEach(c=>Object.entries(cache[c]||{}).forEach(([id,d])=>{o[c+"/"+id]=d;})); return o; },
+    // restore: copy every record into the Sheet (records not in the file are kept); returns what happened
+    _load:async(obj,onProgress)=>{ const r={saved:0,skipped:0,failed:0,pending:0}, touchedCols=new Set();
+      for(const [k,d0] of Object.entries(obj||{})){ const i=k.indexOf("/"), c=k.slice(0,i), id=k.slice(i+1);
+        if(!SHEET_COLS.includes(c)||!/^[A-Za-z0-9_.\-]{1,120}$/.test(id)||!d0||typeof d0!=="object"||Array.isArray(d0)||!canWrite(c)){ r.skipped++; continue; }
+        const d=JSON.parse(JSON.stringify(d0));
+        // the backup already holds the Kardex and stock after these sales — don't take the ingredients out a second time
+        if(c==="bills") d.stockDone=true;
+        if(c==="orders"&&(d.status==="served"||d.billId||Array.isArray(d.stockUse))) d.stockDone=true;
+        (cache[c] ||= {})[id]=d; enqueue({op:"set",col:c,id,data:d}); touchedCols.add(c); r.saved++; }
+      SHEET_COLS.forEach(notify);
+      const f0=failed; quiet=true; const total=pendingCount();
+      try{ for(let n=0;n<200&&(queue.length||flushing);n++){ if(flushTimer){ clearTimeout(flushTimer); flushTimer=null; } await flush(); if(onProgress) onProgress(total-pendingCount(),total);
+          if(backoff>=16000) break; if(backoff) await new Promise(res=>setTimeout(res,backoff)); } } // still failing → leave the rest queued; it keeps retrying
+      finally{ quiet=false; }
+      r.failed=failed-f0; r.pending=pendingCount(); r.saved-=r.failed+r.pending;
+      await Promise.all([...touchedCols].map(c=>load(c))); // show what the Sheet has now
+      return r; },
     _empty:()=>false };
 }
 
