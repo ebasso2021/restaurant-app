@@ -2066,10 +2066,18 @@ function wireM1(){
   };
   if(document.getElementById("resList")) document.getElementById("resList").onclick=async e=>{
     const b=e.target.closest("[data-act]"); if(!b) return; const id=b.dataset.id, r=D.reservations.find(x=>x.id===id); if(!r) return;
-    if(b.dataset.act==="confirm"){ const clash=r.table!==""&&r.table!=null?tableBooking(r.table,r.date,r.time,r.id):null;
-      if(clash){ toast(tt(`Table ${r.table} is already taken by ${clash.name} at ${clash.time}.`,`La mesa ${r.table} ya está tomada por ${clash.name} a las ${clash.time}.`)); return; }
-      notifyBooking(r); // SMS to the customer's phone (or e-mail) — opened before saving so the phone allows it
-      await dbUpd("reservations",id,{status:"confirmed"}); }
+    if(b.dataset.act==="confirm"){
+      let table=r.table;
+      if(activeTables().length){ // a table must be confirmed when accepting the booking
+        const sel=document.getElementById("resConfTable"), want=sel?sel.value:"";
+        if(!want){ toast(tt("Choose a table first.","Elige una mesa primero.")); sel&&sel.focus(); return; }
+        const pick=pickTable(Math.max(1,num(r.party)),r.date,r.time,want,r.id);
+        if(pick.err){ toast(pick.err); return; }
+        table=pick.table; }
+      else if(r.table!==""&&r.table!=null){ const clash=tableBooking(r.table,r.date,r.time,r.id);
+        if(clash){ toast(tt(`Table ${r.table} is already taken by ${clash.name} at ${clash.time}.`,`La mesa ${r.table} ya está tomada por ${clash.name} a las ${clash.time}.`)); return; } }
+      notifyBooking({...r,table}); // SMS to the customer's phone (or e-mail) — opened before saving so the phone allows it
+      await dbUpd("reservations",id,{status:"confirmed",table:table===""||table==null?"":table}); }
     if(b.dataset.act==="cancel") await dbUpd("reservations",id,{status:"cancelled"});
     if(b.dataset.act==="del") await dbDel("reservations",id);
     if(b.dataset.act==="msg") copyText(confirmMsg(r));
@@ -2077,8 +2085,8 @@ function wireM1(){
 }
 function confirmMsg(r){
   return state.lang==="es"
-   ? `Hola ${r.name}, confirmamos tu reserva en Taste of Peru para ${r.party} persona(s) el ${r.date} a las ${r.time}. ¡Te esperamos!`
-   : `Hi ${r.name}, your Taste of Peru booking for ${r.party} is confirmed for ${r.date} at ${r.time}. See you soon!`;
+   ? `Hola ${r.name}, confirmamos tu reserva en Taste of Peru para ${r.party} persona(s) el ${r.date} a las ${r.time}${r.table!==""&&r.table!=null?` (mesa ${r.table})`:""}. ¡Te esperamos!`
+   : `Hi ${r.name}, your Taste of Peru booking for ${r.party} is confirmed for ${r.date} at ${r.time}${r.table!==""&&r.table!=null?` (table ${r.table})`:""}. See you soon!`;
 }
 /* ---- send the confirmation to the customer: SMS app on phones/tablets/Mac, e-mail app for e-mail addresses ---- */
 function resPhone(c){ c=String(c||""); if(/@/.test(c)) return null; const plus=/^\s*\+/.test(c), d=c.replace(/\D/g,"");
@@ -2096,7 +2104,18 @@ function notifyBooking(r){ // must run inside the click (before any await) so th
   if(ph){ try{ navigator.clipboard.writeText(body).catch(()=>{}); }catch(e){} toast(tt(`Booking confirmed. This computer can't send SMS: the message was copied — send it to ${ph} from your phone, or use the 📱 SMS button on a phone or tablet.`,`Reserva confirmada. Esta computadora no envía SMS: el mensaje se copió — envíalo a ${ph} desde tu teléfono, o usa el botón 📱 SMS en un teléfono o tablet.`)); return; }
   if(em){ openLink(mailHref(em,body)); return; }
   toast(tt("Booking confirmed. No phone number or e-mail to send the confirmation to.","Reserva confirmada. No hay teléfono ni correo para enviar la confirmación.")); }
-let resSel=null, resFilter="all";
+// tables to choose from when accepting a booking: free ones first; too small / taken ones shown but disabled
+function confTableOptions(r){ const party=Math.max(1,num(r.party)), tabs=activeTables();
+  const auto=pickTable(party,r.date,r.time,"",r.id), keep=r.table!==""&&r.table!=null&&!pickTable(party,r.date,r.time,r.table,r.id).err?String(r.table):"";
+  const mine=resConfPick[r.id], mineOk=mine&&!pickTable(party,r.date,r.time,mine,r.id).err;
+  const sel=mineOk?String(mine):keep||(auto.err?"":String(auto.table));
+  const opts=tabs.map(t=>{ let why="";
+    if(num(t.seats)<party) why=tt("too small","muy pequeña");
+    else if(tableOccupiedFor(t,r.date,r.time)) why=tt("occupied now","ocupada ahora");
+    else { const b=tableBooking(t.num,r.date,r.time,r.id); if(b) why=tt(`booked ${b.time} (${b.name})`,`reservada ${b.time} (${b.name})`); }
+    return {t,why}; }).sort((a,b)=>(!!a.why-!!b.why)||num(a.t.seats)-num(b.t.seats)||num(a.t.num)-num(b.t.num));
+  return {sel,anyFree:opts.some(o=>!o.why),html:`<option value="">${tt("Choose a table…","Elige una mesa…")}</option>`+opts.map(o=>`<option value="${esc(o.t.num)}"${String(o.t.num)===sel?" selected":""}${o.why?" disabled":""}>${tt("Table","Mesa")} ${esc(o.t.num)} · ${esc(o.t.seats)} ${tt("chairs","sillas")}${o.t.zone?" · "+esc(o.t.zone):""}${o.why?" — "+esc(o.why):""}</option>`).join("")}; }
+let resSel=null, resFilter="all"; const resConfPick={}; // table chosen (not yet saved) for each pending booking
 function listM1(){
   const el=document.getElementById("resList"); if(!el) return;
   const rt=document.getElementById("rTable"); if(rt&&document.activeElement!==rt){ const v=rt.value; rt.innerHTML=tableOptions(v,true); }
@@ -2115,8 +2134,11 @@ function listM1(){
    ${r?`<div class="resdetail"><div><b>${esc(r.name)}</b><span class="badge ${r.status==="confirmed"?"ok":r.status==="cancelled"?"bad":"warn"}">${st(r)}</span></div>
     <div>${esc(r.date)} · ${esc(r.time)}–${esc(r.end||endTime(r.time))} · ${esc(r.party)} ${tt("people","personas")}${r.table!==""&&r.table!=null?" · "+tt("Table","Mesa")+" "+esc(r.table):""}</div>
     ${r.contact?`<div>${esc(r.contact)}</div>`:""}${r.notes?`<div class="dimtxt">${esc(r.notes)}</div>`:""}
-    <div class="acts">${r.status==="pending"?`<button class="btn sm" data-act="confirm" data-id="${esc(r.id)}">${tt("Confirm","Confirmar")}</button>`:""}${r.status==="confirmed"&&resPhone(r.contact)?`<a class="btn sm ghost" href="${esc(smsHref(resPhone(r.contact),confirmMsg(r)))}">📱 ${tt("SMS","SMS")}</a>`:""}${r.status==="confirmed"&&!resPhone(r.contact)&&resEmail(r.contact)?`<a class="btn sm ghost" href="${esc(mailHref(resEmail(r.contact),confirmMsg(r)))}">✉ ${tt("E-mail","Correo")}</a>`:""}<button class="btn sm ghost" data-act="msg" data-id="${esc(r.id)}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${esc(r.id)}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${esc(r.id)}">${tt("Delete","Borrar")}</button></div></div>`:""}`);
+    ${r.status==="pending"&&activeTables().length?(()=>{ const c=confTableOptions(r); return `<div class="f" style="margin-top:8px"><label for="resConfTable">🪑 ${tt("Table for this booking","Mesa para esta reserva")}</label><select id="resConfTable">${c.html}</select>
+      <span class="hint ${c.anyFree?"":"alltxt"}">${c.anyFree?tt(`Free tables for ${r.party} at ${r.time} are listed first. Choose one to accept the request.`,`Las mesas libres para ${r.party} a las ${r.time} aparecen primero. Elige una para aceptar la solicitud.`):tt(`No table is free for ${r.party} at ${r.time}. Offer the customer another time, or free/join tables in “Tables layout”.`,`No hay mesa libre para ${r.party} a las ${r.time}. Ofrece al cliente otra hora, o libera/junta mesas en “Distribución de mesas”.`)}</span></div>`; })():""}
+    <div class="acts">${r.status==="pending"?`<button class="btn sm" data-act="confirm" data-id="${esc(r.id)}">${activeTables().length?tt("Confirm with this table","Confirmar con esta mesa"):tt("Confirm","Confirmar")}</button>`:""}${r.status==="confirmed"&&resPhone(r.contact)?`<a class="btn sm ghost" href="${esc(smsHref(resPhone(r.contact),confirmMsg(r)))}">📱 ${tt("SMS","SMS")}</a>`:""}${r.status==="confirmed"&&!resPhone(r.contact)&&resEmail(r.contact)?`<a class="btn sm ghost" href="${esc(mailHref(resEmail(r.contact),confirmMsg(r)))}">✉ ${tt("E-mail","Correo")}</a>`:""}<button class="btn sm ghost" data-act="msg" data-id="${esc(r.id)}">${tt("Copy message","Copiar mensaje")}</button>${r.status!=="cancelled"?`<button class="btn sm ghost" data-act="cancel" data-id="${esc(r.id)}">${tt("Cancel","Cancelar")}</button>`:""}<button class="btn sm ghost" data-act="del" data-id="${esc(r.id)}">${tt("Delete","Borrar")}</button></div></div>`:""}`);
   const box=document.getElementById("resBox"); if(box) box.onchange=()=>{resSel=box.value;listM1();document.getElementById("resBox")?.focus();};
+  const ct=document.getElementById("resConfTable"); if(ct&&r) ct.onchange=()=>{ resConfPick[r.id]=ct.value; };
   document.getElementById("resFilt").onchange=e=>{resFilter=e.target.value;resSel=null;listM1();};
 }
 
@@ -2153,7 +2175,7 @@ function tableStatus(t){
   return ["free",tt("Free · ready for bookings","Libre · lista para reservas")];
 }
 // returns {table} (number, or "" when no layout is defined) or {err}
-function pickTable(party,date,time,want){
+function pickTable(party,date,time,want,exceptId){
   const tabs=activeTables();
   if(!tabs.length) return {table:""};
   if(want){
@@ -2161,13 +2183,13 @@ function pickTable(party,date,time,want){
     if(!t) return {err:tt("That table doesn't exist or is not active.","Esa mesa no existe o no está activa.")};
     if(num(t.seats)<party) return {err:tt(`Table ${t.num} has only ${t.seats} chairs.`,`La mesa ${t.num} tiene solo ${t.seats} sillas.`)};
     if(tableOccupiedFor(t,date,time)) return {err:tt(`Table ${t.num} is occupied now. Mark it free in “Tables layout” or book after ${mtime(tmin(nowHM())+BOOK_MIN)}.`,`La mesa ${t.num} está ocupada ahora. Márcala libre en “Distribución de mesas” o reserva después de las ${mtime(tmin(nowHM())+BOOK_MIN)}.`)};
-    const b=tableBooking(t.num,date,time);
+    const b=tableBooking(t.num,date,time,exceptId);
     if(b) return {err:tt(`Table ${t.num} is booked from ${b.time} to ${endTime(b.time)} (${b.name}). Each booking holds the table 1 h 30 min.`,`La mesa ${t.num} está reservada de ${b.time} a ${endTime(b.time)} (${b.name}). Cada reserva ocupa la mesa 1 h 30 min.`)};
     return {table:num(t.num)};
   }
   const max=Math.max(...tabs.map(t=>num(t.seats)));
   if(party>max) return {err:tt(`No table has ${party} chairs (largest: ${max}). Add a bigger table or join tables in “Tables layout”.`,`Ninguna mesa tiene ${party} sillas (la más grande: ${max}). Agrega una mesa más grande o junta mesas en “Distribución de mesas”.`)};
-  const free=tabs.filter(t=>num(t.seats)>=party&&!tableOccupiedFor(t,date,time)&&!tableBooking(t.num,date,time)).sort((a,b)=>num(a.seats)-num(b.seats)||num(a.num)-num(b.num));
+  const free=tabs.filter(t=>num(t.seats)>=party&&!tableOccupiedFor(t,date,time)&&!tableBooking(t.num,date,time,exceptId)).sort((a,b)=>num(a.seats)-num(b.seats)||num(a.num)-num(b.num));
   if(!free.length) return {err:tt(`Full: no free table for ${party} between ${time} and ${endTime(time)}. Try another time.`,`Completo: no hay mesa libre para ${party} entre ${time} y ${endTime(time)}. Prueba otra hora.`)};
   return {table:num(free[0].num)};
 }
