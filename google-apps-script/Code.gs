@@ -32,7 +32,7 @@ const SHEETS = { reservations: "Reservas", inventory: "Inventario", waste: "Merm
 // readable columns: [field, header]
 const FIELDS = {
   reservations: [["date","Fecha"],["time","Hora"],["name","Nombre"],["contact","Contacto"],["party","Personas"],["notes","Notas"],["status","Estado"],["created","Creada"],["table","Mesa"],["end","Hasta"]],
-  inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"],["costPer","Costo por"],["pack","Piezas por paquete"]],
+  inventory: [["name","Artículo"],["unit","Unidad"],["qty","Stock"],["min","Alerta"],["par","Cantidad máxima"],["cost","Costo unitario"],["supplier","Proveedor"],["updated","Actualizado"],["costPer","Costo por"],["pack","Piezas por paquete"],["barcode","Código de barras"]],
   waste: [["date","Fecha"],["itemId","ID artículo"],["item","Artículo"],["qty","Cantidad"],["unit","Unidad"],["cost","Costo"],["reason","Motivo"]],
   posts: [["when","Fecha y hora"],["channel","Canal"],["status","Estado"],["text","Texto"],["image","Imagen"],["reach","Alcance"],["likes","Likes"],["comments","Comentarios"],["saves","Guardados"]],
   reviews: [["date","Fecha"],["source","Fuente"],["stars","Estrellas"],["name","Autor"],["text","Texto"],["reply","Respuesta"],["replied","Respondida"]],

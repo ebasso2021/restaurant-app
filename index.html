@@ -1,4 +1,23 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#5B2366"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Taste of Peru"><meta name="format-detection" content="telephone=no"><link rel="apple-touch-icon" href="img/icon-180.png"><link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png"></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}.bcpanel{margin:14px 0 20px}
+.fgrid.bcgrid{grid-template-columns:minmax(190px,1fr) minmax(220px,2fr) auto}
+@media (max-width:640px){.fgrid.bcgrid{grid-template-columns:minmax(0,1fr)}}
+.f.bcinf input{font:500 16px var(--mono)}
+.f.bcbtns,.f.lbbtns{flex-direction:row;flex-wrap:wrap;gap:8px;align-items:end}
+.bccam{position:relative;margin-top:12px;max-width:520px;border-radius:12px;overflow:hidden;background:#000}
+.bccam video{display:block;width:100%;height:auto}
+.bcaim{position:absolute;left:10%;right:10%;top:28%;bottom:28%;border:2px solid rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.28);pointer-events:none}
+.bcmsg{margin-top:10px}.bcmsg:empty{display:none}
+.bcacts{display:inline-flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}
+.bclink{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.bclink select{font:14px var(--body);padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);max-width:100%}
+.mono{font-family:var(--mono)}
+small.bcode{display:block;font:12px var(--mono);color:var(--muted);margin-top:2px}
+small.bcode input{width:160px;max-width:100%;font:12px var(--mono)}
+.bcrow{display:flex;gap:6px;align-items:center}.bcrow input{flex:1 1 auto;min-width:0}
+tr.bchit td{background:var(--ok-bg)!important}
+.lbprev{overflow:auto;margin-top:10px;max-width:100%}
+.lbprev iframe{display:block;border:1px solid var(--line);background:#fff;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+</style><meta name="theme-color" content="#5B2366"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Taste of Peru"><meta name="format-detection" content="telephone=no"><link rel="apple-touch-icon" href="img/icon-180.png"><link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png"></head><body>
 <title>Taste of Peru</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -1769,7 +1788,7 @@ async function startAuth(){
 }
 // ----- what each role may change -----
 function canWrite(col){ if(MODE!=="sheet") return true; const r=SESSION&&SESSION.role; return r==="admin"||!!(ROLE_WRITE[r]&&ROLE_WRITE[r].includes(col)); }
-const READ_OK='[data-aiview],[data-mncat],#goMenu,#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"]';
+const READ_OK='[data-aiview],[data-mncat],#goMenu,#blTable,#blPrint,#blCopy,[data-bill],#ordRefresh,#ordServed,#tblDay,[data-range],#resFilt,#resBox,#chatIn,#chatForm button,#chatMic,#vLang,#vSpeak,[data-act="msg"],#fcNotes,#fcAI,#sAI,#engAI,#patAI,#repAI,#repCopy,#gForm input,#gForm select,#gForm textarea,#gForm button,[data-g="copy"],[data-p="copy"],[data-r="copy"],[data-r="draft"],#poCopy,[id^="gTxt"],[id^="gWhen"],[id^="rp"],#bcMode,#bcIn,#bcCamBtn,#bcPhotoBtn,#bcPhoto,[data-bcgo="kx"],[data-bcgo="lbl"],#lbForm select,#lbForm input,#lbPrevBtn,#lbPrint';
 function applyRoleUI(){
   if(MODE!=="sheet"||!SESSION||SESSION.role==="admin"||state.tab!=="ai") return;
   const v=state.aiView, chef=SESSION.role==="chef";
@@ -3143,6 +3162,7 @@ const REASONS=[["expired","Expired","Vencido"],["over","Overproduction","Sobrepr
 function m2(){
   return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Module 2","Módulo 2"),tt("Kitchen & inventory","Cocina e inventario"),tt("Real-time stock, shortage alerts, purchase orders, demand forecast and waste log. Numbers come only from what you enter.","Stock en tiempo real, alertas de faltantes, órdenes de compra, predicción de demanda y registro de merma. Los números vienen solo de lo que ingresas."))}
    <div class="kpis" id="invKpis"></div>
+   ${bcPanelHTML()}
    <div class="panel"><h3>${tt("Items","Artículos")}</h3>
     <form id="invForm" class="fgrid wide">
      ${field("iName",tt("Description","Descripción"),`<input id="iName" required>`)}
@@ -3150,6 +3170,7 @@ function m2(){
      ${field("iMin",tt("Minimum (alert below)","Mínimo (alerta bajo)"),`<input id="iMin" type="number" step="any" min="0">`)}
      ${field("iPar",tt("Maximum","Máximo"),`<input id="iPar" type="number" step="any" min="0">`)}
      ${field("iPack",tt("Pieces per package","Piezas por paquete"),`<input id="iPack" type="number" min="1" step="1" value="1" title="${tt("For pieces: the cost you type is the package price; unit cost = price ÷ pieces per package","Para unidades: el costo que escribes es el precio del paquete; costo unitario = precio ÷ piezas por paquete")}">`)}
+     <div class="f"><label for="iCode">${tt("Barcode (optional)","Código de barras (opcional)")}</label><div class="bcrow"><input id="iCode" maxlength="48" autocomplete="off" spellcheck="false" placeholder="GTIN / EAN / UPC"><button type="button" class="btn sm ghost" id="iGen" title="${tt("Create an internal EAN-13 code (GS1 prefix 040–049, for use inside the restaurant)","Crear un código interno EAN-13 (prefijo GS1 040–049, para uso dentro del restaurante)")}">⚙ ${tt("Generate","Generar")}</button></div></div>
      <button class="btn" type="submit">${tt("Add item","Agregar item")}</button>
     </form>
     <p class="hint"><button type="button" class="linkbtn" id="loadIng">${tt("Add all ingredients from the recipes","Agregar todos los ingredientes de las recetas")}</button> — ${tt("names only; you fill in quantities.","solo nombres; tú completas las cantidades.")}</p>
@@ -3171,6 +3192,7 @@ function m2(){
     <div class="tablewrap" id="invTable"></div>
     <p class="hint">${tt("The stock can be in grams, kilos, millilitres, litres or pieces (pieces are bought by the package). Cost per kg / L / package, cost per g / mL / piece and stock value are in 3 · Sales, costs & analytics (📒 Kardex and Costs), calculated from the Kardex with the weighted average cost.","El stock puede estar en gramos, kilos, mililitros, litros o unidades (las unidades se compran por paquete). El costo por kg / L / paquete, el costo por g / mL / und y el valor del stock están en 3 · Ventas, costos y análisis (📒 Kardex y Costos), calculados desde el Kardex con el costo promedio ponderado.")}</p>
    </div>
+   ${lbPanelHTML()}
    <div class="grid" style="margin-top:20px">
     <div class="stack">
      <div class="panel"><h3>📦 ${tt("Recently added stock","Stock agregado recientemente")}</h3><div id="rsBox"></div>
@@ -3210,8 +3232,10 @@ async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>
   if(bad.length) return toast(tt("Fill in, no blanks or 0.00: ","Completa, sin vacíos ni 0,00: ")+bad.join(", "));
   const v=f=>String(rowQ(f)?rowQ(f).value:"").trim();
   if(num(v("par"))<num(v("min"))){ rowQ("par").setAttribute("aria-invalid","true"); return toast(tt("Maximum quantity must be at least the alert level.","La cantidad máxima debe ser mayor o igual a la alerta.")); }
+  const code=rowQ("barcode")?v("barcode"):String(it.barcode||""), cErr=bcCheck(code,id);
+  if(cErr){ if(rowQ("barcode")) rowQ("barcode").setAttribute("aria-invalid","true"); return toast(tt("Barcode: ","Código de barras: ")+cErr); }
   if(!DB) return noDb();
-  const name=v("name").slice(0,60), upd={name,min:num(v("min")),par:num(v("par")),updated:new Date().toISOString()};
+  const name=v("name").slice(0,60), upd={name,min:num(v("min")),par:num(v("par")),barcode:code,updated:new Date().toISOString()};
   await dbUpd("inventory",id,upd);
   if(name!==it.name) for(const k of D.kardex.filter(k=>k.itemId===id)) await dbUpd("kardex",k.id,{item:name});
   const it2={...it,...upd};
@@ -3232,11 +3256,12 @@ function wireM2(){
     if(!reqCheck([["iName",tt("Description","Descripción"),"text"],["iMin",tt("Minimum","Mínimo"),"pos"],["iPar",tt("Maximum","Máximo"),"pos"],
       ...(pc0?[["iPack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[])])) return;
     if(num(val("iPar"))<num(val("iMin"))){ document.getElementById("iPar").setAttribute("aria-invalid","true"); return toast(tt("Maximum must be at least the minimum.","El máximo debe ser mayor o igual al mínimo.")); }
+    { const cErr=bcCheck(val("iCode")); if(cErr){ document.getElementById("iCode").setAttribute("aria-invalid","true"); document.getElementById("iCode").focus(); return toast(tt("Barcode: ","Código de barras: ")+cErr); } }
     if(!DB) return noDb();
     const pk=pc0?Math.max(1,Math.round(num(val("iPack"))||1)):1;
     const id="i"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     // stock, cost, supplier, lot and expiry are recorded later with "Add stock"
-    const doc={name:val("iName"),unit:val("iUnit"),costPer:baseOf(val("iUnit")),pack:pk,qty:0,min:num(val("iMin")),par:num(val("iPar")),cost:0,supplier:"",updated:new Date().toISOString()};
+    const doc={name:val("iName"),unit:val("iUnit"),costPer:baseOf(val("iUnit")),pack:pk,qty:0,min:num(val("iMin")),par:num(val("iPar")),cost:0,supplier:"",barcode:val("iCode"),updated:new Date().toISOString()};
     await dbSet("inventory/"+id,doc);
     e.target.reset(); iPackShow();
   };
@@ -3259,6 +3284,7 @@ function wireM2(){
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
   document.getElementById("invTable").addEventListener("click",async e=>{
     const ed=e.target.closest("[data-invedit]"); if(ed){ invEdit=ed.dataset.invedit; invDraft={}; listM2(); const f=document.querySelector(`#invTable [data-f="name"][data-id="${invEdit}"]`); if(f) f.focus(); return; }
+    const bg=e.target.closest("[data-bcgen]"); if(bg){ const f=document.querySelector(`#invTable [data-f="barcode"][data-id="${bg.dataset.bcgen}"]`); if(f){ f.value=bcNewInternal(); invDraft.barcode=f.value; f.setAttribute("aria-invalid","false"); f.focus(); } return; }
     if(e.target.closest("[data-invcancel]")){ invEdit=null; invDraft={}; listM2(); return; }
     const sv=e.target.closest("[data-invsave]"); if(sv){ await invSave(sv.dataset.invsave); return; }
     const b=e.target.closest("[data-del]"); if(b){ const it=invItem(b.dataset.del); if(!it) return;
@@ -3309,6 +3335,8 @@ function wireM2(){
   };
   document.getElementById("poBox").addEventListener("click",e=>{if(e.target.closest("#poCopy")) copyText(poText());});
   document.getElementById("fcAI").onclick=forecastAI;
+  document.getElementById("iGen").onclick=()=>{ setv("iCode",bcNewInternal()); toast(tt("Internal code created — press “Add item” to save it.","Código interno creado — pulsa “Agregar item” para guardarlo.")); };
+  wireBarcode(); wireLabels();
 }
 function invStatus(i){ const q=stockQty(i);
   if(num(i.min)>0&&q<=num(i.min)) return ["bad",tt("Below alert level","Bajo el nivel de alerta"),"low"];
@@ -3357,11 +3385,11 @@ function listM2(){
   const canInv=canWrite("inventory"), dv=(i,f,d)=>i.id===invEdit&&invDraft[f]!=null?invDraft[f]:d;
   const actIn=document.activeElement&&tb.contains(document.activeElement)&&document.activeElement.matches("input,select,textarea");
   if(!actIn) tb.innerHTML=inv.length?`<table class="dt invt"><thead><tr><th>${tt("Description","Descripción")}</th><th>${tt("Unit","Unidad")}</th><th>${tt("Minimum (alert)","Mínimo (alerta)")}</th><th>${tt("Maximum","Máximo")}</th><th>${tt("Alert","Alerta")}</th><th></th></tr></thead><tbody>${inv.map(i=>{const s=invStatus(i), ed=i.id===invEdit, u=esc(unitLbl(i.unit));
-     if(!ed) return `<tr class="${s[2]==="low"?"invlow":s[2]==="over"?"invover":""}"><td><b>${esc(i.name)}</b>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
+     if(!ed) return `<tr class="${s[2]==="low"?"invlow":s[2]==="over"?"invover":""}"><td><b>${esc(i.name)}</b>${i.barcode?`<small class="bcode" title="${esc(bcKind(i.barcode))}">▮▯▮ ${esc(i.barcode)}</small>`:""}${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <b>${packOf(i)}</b></small>`:""}</td>
      <td>${u}</td><td class="nw">${fmtQ(num(i.min))} ${u}</td><td class="nw">${fmtQ(num(i.par))} ${u}</td>
      <td class="nw">${s[2]==="low"?`<span class="badge bad" title="${esc(tt(`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} ≤ minimum ${fmtQ(num(i.min))} ${unitLbl(i.unit)}`,`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} ≤ mínimo ${fmtQ(num(i.min))} ${unitLbl(i.unit)}`))}">⛔ ${tt("Under minimum","Bajo el mínimo")}</span>`:s[2]==="over"?`<span class="badge warn" title="${esc(tt(`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} > maximum ${fmtQ(num(i.par))} ${unitLbl(i.unit)}`,`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} > máximo ${fmtQ(num(i.par))} ${unitLbl(i.unit)}`))}">▲ ${tt("Overstocked","Con exceso")}</span>`:`<span class="dimtxt">—</span>`}</td>
      <td class="nw">${canInv?`<button class="btn sm ghost" data-invedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> `:""}<button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button>${canInv?` <button class="btn sm ghost" data-del="${i.id}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete","Eliminar")} ${esc(i.name)}">✕</button>`:""}</td></tr>`;
-     return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}">${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
+     return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}"><small class="bcode">▮▯▮ <input data-f="barcode" data-id="${i.id}" class="txt" maxlength="48" autocomplete="off" spellcheck="false" placeholder="${tt("Barcode","Código de barras")}" value="${esc(dv(i,"barcode",i.barcode||""))}" aria-label="${tt("Barcode","Código de barras")} ${esc(i.name)}"> <button type="button" class="linkbtn" data-bcgen="${i.id}">⚙ ${tt("Generate","Generar")}</button></small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
      <td>${u}</td>
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"min",num(i.min)))}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"par",num(i.par)))}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
@@ -3380,6 +3408,7 @@ function listM2(){
     :`<p class="empty">${tt("No waste logged in the last 30 days.","No hay merma registrada en los últimos 30 días.")}</p>`;
   document.getElementById("wBox").onclick=async e=>{const b=e.target.closest("[data-wdel]"); if(b) await dbDel("waste",b.dataset.wdel);};
   document.getElementById("fcBox").innerHTML=forecastHTML();
+  listLabels();
 }
 // + Stock: pieces are received as packages (packages × pieces per package) and priced per package → unit cost per piece
 function asPurchase(it){ if(!it) return null; const n=num(val("asQty")), cost=val("asCost");
@@ -3499,6 +3528,346 @@ ${base}`;
     out.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(T(p.name))}</th>`).join("")}</tr></thead><tbody>${j.days.map(d=>`<tr><td>${esc(d.date)}</td>${P.map(p=>`<td>${Math.round(num(d.cups?.[p.id]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div><ul class="plain">${(j.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul><p class="hint">${tt("AI-adjusted estimate — check it against your judgement.","Estimación ajustada por IA — compárala con tu criterio.")}</p>`;
   }catch(e){ out.textContent=aiErr(e); }
 }
+
+/* ================= BARCODES — scan 1D / 2D codes and print our own labels =================
+   International standard: GS1.
+   · Product codes (GTIN): EAN-13, UPC-A, EAN-8, UPC-E and GTIN-14 (ITF-14), each with a mod-10 check digit.
+   · GS1 Application Identifiers read from GS1-128, GS1 DataMatrix, GS1 QR / Digital Link and DataBar:
+     (01) GTIN · (10) lot · (17) expiry · (15) best before · (310n) net kg · (315n) net L · (320n) net lb · (30)/(37) count.
+   · Our own codes: GS1 Restricted Circulation Numbers "within a company" (GS1 prefixes 040–049):
+     0400 + 8-digit sequence + check digit, printed as EAN-13. They are unique only inside the restaurant.
+   Readers: USB / Bluetooth scanners (they type the code + Enter — 1D and 2D), the phone / tablet camera, or a photo.
+   Camera reading uses the browser's BarcodeDetector when it has one; otherwise, and for drawing every label, the open-source
+   ZXing-C++ library (zxing-wasm, MIT licence), loaded only when needed from vendor/zxing-wasm/ or, if missing, from jsDelivr. */
+const ZXV="3.1.3";
+const gtinCheck=s=>{ let t=0; for(let i=s.length-1,w=3;i>=0;i--,w=4-w) t+=(+s[i])*w; return (10-t%10)%10; };   // s = the digits WITHOUT the check digit
+const gtinValid=s=>/^(\d{8}|\d{12,14})$/.test(s)&&gtinCheck(s.slice(0,-1))===+s.slice(-1);
+// UPC-E (8 digits) → UPC-A (12 digits), so a short code on a small pack finds the same item
+function upceToA(e){ if(!/^[01]\d{7}$/.test(e)) return null; const n=e[0], d=e.slice(1,7), x=d[5]; let m;
+  if(x<="2") m=d.slice(0,2)+x+"0000"+d.slice(2,5); else if(x==="3") m=d.slice(0,3)+"00000"+d.slice(3,5);
+  else if(x==="4") m=d.slice(0,4)+"00000"+d[4]; else m=d.slice(0,5)+"0000"+x;
+  const a=n+m+e[7]; return gtinValid(a)?a:null; }
+// keys a code is matched by: the text itself, and any valid GTIN as GTIN-14 (so EAN-13 0750… = UPC-A 750… = GTIN-14 00750…)
+function bcKeys(code){ const s=String(code==null?"":code).trim(); if(!s) return []; const out=new Set([s.toUpperCase()]);
+  if(/^\d+$/.test(s)){ if(gtinValid(s)) out.add(s.padStart(14,"0")); if(s.length===8){ const a=upceToA(s); if(a) out.add(a.padStart(14,"0")); } }
+  return [...out]; }
+function bcFind(code,exceptId){ const ks=bcKeys(code); if(!ks.length) return null;
+  return D.inventory.find(i=>i.id!==exceptId&&bcKeys(i.barcode).some(k=>ks.includes(k)))||null; }
+// a code typed or scanned for an item: "" when it is fine, otherwise the problem
+function bcCheck(code,exceptId){ const s=String(code||"").trim(); if(!s) return "";
+  if(s.length>48||!/^[\x20-\x7E]+$/.test(s)) return tt("Use up to 48 letters, digits or symbols.","Usa hasta 48 letras, dígitos o símbolos.");
+  if(/^\d+$/.test(s)&&[8,12,13,14].includes(s.length)&&!gtinValid(s)) return tt(`Wrong check digit: a ${s.length}-digit GS1 code ending in ${gtinCheck(s.slice(0,-1))} was expected (${s.slice(0,-1)}${gtinCheck(s.slice(0,-1))}).`,`Dígito de control incorrecto: se esperaba un código GS1 de ${s.length} dígitos terminado en ${gtinCheck(s.slice(0,-1))} (${s.slice(0,-1)}${gtinCheck(s.slice(0,-1))}).`);
+  const o=bcFind(s,exceptId); if(o) return tt(`Already used by “${o.name}”.`,`Ya lo usa “${o.name}”.`);
+  return ""; }
+// next free internal code: 0400 + sequence (8 digits) + check digit
+function bcNewInternal(){ let n=1; D.inventory.forEach(i=>{ const b=String(i.barcode||""); if(/^0400\d{9}$/.test(b)) n=Math.max(n,+b.slice(4,12)+1); });
+  for(;;n++){ const d="0400"+String(n).padStart(8,"0"), c=d+gtinCheck(d); if(!bcFind(c)) return c; } }
+const bcKind=code=>{ const s=String(code||"").trim(); if(!gtinValid(s)) return tt("own code","código propio");
+  return s.length<=13&&s.padStart(13,"0").startsWith("04")?tt("internal · GS1 RCN","interno · GS1 RCN"):"GTIN-"+s.length; };
+
+/* ---- GS1 element strings ---- */
+// [AI, data length] for the AI that starts at s[i] (length 0 = variable, ends at the GS separator or at the end)
+function aiInfo(s,i){ const two=s.substr(i,2);
+  if(/^(00|01|02|03|04|20)$/.test(two)) return [two,{"00":18,"01":14,"02":14,"03":14,"04":16,"20":2}[two]];
+  if(/^1[1-9]$/.test(two)) return [two,6];
+  if(/^(10|21|22|30|37|90|9[1-9])$/.test(two)) return [two,0];
+  if(/^3[1-6]$/.test(two)) return [s.substr(i,4),6];
+  if(two==="41") return [s.substr(i,3),13];
+  if(/^(23|24|25|40|42)$/.test(two)){ const a=s.substr(i,3); return [a,{"402":17,"422":3,"424":3,"426":3}[a]||0]; }
+  if(/^(70|71|72|80|81|82)$/.test(two)){ const a=s.substr(i,4); return [a,{"7001":13,"7003":10,"8001":14,"8005":6,"8006":18,"8017":18,"8018":18,"8026":18}[a]||0]; }
+  return null; }
+function gs1Raw(s){ const GS="\x1d", out={}; let i=0;
+  while(i<s.length){ if(s[i]===GS){ i++; continue; } const inf=aiInfo(s,i); if(!inf) return Object.keys(out).length?out:null;
+    const [ai,len]=inf; i+=ai.length; let v;
+    if(len){ v=s.substr(i,len); if(v.length<len) return Object.keys(out).length?out:null; i+=len; }
+    else { let j=s.indexOf(GS,i); if(j<0) j=s.length; v=s.slice(i,j); i=j; }
+    out[ai]=v; }
+  return out; }
+function gs1HRI(s){ const out={}, re=/\((\d{2,4})\)([^(]*)/g; let m, any=false; while((m=re.exec(s))){ out[m[1]]=m[2].trim(); any=true; } return any?out:null; }
+function gs1DL(s){ let u; try{ u=new URL(s); }catch(e){ return null; }
+  const p=u.pathname.split("/").filter(Boolean), k=p.findIndex((x,i)=>/^(01|gtin)$/.test(x)&&/^\d{8,14}$/.test(p[i+1]||"")); if(k<0) return null;
+  const out={}; for(let i=k;i+1<p.length;i+=2) out[p[i]==="gtin"?"01":p[i]]=decodeURIComponent(p[i+1]);
+  u.searchParams.forEach((v,key)=>{ if(/^\d{2,4}$/.test(key)) out[key]=v; }); out["01"]=out["01"].padStart(14,"0"); return out; }
+// GS1 dates are YYMMDD; day 00 = the last day of the month
+function gs1Date(d){ const y=2000+(+d.slice(0,2)), m=+d.slice(2,4); let dd=+d.slice(4,6); const last=new Date(y,m,0).getDate(); if(m<1||m>12||dd>last) return "";
+  if(!dd) dd=last; return `${y}-${String(m).padStart(2,"0")}-${String(dd).padStart(2,"0")}`; }
+// what a scan contains → {raw, code, gtin?, lot?, expiry?, kg?, L?, count?, ai?}
+function bcParse(raw){
+  const s=String(raw==null?"":raw).replace(/<GS>/g,"\x1d").replace(/[\r\n\t]+/g,"").trim(), r={raw:s,code:s,ai:null}; if(!s) return r;
+  let ai=null;
+  if(/^https?:\/\//i.test(s)) ai=gs1DL(s);
+  else if(/^\(\d{2,4}\)/.test(s)) ai=gs1HRI(s);
+  else { let t=s, gs1=false; const m=t.match(/^\](C1|e0|d2|Q3|J1)/);
+    if(m){ gs1=true; t=t.slice(3); } else if(/^\][A-Za-z][0-9A-Za-z]/.test(t)) t=t.slice(3);   // AIM symbology identifier sent by some scanners
+    if(t[0]==="\x1d"){ gs1=true; t=t.slice(1); }
+    if(gs1||t.includes("\x1d")||(/^(01|02)\d{14}/.test(t)&&t.length>16&&gtinValid(t.substr(2,14)))) ai=gs1Raw(t);
+    r.code=t.replace(/\x1d/g,""); }
+  if(ai&&Object.keys(ai).length){ r.ai=ai; const g=ai["01"]||ai["02"]; if(g&&gtinValid(g)) r.gtin=g; if(r.gtin) r.code=r.gtin;
+    if(ai["10"]) r.lot=ai["10"].slice(0,40);
+    const dt=ai["17"]||ai["15"]||ai["16"]; if(dt&&/^\d{6}$/.test(dt)) r.expiry=gs1Date(dt);
+    for(const [k,v] of Object.entries(ai)){ const mm=k.match(/^3(10|15|20)(\d)$/); if(!mm||!/^\d{6}$/.test(v)) continue;
+      const x=+v/Math.pow(10,+mm[2]); if(mm[1]==="10") r.kg=x; else if(mm[1]==="15") r.L=x; else if(r.kg==null) r.kg=Math.round(x*0.45359237*1000)/1000; }
+    const c=ai["30"]||ai["37"]; if(c&&/^\d{1,8}$/.test(c)) r.count=+c; }
+  return r; }
+
+/* ---- the ZXing library (camera without BarcodeDetector, photos, and drawing the labels) ---- */
+let zxP=null;
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.async=true; s.onload=res; s.onerror=()=>{ s.remove(); rej(new Error(src)); }; document.head.appendChild(s); }); }
+function zxLoad(){ if(zxP) return zxP;
+  const CDN=`https://cdn.jsdelivr.net/npm/zxing-wasm@${ZXV}/dist/`, web=/^https?:$/.test(location.protocol);
+  zxP=(async()=>{
+    if(!window.ZXingWASM){ if(web) try{ await loadScript("vendor/zxing-wasm/index.js"); }catch(e){} if(!window.ZXingWASM) await loadScript(CDN+"iife/full/index.js"); }
+    const Z=window.ZXingWASM; if(!Z||!Z.prepareZXingModule) throw new Error("zxing");
+    for(const dir of (web?["vendor/zxing-wasm/",CDN+"full/"]:[CDN+"full/"])){
+      try{ await Z.prepareZXingModule({overrides:{locateFile:(p,pre)=>p.endsWith(".wasm")?dir+p:pre+p},fireImmediately:true}); return Z; }catch(e){} }
+    throw new Error("wasm"); })();
+  zxP.catch(()=>{ zxP=null; }); return zxP; }
+const zxFail=()=>tt("The barcode library couldn't load — check the internet connection and try again.","No se pudo cargar la librería de códigos de barras — revisa la conexión a internet e inténtalo de nuevo.");
+
+/* ---- scanner: mode, messages, sound ---- */
+let bcMode=(()=>{ const m=lsGet("top-bcmode"); return ["purchase","waste","find"].includes(m)?m:"purchase"; })();
+let bcLast=null;   // last scan result shown in the box
+function bcSay(kind,html){ const el=document.getElementById("bcMsg"); if(!el) return; el.className="hint bcmsg "+(kind==="ok"?"oknote":kind==="warn"?"warnnote":""); el.innerHTML=html; }
+function bcBeep(ok){ try{ const A=window.AudioContext||window.webkitAudioContext; if(!A) return; const c=bcBeep.c||(bcBeep.c=new A()), o=c.createOscillator(), g=c.createGain();
+    o.frequency.value=ok?1760:330; g.gain.value=0.08; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+(ok?0.09:0.25)); }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate(ok?40:[60,40,60]); }catch(e){} }
+const setv=(id,v)=>{ const el=document.getElementById(id); if(el){ el.value=v; el.setAttribute("aria-invalid","false"); } };
+const bcFmtQ=(x,u)=>`${fmtQ(x)} ${unitLbl(u)}`;
+// quantity a scan carries, in the item's own unit (net weight / volume in the code), or null
+function bcQtyFor(it,r){ const u=it.unit;
+  if(r.kg!=null&&baseOf(u)==="kg") return u==="g"?r.kg*1000:r.kg;
+  if(r.L!=null&&baseOf(u)==="L") return u==="L"||u==="l"?r.L:r.L*1000;
+  return null; }
+function bcDetails(r){ const d=[]; if(r.gtin) d.push("GTIN "+esc(r.gtin)); if(r.lot) d.push(tt("lot","lote")+" "+esc(r.lot)); if(r.expiry) d.push(tt("expiry","caducidad")+" "+esc(r.expiry));
+  if(r.kg!=null) d.push(fmtQ(r.kg)+" kg"); if(r.L!=null) d.push(fmtQ(r.L)+" L"); if(r.count!=null) d.push(r.count+" "+tt("pcs","und")); return d.join(" · "); }
+function bcHandle(raw,src){
+  const r=bcParse(raw); if(!r.code) return; bcLast=r;
+  const inp=document.getElementById("bcIn"); if(inp&&src!=="typed") inp.value=r.raw.replace(/\x1d/g,"<GS>");
+  const it=bcFind(r.code)||(r.code!==r.raw?bcFind(r.raw):null), det=bcDetails(r);
+  if(!it){ bcBeep(false); bcUnknown(r,det); return; }
+  bcBeep(true);
+  const head=`<b>${esc(it.name)}</b> <span class="mono">${esc(r.code)}</span>${det?`<br><small>${det}</small>`:""}`;
+  if(bcMode==="purchase"&&document.getElementById("addStockForm")){
+    const sel=document.getElementById("asItem"), prev=sel.value, wasQ=num(val("asQty")), wasSup=val("asSup");
+    sel.value=it.id; asForm(); if(prev===it.id&&wasSup) setv("asSup",wasSup);   // same item scanned again: keep the supplier already typed
+    if(r.lot) setv("asLot",r.lot); if(r.expiry) setv("asExp",r.expiry);
+    let add=bcQtyFor(it,r), note="";
+    if(it.unit==="pc"){ add=1; if(r.count>0){ setv("asPack",r.count); } note=tt("1 package per scan","1 paquete por escaneo"); }
+    if(add!=null){ const q=(prev===it.id?wasQ:0)+add; setv("asQty",+q.toFixed(3)); asCalc();
+      bcSay("ok",`✅ ${head}<br>🛒 ${tt("Purchase","Compra")}: ${tt("quantity received","cantidad recibida")} <b>${it.unit==="pc"?fmtQ(q)+" "+tt("package(s)","paquete(s)"):bcFmtQ(q,it.unit)}</b>${note?` (${note})`:""}. ${tt("Scan again to add more, then fill in the price and supplier and press “Add stock”.","Escanea otra vez para sumar más; luego completa el precio y el proveedor y pulsa “Agregar stock”.")}`); }
+    else bcSay("ok",`✅ ${head}<br>🛒 ${tt("Purchase","Compra")}: ${tt(`type the quantity received (${unitLbl(it.unit)}), the price and the supplier, then press “Add stock”.`,`escribe la cantidad recibida (${unitLbl(it.unit)}), el precio y el proveedor, y pulsa “Agregar stock”.`)}`);
+    if(bcKeep(src)) return;
+    const f=document.getElementById("addStockForm"); f.scrollIntoView({behavior:"smooth",block:"center"});
+    const next=add==null?"asQty":(document.getElementById("asCost").value?"asSup":"asCost"); document.getElementById(next).focus({preventScroll:true});
+    return; }
+  if(bcMode==="waste"&&document.getElementById("wForm")){
+    setv("wItem",it.id); const q=bcQtyFor(it,r); if(q!=null) setv("wQty",+q.toFixed(3));
+    bcSay("ok",`✅ ${head}<br>🗑 ${tt("Waste","Merma")}: ${tt("check the quantity and the reason, then press “Log waste”.","revisa la cantidad y el motivo, y pulsa “Registrar merma”.")} ${tt("In stock","En stock")}: ${bcFmtQ(stockQty(it),it.unit)}`);
+    if(bcKeep(src)) return;
+    const f=document.getElementById("wForm"); f.scrollIntoView({behavior:"smooth",block:"center"}); document.getElementById("wQty").focus({preventScroll:true}); return; }
+  // find
+  const s=invStatus(it);
+  bcSay("ok",`✅ ${head}<br>📦 ${tt("In stock","En stock")}: <b>${bcFmtQ(stockQty(it),it.unit)}</b> · ${tt("minimum","mínimo")} ${bcFmtQ(num(it.min),it.unit)} · ${tt("maximum","máximo")} ${bcFmtQ(num(it.par),it.unit)} · <span class="badge ${s[0]}">${esc(s[1])}</span>
+    <span class="bcacts"><button type="button" class="btn sm ghost" data-bcgo="kx" data-id="${it.id}">📒 Kardex</button> <button type="button" class="btn sm ghost" data-bcgo="buy" data-id="${it.id}">🛒 ${tt("Add stock","Agregar stock")}</button> <button type="button" class="btn sm ghost" data-bcgo="lbl" data-id="${it.id}">🏷 ${tt("Label","Etiqueta")}</button></span>`);
+  const row=document.querySelector(`#invTable [data-invedit="${it.id}"],#invTable [data-kx="${it.id}"]`); const tr=row&&row.closest("tr");
+  if(tr){ tr.classList.add("bchit"); setTimeout(()=>tr.classList.remove("bchit"),2500); }
+}
+// after a scan from a scanner or the scan box, the cursor goes back to the scan box so the next scan lands there
+function bcKeep(src){ if(src!=="typed"&&src!=="wedge") return false; const i=document.getElementById("bcIn"); if(i){ i.focus({preventScroll:true}); i.select(); } return true; }
+function bcUnknown(r,det){
+  const can=canWrite("inventory"), noCode=D.inventory.filter(i=>!String(i.barcode||"").trim()).sort((a,b)=>a.name.localeCompare(b.name));
+  const linkable=can&&!bcCheck(r.code);
+  bcSay("warn",`⚠ ${tt("Unknown code","Código desconocido")} <span class="mono">${esc(r.code)}</span>${r.gtin||gtinValid(r.code)?` (GS1 GTIN)`:""}${det?`<br><small>${det}</small>`:""}
+    ${linkable?`<div class="bclink"><label for="bcLinkSel">${tt("Link it to an item","Vincúlalo a un artículo")}</label> <select id="bcLinkSel">${noCode.length?noCode.map(i=>`<option value="${i.id}">${esc(i.name)} (${esc(unitLbl(i.unit))})</option>`).join(""):`<option value="">${tt("All items already have a code","Todos los artículos ya tienen código")}</option>`}</select>
+      <button type="button" class="btn sm" data-bcgo="link"${noCode.length?"":" disabled"}>🔗 ${tt("Link","Vincular")}</button>
+      <button type="button" class="btn sm ghost" data-bcgo="new">＋ ${tt("New item with this code","Artículo nuevo con este código")}</button></div>`
+      :!can?`<br><small>${tt("Ask a user who can change the inventory to link this code.","Pide a un usuario que pueda cambiar el inventario que vincule este código.")}</small>`:`<br><small>${esc(bcCheck(r.code))}</small>`}`); }
+async function bcLink(id){ const it=invItem(id), r=bcLast; if(!it||!r) return; if(!DB) return noDb();
+  const err=bcCheck(r.code,id); if(err) return toast(err);
+  await dbUpd("inventory",id,{barcode:r.code,updated:new Date().toISOString()});
+  toast(tt(`Code linked to “${it.name}”.`,`Código vinculado a “${it.name}”.`)); bcHandle(r.raw,"relink"); }
+
+/* ---- camera and photo ---- */
+let bcCam=null;   // {stream, video, timer}
+async function bcDetector(){
+  if("BarcodeDetector" in window){ try{ const f=await window.BarcodeDetector.getSupportedFormats(); if(f&&f.length){ const d=new window.BarcodeDetector({formats:f});
+    return async src=>(await d.detect(src)).map(x=>x.rawValue).filter(Boolean); } }catch(e){} }
+  const Z=await zxLoad(), cv=document.createElement("canvas"), cx=cv.getContext("2d",{willReadFrequently:true});
+  return async src=>{ let input=src;
+    if(!(src instanceof Blob)){ const w=src.videoWidth||src.width, h=src.videoHeight||src.height; if(!w||!h) return []; const k=Math.min(1,1280/Math.max(w,h));
+      cv.width=Math.round(w*k); cv.height=Math.round(h*k); cx.drawImage(src,0,0,cv.width,cv.height); input=cx.getImageData(0,0,cv.width,cv.height); }
+    const res=await Z.readBarcodes(input,{tryHarder:true,maxNumberOfSymbols:1}); return res.filter(x=>x.isValid!==false&&x.text).map(x=>x.text); }; }
+function bcCamStop(){ const c=bcCam; bcCam=null; if(!c) return; clearTimeout(c.timer); try{ c.stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+  const box=document.getElementById("bcCamBox"); if(box) box.hidden=true; const b=document.getElementById("bcCamBtn"); if(b) b.textContent="📷 "+tt("Camera","Cámara"); }
+async function bcCamStart(){
+  if(bcCam) return bcCamStop();
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)) return bcSay("warn","⚠ "+tt("This browser can't open the camera here (it needs https). Use “Photo” or a USB / Bluetooth scanner.","Este navegador no puede abrir la cámara aquí (necesita https). Usa “Foto” o un lector USB / Bluetooth."));
+  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},audio:false}); }
+  catch(e){ return bcSay("warn","⚠ "+tt("The camera is blocked or not available. Allow the camera for this page in the browser settings, or use “Photo”.","La cámara está bloqueada o no está disponible. Permite la cámara para esta página en los ajustes del navegador, o usa “Foto”.")); }
+  const box=document.getElementById("bcCamBox"), v=box&&box.querySelector("video"); if(!v){ stream.getTracks().forEach(t=>t.stop()); return; }
+  box.hidden=false; v.setAttribute("playsinline",""); v.muted=true; v.srcObject=stream; try{ await v.play(); }catch(e){}
+  bcCam={stream,video:v,timer:null}; document.getElementById("bcCamBtn").textContent="⏹ "+tt("Stop camera","Detener cámara");
+  bcSay("","📷 "+tt("Point the camera at the barcode or QR / Data Matrix code…","Apunta la cámara al código de barras o al código QR / Data Matrix…"));
+  let detect; try{ detect=await bcDetector(); }catch(e){ bcCamStop(); return bcSay("warn","⚠ "+zxFail()); }
+  const me=bcCam; if(!me) return;
+  const tick=async()=>{ if(bcCam!==me) return; if(!me.video.isConnected){ bcCamStop(); return; }
+    try{ if(me.video.readyState>=2){ const res=await detect(me.video); if(bcCam!==me) return; if(res.length){ bcCamStop(); bcHandle(res[0],"camera"); return; } } }catch(e){}
+    me.timer=setTimeout(tick,220); };
+  tick(); }
+async function bcPhoto(file){ if(!file) return; bcSay("","⏳ "+tt("Reading the photo…","Leyendo la foto…"));
+  try{ let res=[];
+    if("BarcodeDetector" in window){ try{ const d=await bcDetector(), bmp=await createImageBitmap(file); res=await d(bmp); }catch(e){ res=[]; } }
+    if(!res.length){ const Z=await zxLoad(); res=(await Z.readBarcodes(file,{tryHarder:true,maxNumberOfSymbols:1})).filter(x=>x.text).map(x=>x.text); }
+    if(res.length) bcHandle(res[0],"photo"); else { bcBeep(false); bcSay("warn","⚠ "+tt("No code found in the photo. Take it closer, sharp and well lit.","No se encontró ningún código en la foto. Tómala más cerca, nítida y con buena luz.")); } }
+  catch(e){ bcSay("warn","⚠ "+zxFail()); } }
+
+/* ---- USB / Bluetooth scanners: they "type" the code very fast and press Enter.
+   Anywhere in “2 · Kitchen & inventory” a fast burst of keys ending in Enter is taken as a scan — even if the cursor was left in
+   another box (e.g. the price): the burst is taken out of that box and the form is not sent. People typing are much slower. ---- */
+const bcWedge={buf:"",t:0,t0:0,el:null,before:null};
+document.addEventListener("keydown",e=>{
+  if(!(state.tab==="ai"&&state.aiView==="m2")||!document.getElementById("bcIn")) return;
+  const a=document.activeElement; if(a&&a.id==="bcIn") return;   // the scan box has its own Enter
+  const inField=!!a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a.isContentEditable), now=performance.now();
+  if(now-bcWedge.t>50||bcWedge.el!==a){ bcWedge.buf=""; bcWedge.t0=now; bcWedge.el=a; bcWedge.before=inField&&a.tagName!=="SELECT"&&"value" in a?a.value:null; }
+  bcWedge.t=now;
+  if(e.key==="Enter"){ const n=bcWedge.buf.length, fast=n>=(inField?6:4)&&(now-bcWedge.t0)/n<(inField?35:50);
+    if(fast){ e.preventDefault(); e.stopPropagation(); const s=bcWedge.buf; if(bcWedge.before!=null){ a.value=bcWedge.before; a.setAttribute("aria-invalid","false"); } bcHandle(s,"wedge"); }
+    bcWedge.buf=""; return; }
+  if(e.ctrlKey&&(e.key==="]"||e.code==="BracketRight")){ bcWedge.buf+="\x1d"; e.preventDefault(); return; }   // GS1 separator (GS = Ctrl+])
+  if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ bcWedge.buf+=e.key; if(!inField&&e.key===" ") e.preventDefault(); }
+},true);
+
+function bcPanelHTML(){
+  return `<div class="panel bcpanel"><h3>▮▯▮ ${tt("Barcode reader","Lector de código de barras")} <small class="dimtxt">1D · 2D · GS1</small></h3>
+   <div class="fgrid bcgrid">
+    ${field("bcMode",tt("What the scan does","Qué hace el escaneo"),`<select id="bcMode">${[["purchase",tt("🛒 Purchase — fills “Add stock”","🛒 Compra — llena “Agregar stock”")],["waste",tt("🗑 Waste — fills “Waste log”","🗑 Merma — llena “Registro de merma”")],["find",tt("🔎 Find item / check stock","🔎 Buscar artículo / ver stock")]].map(m=>`<option value="${m[0]}"${m[0]===bcMode?" selected":""}>${m[1]}</option>`).join("")}</select>`)}
+    <div class="f bcinf"><label for="bcIn">${tt("Scan or type the code and press Enter","Escanea o escribe el código y pulsa Enter")}</label><input id="bcIn" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="${tt("e.g. 7750243001234","p. ej. 7750243001234")}"></div>
+    <div class="f bcbtns"><button type="button" class="btn ghost" id="bcCamBtn">📷 ${tt("Camera","Cámara")}</button>
+     <button type="button" class="btn ghost" id="bcPhotoBtn">🖼 ${tt("Photo","Foto")}</button><input type="file" id="bcPhoto" accept="image/*" capture="environment" hidden></div>
+   </div>
+   <div id="bcCamBox" class="bccam" hidden><video muted playsinline aria-label="${tt("Camera","Cámara")}"></video><div class="bcaim" aria-hidden="true"></div></div>
+   <div id="bcMsg" class="hint bcmsg" aria-live="polite"></div>
+   <p class="hint">${tt("Reads EAN-13, UPC-A, EAN-8, UPC-E, ITF-14, Code 128 / GS1-128, Code 39, GS1 DataBar, QR, Data Matrix / GS1 DataMatrix, PDF417 and Aztec. A USB or Bluetooth scanner works anywhere on this page (keyboard mode, Enter suffix). GS1 codes also fill the lot, the expiry date and, when the code carries it, the net weight or volume.","Lee EAN-13, UPC-A, EAN-8, UPC-E, ITF-14, Code 128 / GS1-128, Code 39, GS1 DataBar, QR, Data Matrix / GS1 DataMatrix, PDF417 y Aztec. Un lector USB o Bluetooth funciona en cualquier parte de esta página (modo teclado, con Enter al final). Los códigos GS1 también llenan el lote, la fecha de caducidad y, si el código lo trae, el peso o volumen neto.")}</p>
+  </div>`; }
+function wireBarcode(){
+  const inp=document.getElementById("bcIn"); if(!inp) return;
+  document.getElementById("bcMode").onchange=e=>{ bcMode=e.target.value; lsSet("top-bcmode",bcMode); bcSay("",""); inp.focus(); };
+  inp.addEventListener("keydown",e=>{
+    if(e.ctrlKey&&(e.key==="]"||e.code==="BracketRight")){ e.preventDefault(); const p=inp.selectionStart; inp.setRangeText("<GS>",p,inp.selectionEnd,"end"); return; }
+    if(e.key==="Enter"){ e.preventDefault(); const v=inp.value; if(v.trim()) bcHandle(v,"typed"); inp.select(); } });
+  document.getElementById("bcCamBtn").onclick=bcCamStart;
+  document.getElementById("bcPhotoBtn").onclick=()=>document.getElementById("bcPhoto").click();
+  document.getElementById("bcPhoto").onchange=e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; bcPhoto(f); };
+  document.getElementById("bcMsg").addEventListener("click",async e=>{ const b=e.target.closest("[data-bcgo]"); if(!b) return; const go=b.dataset.bcgo, id=b.dataset.id;
+    if(go==="link"){ const s=document.getElementById("bcLinkSel"); if(s&&s.value) await bcLink(s.value); return; }
+    if(go==="new"){ setv("iCode",bcLast?bcLast.code:""); const f=document.getElementById("iName"); f.scrollIntoView({behavior:"smooth",block:"center"}); f.focus({preventScroll:true}); bcSay("",tt("Fill in the new item and press “Add item”; the code is already in “Barcode”.","Completa el artículo nuevo y pulsa “Agregar item”; el código ya está en “Código de barras”.")); return; }
+    if(go==="kx"){ kxItem=id; state.aiView="m3"; m3Sub="kardex"; save(); render(); window.scrollTo({top:0}); return; }
+    if(go==="buy"){ bcMode="purchase"; document.getElementById("bcMode").value="purchase"; lsSet("top-bcmode",bcMode); if(bcLast) bcHandle(bcLast.raw,"relink"); return; }
+    if(go==="lbl"){ setv("lbItem",id); setv("lbWhich","one"); lbForm(); const p=document.getElementById("lbForm"); p.scrollIntoView({behavior:"smooth",block:"center"}); lbPreview(); } });
+}
+
+/* ================= OUR OWN BARCODE LABELS ================= */
+// label stock: page size, label size, columns, rows, page margins and gaps (inches unless the value says mm)
+const LB_SIZES={
+  "5160":{en:"Letter sheet · 30 labels 2⅝ × 1 in (Avery 5160 layout)",es:"Hoja carta · 30 etiquetas 2⅝ × 1 in (formato Avery 5160)",page:"8.5in 11in",w:"2.625in",h:"1in",cols:3,rows:10,top:"0.5in",left:"0.1875in",gx:"0.125in",gy:"0in"},
+  "a4-24":{en:"A4 sheet · 24 labels 70 × 37 mm",es:"Hoja A4 · 24 etiquetas 70 × 37 mm",page:"210mm 297mm",w:"70mm",h:"37mm",cols:3,rows:8,top:"0.5mm",left:"0mm",gx:"0mm",gy:"0mm"},
+  "t2x1":{en:"Thermal roll · 2 × 1 in",es:"Rollo térmico · 2 × 1 in",page:"2in 1in",w:"2in",h:"1in",cols:1,rows:1,top:"0in",left:"0in",gx:"0in",gy:"0in"},
+  "t225":{en:"Thermal roll · 2¼ × 1¼ in",es:"Rollo térmico · 2¼ × 1¼ in",page:"2.25in 1.25in",w:"2.25in",h:"1.25in",cols:1,rows:1,top:"0in",left:"0in",gx:"0in",gy:"0in"},
+  "t50x25":{en:"Thermal roll · 50 × 25 mm",es:"Rollo térmico · 50 × 25 mm",page:"50mm 25mm",w:"50mm",h:"25mm",cols:1,rows:1,top:"0mm",left:"0mm",gx:"0mm",gy:"0mm"},
+  "t62x29":{en:"Thermal roll · 62 × 29 mm",es:"Rollo térmico · 62 × 29 mm",page:"62mm 29mm",w:"62mm",h:"29mm",cols:1,rows:1,top:"0mm",left:"0mm",gx:"0mm",gy:"0mm"}};
+const LB_TYPES=[["ean",["EAN-13 / UPC-A — retail product code","EAN-13 / UPC-A — código de producto (retail)"]],
+  ["gs1128",["GS1-128 (1D) — code + lot + expiry","GS1-128 (1D) — código + lote + caducidad"]],
+  ["gs1dm",["GS1 DataMatrix (2D) — code + lot + expiry","GS1 DataMatrix (2D) — código + lote + caducidad"]],
+  ["qr",["QR — GS1 Digital Link","QR — GS1 Digital Link"]],
+  ["c128",["Code 128 — any text code","Code 128 — cualquier código de texto"]]];
+const LOT_RE=/^[A-Za-z0-9\-./_]{1,20}$/;   // GS1 AI (10): up to 20 characters (kept to letters, digits and - . / _)
+function lbPanelHTML(){
+  return `<div class="panel" style="margin-top:20px"><h3>🏷 ${tt("Barcode labels","Etiquetas con código de barras")}</h3>
+   <form id="lbForm" class="fgrid wide" novalidate>
+    ${field("lbWhich",tt("Print","Imprimir"),`<select id="lbWhich"><option value="one">${tt("One item","Un artículo")}</option><option value="all">${tt("Every item with a code","Todos los artículos con código")}</option></select>`)}
+    ${field("lbItem",tt("Item","Artículo"),`<select id="lbItem"></select>`)}
+    ${field("lbType",tt("Barcode type","Tipo de código"),`<select id="lbType">${LB_TYPES.map(t=>`<option value="${t[0]}">${tt(t[1][0],t[1][1])}</option>`).join("")}</select>`)}
+    ${field("lbLot",tt("Lot (optional)","Lote (opcional)"),`<input id="lbLot" maxlength="20" autocomplete="off" placeholder="L2610-01">`)}
+    ${field("lbExp",tt("Expiry (optional)","Caducidad (opcional)"),`<input id="lbExp" type="date">`)}
+    ${field("lbCopies",tt("Copies of each","Copias de cada uno"),`<input id="lbCopies" type="number" min="1" max="300" step="1" value="1">`)}
+    ${field("lbSize",tt("Label paper","Papel de etiquetas"),`<select id="lbSize">${Object.entries(LB_SIZES).map(([k,s])=>`<option value="${k}">${tt(s.en,s.es)}</option>`).join("")}</select>`)}
+    ${field("lbName",tt("Text on the label","Texto en la etiqueta"),`<select id="lbName"><option value="name">${tt("Item name","Nombre del artículo")}</option><option value="none">${tt("Only the code","Solo el código")}</option></select>`)}
+    <div class="f lbbtns"><button type="button" class="btn ghost" id="lbPrevBtn">👁 ${tt("Preview","Vista previa")}</button> <button type="button" class="btn" id="lbPrint">🖨 ${tt("Print","Imprimir")}</button></div>
+   </form>
+   <p class="hint" id="lbMsg" aria-live="polite"></p>
+   <div id="lbPrev" class="lbprev"></div>
+   <p class="hint">${tt("Items that come with a manufacturer barcode keep it (EAN / UPC). For items without one — bulk, repacked or made in our kitchen — press “Generate” in “Add item” or “✏ Edit”: the app creates an internal code with the GS1 prefix 040–049, which GS1 reserves for use inside one company (EAN-13 with its check digit). These internal codes are not valid outside the restaurant; to sell packaged products in stores you need GTINs from GS1 Canada. GS1-128, GS1 DataMatrix and QR (GS1 Digital Link) also carry the lot and expiry, so scanning the label fills them in. On small labels a GS1 DataMatrix reads more easily than a long GS1-128. In the print window choose 100 % scale (no “fit to page”).","Los artículos que traen código del fabricante lo conservan (EAN / UPC). Para los que no tienen — a granel, reempacados o preparados en nuestra cocina — pulsa “Generar” en “Agregar item” o en “✏ Editar”: la app crea un código interno con el prefijo GS1 040–049, que GS1 reserva para uso dentro de una empresa (EAN-13 con su dígito de control). Estos códigos internos no son válidos fuera del restaurante; para vender productos envasados en tiendas necesitas GTIN de GS1 Canada. GS1-128, GS1 DataMatrix y QR (GS1 Digital Link) también llevan el lote y la caducidad, así que al escanear la etiqueta se llenan solos. En etiquetas pequeñas un GS1 DataMatrix se lee mejor que un GS1-128 largo. En la ventana de impresión elige escala 100 % (sin “ajustar a la página”).")}</p>
+  </div>`; }
+function lbForm(){ const sel=document.getElementById("lbItem"); if(!sel) return; const all=val("lbWhich")==="all";
+  (sel.closest(".f")||sel).hidden=all; const two=["gs1128","gs1dm","qr"].includes(val("lbType"));
+  ["lbLot","lbExp"].forEach(id=>{ const el=document.getElementById(id); (el.closest(".f")||el).hidden=!two; }); }
+function lbItemsHTML(){ const inv=[...D.inventory].sort((a,b)=>a.name.localeCompare(b.name));
+  return inv.length?inv.map(i=>`<option value="${i.id}">${esc(i.name)}${i.barcode?" — "+esc(i.barcode):" — "+tt("no code","sin código")}</option>`).join(""):`<option value="">${tt("No items yet","Aún no hay artículos")}</option>`; }
+const svgClean=svg=>{ const m=svg.match(/<svg[^>]*width="([\d.]+)"[^>]*height="([\d.]+)"[^>]*>/); if(!m) return svg.replace(/<\?xml[^>]*>|<!DOCTYPE[^>]*>/g,"");
+  return svg.replace(/<\?xml[^>]*>|<!DOCTYPE[^>]*>|<desc>[^<]*<\/desc>/g,"").replace(m[0],`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${m[1]} ${m[2]}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges" role="img">`).trim(); };
+// one symbol for an item → {svg, text, two} or {err}
+async function lbSymbol(it,type,lot,exp){
+  const code=String(it.barcode||"").trim(); if(!code) return {err:tt(`“${it.name}” has no code yet — press “Generate” in ✏ Edit or link one by scanning.`,`“${it.name}” aún no tiene código — pulsa “Generar” en ✏ Editar o vincula uno escaneando.`)};
+  const gt=gtinValid(code)?code:null, yymmdd=exp?exp.slice(2,4)+exp.slice(5,7)+exp.slice(8,10):"";
+  let text, opt;
+  if(type==="ean"){ if(!gt||code.length===14) return {err:tt(`“${it.name}”: EAN / UPC needs a GTIN of 8, 12 or 13 digits (this code is ${esc(code)}). Use Code 128 or GS1-128.`,`“${it.name}”: EAN / UPC necesita un GTIN de 8, 12 o 13 dígitos (este código es ${esc(code)}). Usa Code 128 o GS1-128.`)};
+    text=code; opt={format:code.length===13?"EAN13":code.length===12?"UPCA":"EAN8",withHRT:true}; }
+  else if(type==="gs1128"||type==="gs1dm"){ if(!gt) return {err:tt(`“${it.name}”: GS1 symbols need a GTIN (8–14 digits with a valid check digit). Generate an internal code or use Code 128.`,`“${it.name}”: los símbolos GS1 necesitan un GTIN (8–14 dígitos con dígito de control válido). Genera un código interno o usa Code 128.`)};
+    text="(01)"+gt.padStart(14,"0")+(yymmdd?"(17)"+yymmdd:"")+(lot?"(10)"+lot:""); opt=type==="gs1dm"?{format:"DataMatrix",options:"gs1",forceSquareDataMatrix:true}:{format:"Code128",options:"gs1",withHRT:true}; }
+  else if(type==="qr"){ text=gt?`https://id.gs1.org/01/${gt.padStart(14,"0")}${lot?"/10/"+encodeURIComponent(lot):""}${yymmdd?"?17="+yymmdd:""}`:code; opt={format:"QRCode",ecLevel:"M"}; }
+  else { text=code; opt={format:"Code128",withHRT:true}; }
+  const Z=await zxLoad(); const w=await Z.writeBarcode(text,{scale:0,...opt});
+  if(w.error||!w.svg) return {err:esc(it.name)+": "+esc(w.error||"?")};
+  return {svg:svgClean(w.svg),text,two:["gs1dm","qr"].includes(type)}; }
+async function lbBuild(){
+  const type=val("lbType"), all=val("lbWhich")==="all", two=["gs1128","gs1dm","qr"].includes(type);
+  const lot=two?val("lbLot"):"", exp=two?val("lbExp"):"", copies=Math.min(300,Math.max(1,Math.round(num(val("lbCopies"))||1)));
+  if(lot&&!LOT_RE.test(lot)){ document.getElementById("lbLot").setAttribute("aria-invalid","true"); return {err:tt("Lot: up to 20 letters, digits or - . / _ (no spaces).","Lote: hasta 20 letras, dígitos o - . / _ (sin espacios).")}; }
+  const items=all?D.inventory.filter(i=>String(i.barcode||"").trim()).sort((a,b)=>a.name.localeCompare(b.name)):[invItem(val("lbItem"))].filter(Boolean);
+  if(!items.length) return {err:all?tt("No item has a code yet.","Ningún artículo tiene código todavía."):tt("Choose an item.","Elige un artículo.")};
+  const labels=[], errs=[];
+  for(const it of items){ let s; try{ s=await lbSymbol(it,type,lot,exp); }catch(e){ return {err:zxFail()}; }
+    if(s.err){ errs.push(s.err); continue; }
+    const sub=[two&&lot?tt("Lot","Lote")+" "+esc(lot):"",two&&exp?tt("Exp.","Cad.")+" "+esc(exp):""].filter(Boolean).join(" · ");
+    const html=`<div class="lb${s.two?" lb2":""}">${val("lbName")!=="none"?`<div class="lbn">${esc(it.name)}</div>`:""}<div class="lbs">${s.svg}</div>${s.two?`<div class="lbc">${esc(it.barcode)}</div>`:""}${sub?`<div class="lbx">${sub}</div>`:""}</div>`;
+    for(let c=0;c<copies;c++) labels.push(html); }
+  return {labels,errs}; }
+function lbCSS(sz){ const S=LB_SIZES[sz]||LB_SIZES["5160"];
+  return `@page{size:${S.page};margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .sheet{width:${S.page.split(" ")[0]};height:${S.page.split(" ")[1]};padding:${S.top} 0 0 ${S.left};display:grid;grid-template-columns:repeat(${S.cols},${S.w});grid-auto-rows:${S.h};column-gap:${S.gx};row-gap:${S.gy};align-content:start;overflow:hidden;break-after:page;page-break-after:always}
+  .sheet:last-child{break-after:auto;page-break-after:auto}
+  .lb{width:${S.w};height:${S.h};padding:4% 5%;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1%;text-align:center}
+  .lbn{font-weight:700;font-size:8pt;line-height:1.1;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
+  .lbs{flex:1 1 auto;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}.lbs svg{width:100%;height:100%;display:block}
+  .lb2{flex-direction:column}.lb2 .lbs svg{width:auto}
+  .lbc,.lbx{font-size:6.5pt;line-height:1.1;flex:none;white-space:nowrap}`; }
+function lbPages(labels,sz){ const S=LB_SIZES[sz]||LB_SIZES["5160"], per=S.cols*S.rows, pages=[];
+  for(let i=0;i<labels.length;i+=per) pages.push(`<div class="sheet">${labels.slice(i,i+per).join("")}</div>`); return pages.join(""); }
+async function lbPreview(){ const msg=document.getElementById("lbMsg"), box=document.getElementById("lbPrev"); if(!box) return null;
+  msg.className="hint"; msg.textContent="⏳ "+tt("Drawing the labels…","Dibujando las etiquetas…");
+  const r=await lbBuild();
+  if(r.err){ msg.className="hint warnnote"; msg.innerHTML="⚠ "+r.err; box.innerHTML=""; return null; }
+  const S=LB_SIZES[val("lbSize")], per=S.cols*S.rows, n=r.labels.length;
+  msg.className="hint "+(r.errs.length?"warnnote":"oknote"); msg.innerHTML=(r.errs.length?"⚠ "+r.errs.join("<br>⚠ ")+"<br>":"")+(n?"✅ "+tt(`${n} label(s)${per>1?` on ${Math.ceil(n/per)} sheet(s)`:""}.`,`${n} etiqueta(s)${per>1?` en ${Math.ceil(n/per)} hoja(s)`:""}.`):"");
+  const sz=val("lbSize");
+  box.innerHTML="";
+  if(n){ const pg=S.page.split(" "), f=document.createElement("iframe"); f.title=tt("Label preview","Vista previa de etiquetas"); f.style.width=pg[0]; f.style.height=pg[1];
+    f.srcdoc=`<!doctype html><html><head><meta charset="utf-8"><style>${lbCSS(sz)}html,body{overflow:hidden}</style></head><body>${lbPages(r.labels.slice(0,per),sz)}</body></html>`; box.appendChild(f); }
+  return r; }
+async function lbPrint(){ const r=await lbPreview(); if(!r||!r.labels||!r.labels.length) return;
+  const sz=val("lbSize"), doc=`<!doctype html><html><head><meta charset="utf-8"><title>${tt("Labels","Etiquetas")}</title><style>${lbCSS(sz)}</style></head><body>${lbPages(r.labels,sz)}</body></html>`;
+  // print from a hidden frame (no pop-up); if the browser blocks it, use a new window like the receipt does
+  try{ const f=document.createElement("iframe"); f.setAttribute("aria-hidden","true"); f.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+    document.body.appendChild(f); const d=f.contentWindow.document; d.open(); d.write(doc); d.close();
+    await new Promise(res=>setTimeout(res,300)); f.contentWindow.focus(); f.contentWindow.print(); setTimeout(()=>f.remove(),60000); return; }catch(e){}
+  const w=window.open("","_blank","width=700,height=800"); if(!w){ toast(tt("Allow pop-ups to print the labels.","Permite las ventanas emergentes para imprimir las etiquetas.")); return; }
+  w.document.write(doc); w.document.close(); w.focus(); setTimeout(()=>w.print(),300); }
+function wireLabels(){ const f=document.getElementById("lbForm"); if(!f) return;
+  ["lbWhich","lbType"].forEach(id=>document.getElementById(id).addEventListener("change",()=>{ lbForm(); document.getElementById("lbPrev").innerHTML=""; document.getElementById("lbMsg").textContent=""; }));
+  f.addEventListener("input",e=>{ if(e.target.getAttribute("aria-invalid")==="true") e.target.setAttribute("aria-invalid","false"); });
+  document.getElementById("lbPrevBtn").onclick=lbPreview; document.getElementById("lbPrint").onclick=lbPrint; lbForm(); }
+function listLabels(){ const sel=document.getElementById("lbItem"); if(!sel||document.activeElement===sel) return; const cur=sel.value; setHTML(sel,lbItemsHTML()); if(cur&&invItem(cur)) sel.value=cur; }
 
 /* ================= MODULE 3 — SALES & ANALYTICS ================= */
 let range=14;

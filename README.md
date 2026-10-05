@@ -1,7 +1,7 @@
 # Taste of Peru — Restaurant App
 
 **Online version (with data saving and AI):** https://claude.ai/artifact/UZQpG8ZbaffWJ3cS2f6zsq
-Last updated: 2026-09-21
+Last updated: 2026-10-05
 
 ---
 
@@ -15,6 +15,7 @@ Una app bilingüe (EN/ES) para manejar un pequeño local de bebidas y postres pe
 |---|---|
 | `index.html` | La app completa (HTML, CSS y JavaScript en un solo archivo). |
 | `README.md` | Este documento. |
+| `vendor/zxing-wasm/` | Librería ZXing para leer códigos con la cámara y dibujar etiquetas. |
 
 > **Importante:** si abres `index.html` directamente desde tu computadora, las calculadoras, normas y textos funcionan, pero **no se guardan datos y la IA no funciona**. Esas funciones solo existen en la versión en línea en Claude (enlace arriba).
 
@@ -40,6 +41,16 @@ Al cambiar EN/ES cambian los nombres de los platos, los ingredientes y la prepar
 | 3 · Ventas, costos y análisis | Cuatro submenús (el stock entra solo con **Agregar stock** en 2 · Cocina e inventario; las compras ya registradas quedan en el Kardex, donde se editan o eliminan): **Ventas** · **Costos** · **📒 Kardex** con las columnas Artículo · Costo promedio ponderado (por kg / L / paquete) · Por g / mL / und · Valor del stock · Fecha de movimiento · Registro (fecha y hora en que se guardó; ✏ si se editó) · Tipo (entrada / salida) · Cantidad · Costo unitario · Saldo actualizado · Proveedor · Lote · Caducidad (lotes vencidos en rojo, por vencer en 7 días en ámbar), formulario **Registrar movimiento**, botones **✏ Editar** y **🗑 Eliminar** en cada fila (dos clics para eliminar; al guardar o eliminar se recalcula automáticamente todo el Kardex del artículo con el costo promedio ponderado y se actualiza el inventario; avisa si una salida queda mayor que el stock), botón **Reiniciar Kardex** (solo borra la base de datos del Kardex; después el Kardex se alimenta de las compras y el saldo de cada movimiento sale del propio Kardex; en la hoja: menú Taste of Peru → Reiniciar Kardex) y CSV. **🗓 Kardex mensual**: **▶ Iniciar mes** (saldo inicial del día 1 con el saldo del mes anterior), **⟳ Recalcular mes** (repasa el mes desde su saldo inicial: saldos, promedio ponderado, costo de salidas e inventario), **🔒 Cerrar mes** (guarda saldo y costo promedio ponderado de cada artículo al cierre y los convierte en el saldo inicial del mes siguiente; los meses cerrados quedan bloqueados) y **↺ Reabrir** el último cierre (administrador). Las ventas cobradas en facturación son salidas del Kardex y bajan el inventario; en la web se guarda en la pestaña **Kardex** de la hoja de Google · **Costos** (costo por porción con el costo promedio ponderado del Kardex, valor del stock y costos operativos) · **Ventas** (registro, KPIs, gráfico y tabla) · **Análisis y proyección** (KPIs, proyección de 7 días y análisis con IA). Registro de ventas, costo por vaso, ingresos, márgenes, gráfico diario, bebidas más rentables / "se vende bien, margen bajo", proyección de 7 días, análisis con IA. **Costos operativos** (personal con calculadora, alquiler, electricidad, impuestos, seguros, licencias y permisos anuales, mantenimiento de equipos, otros y costos propios; por semana/mes/año) → utilidad neta y punto de equilibrio (vasos al día). |
 | 4 · Marketing | Generador de 3 opciones de publicación o anuncio (respeta reglas de afirmaciones), calendario de publicaciones, engagement %, análisis con IA. |
 | 5 · Reseñas | Registro de reseñas, respuestas con IA, alerta de salud/inocuidad, problemas recurrentes, reporte semanal. |
+
+### Códigos de barras (1D y 2D, estándar GS1)
+En **2 · Cocina e inventario**:
+- **▮▯▮ Lector de código de barras** con tres modos: **🛒 Compra** (llena “Agregar stock”: artículo, lote, caducidad y cantidad; cada escaneo de un artículo en unidades suma 1 paquete, y si el código trae el peso o volumen neto GS1 lo suma), **🗑 Merma** (llena “Registro de merma”) y **🔎 Buscar** (stock, mínimo, máximo y botones Kardex / Agregar stock / Etiqueta).
+- Lee con **lector USB o Bluetooth** (modo teclado con Enter; funciona en cualquier parte de la página, incluso si el cursor quedó en otra casilla), con la **📷 cámara** del teléfono o tableta, o desde una **🖼 foto**. Formatos: EAN-13, UPC-A, EAN-8, UPC-E, ITF-14, Code 128 / GS1-128, Code 39, GS1 DataBar, QR / GS1 Digital Link, Data Matrix / GS1 DataMatrix, PDF417 y Aztec.
+- Entiende los **Identificadores de Aplicación GS1**: (01) GTIN, (10) lote, (17) caducidad, (15) consumir preferentemente, (310n) kg netos, (315n) litros netos, (320n) libras netas, (30)/(37) cantidad.
+- Un código desconocido se puede **🔗 vincular** a un artículo o crear un **artículo nuevo** con ese código.
+- Cada artículo tiene **Código de barras** (en “Agregar item” y en ✏ Editar). Se valida el dígito de control GS1 y que no se repita. **⚙ Generar** crea un código interno EAN-13 con el prefijo GS1 **040–049**, que GS1 reserva para uso **dentro de una empresa**: solo vale dentro del restaurante; para vender productos envasados en tiendas se necesitan GTIN de GS1 Canada.
+- **🏷 Etiquetas con código de barras**: EAN-13 / UPC-A, GS1-128 (código + lote + caducidad), GS1 DataMatrix 2D, QR (GS1 Digital Link) o Code 128; un artículo o todos los que tienen código, copias, vista previa e **🖨 Imprimir** en hoja carta de 30 etiquetas (formato Avery 5160), hoja A4 de 24 (70 × 37 mm) o rollo térmico (2 × 1 in, 2¼ × 1¼ in, 50 × 25 mm, 62 × 29 mm). Imprime a escala 100 %.
+- La cámara, las fotos y el dibujo de etiquetas usan la librería abierta **ZXing** (`vendor/zxing-wasm/`, licencia MIT; si falta, se descarga de jsDelivr). Un lector USB / Bluetooth no necesita ninguna librería. La cámara necesita https (GitHub Pages) y permiso del navegador.
 
 ### Reglas del inventario
 - **Alerta:** si el stock llega a este número o menos → *Bajo* y entra en la orden de compra.
@@ -76,6 +87,7 @@ A bilingual (EN/ES) app to run a small Peruvian drinks and desserts counter in E
 |---|---|
 | `index.html` | The full app (HTML, CSS and JavaScript in one file). |
 | `README.md` | This document. |
+| `vendor/zxing-wasm/` | ZXing library to read codes with the camera and draw labels. |
 
 > **Important:** if you open `index.html` directly from your computer, the calculators, rules and text work, but **no data is saved and AI does not work**. Those features only exist in the online version in Claude (link above).
 
@@ -101,6 +113,16 @@ Switching EN/ES switches dish names, ingredients and preparation. When a recipe 
 | 3 · Sales, costs & analytics | Four sub-tabs (stock comes in only through **Add stock** in 2 · Kitchen & inventory; purchases already recorded stay in the Kardex, where they can be edited or deleted): **Sales** · **Costs** · **📒 Kardex** with the columns Item · Weighted average cost (per kg / L / package) · Per g / mL / piece · Stock value · Movement date · Timestamp (date and time it was recorded; ✏ if edited) · Type (in / out) · Quantity · Unit cost · Updated balance · Supplier · Lot · Expiry (expired lots in red, expiring within 7 days in amber), a **Register movement** form, **✏ Edit** and **🗑 Delete** buttons on every row (two clicks to delete; saving or deleting automatically recalculates the item's whole Kardex with the weighted average cost and updates the inventory; warns if an exit ends up larger than the stock), a **Restart Kardex** button (only erases the Kardex database; after that the Kardex is fed by purchases and each movement's balance comes from the Kardex itself; in the Sheet: menu Taste of Peru → Reiniciar Kardex) and CSV. **🗓 Monthly Kardex**: **▶ Start month** (day-1 opening balance from the previous month), **⟳ Recalculate month** (replays the month from its opening balance: balances, weighted average, cost of exits and inventory), **🔒 Close month** (saves each item's closing balance and weighted average cost and makes them the next month's opening balance; closed months are locked) and **↺ Reopen** the last closing (administrator). Sales charged in billing are Kardex exits and lower the inventory; on the website it is saved in the **Kardex** tab of the Google Sheet · **Costs** (cost per portion from the Kardex weighted average cost, stock value and operating costs) · **Sales** (log, KPIs, chart and table) · **Analysis & projection** (KPIs, 7-day projection and AI analysis). Sales log, cost per cup, revenue, margins, daily chart, most profitable / "sells well, low margin" drinks, 7-day projection, AI analysis. **Operating costs** (staff with calculator, rent, electricity, taxes, insurance, annual licences and permits, equipment maintenance, other and your own costs; per week/month/year) → net profit and break-even (cups per day). |
 | 4 · Marketing | Generator of 3 post or ad options (follows claim rules), posting calendar, engagement %, AI analysis. |
 | 5 · Reviews | Review log, AI reply drafts, health/safety flag, recurring problems, weekly report. |
+
+### Barcodes (1D and 2D, GS1 standard)
+In **2 · Kitchen & inventory**:
+- **▮▯▮ Barcode reader** with three modes: **🛒 Purchase** (fills “Add stock”: item, lot, expiry and quantity; each scan of a piece item adds 1 package, and a GS1 net weight or volume in the code is added), **🗑 Waste** (fills “Waste log”) and **🔎 Find** (stock, minimum, maximum and Kardex / Add stock / Label buttons).
+- Reads with a **USB or Bluetooth scanner** (keyboard mode with Enter; works anywhere on the page, even if the cursor was left in another box), the phone or tablet **📷 camera**, or a **🖼 photo**. Formats: EAN-13, UPC-A, EAN-8, UPC-E, ITF-14, Code 128 / GS1-128, Code 39, GS1 DataBar, QR / GS1 Digital Link, Data Matrix / GS1 DataMatrix, PDF417 and Aztec.
+- Understands **GS1 Application Identifiers**: (01) GTIN, (10) lot, (17) expiry, (15) best before, (310n) net kg, (315n) net litres, (320n) net pounds, (30)/(37) count.
+- An unknown code can be **🔗 linked** to an item or turned into a **new item** with that code.
+- Every item has a **Barcode** (in “Add item” and ✏ Edit). The GS1 check digit is validated and codes can't repeat. **⚙ Generate** creates an internal EAN-13 code with the GS1 prefix **040–049**, which GS1 reserves for use **within a company**: it is valid only inside the restaurant; selling packaged products in stores needs GTINs from GS1 Canada.
+- **🏷 Barcode labels**: EAN-13 / UPC-A, GS1-128 (code + lot + expiry), 2D GS1 DataMatrix, QR (GS1 Digital Link) or Code 128; one item or every item with a code, copies, preview and **🖨 Print** on a Letter sheet of 30 labels (Avery 5160 layout), an A4 sheet of 24 (70 × 37 mm) or a thermal roll (2 × 1 in, 2¼ × 1¼ in, 50 × 25 mm, 62 × 29 mm). Print at 100 % scale.
+- The camera, photos and label drawing use the open-source **ZXing** library (`vendor/zxing-wasm/`, MIT licence; downloaded from jsDelivr if missing). A USB / Bluetooth scanner needs no library. The camera needs https (GitHub Pages) and the browser's permission.
 
 ### Inventory rules
 - **Alert:** stock at or below this number → *Low* and added to the purchase order.
