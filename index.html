@@ -803,7 +803,9 @@ function standardOf(item){ const r=recipeOf(item.id); return r&&Array.isArray(r.
    comes from the app's reference recipe, from the previous saved version, or is translated with AI. ===== */
 const OTH=l=>l==="es"?"en":"es";
 const LNAME=l=>l==="es"?"Spanish":"English";
-function itemName(m){ const p=m&&m.prodId?P.find(x=>x.id===m.prodId):null; return p?T(p.name):(m&&(m["name_"+state.lang]||m.name))||""; }
+// a renamed menu item keeps its new name everywhere the app product shows up
+const prodLabel=p=>{ const m=(D.menu||[]).find(x=>x.prodId===p.id&&x.customName); return m?itemName(m):T(p.name); };
+function itemName(m){ const p=m&&m.prodId&&!m.customName?P.find(x=>x.id===m.prodId):null; return p?T(p.name):(m&&(m["name_"+state.lang]||m.name))||""; }
 function locRecipe(r){ const l=state.lang;
   return {...r,ingredients:(r.ingredients||[]).map(g=>({...g,n:g["n_"+l]||g.n})),steps:r["steps_"+l]!=null?r["steps_"+l]:r.steps,
     notes:r["notes_"+l]!=null?r["notes_"+l]:r.notes,portionLabel:r["portionLabel_"+l]!=null?r["portionLabel_"+l]:r.portionLabel}; }
@@ -1373,7 +1375,7 @@ const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth
 const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
 const dow=iso=>new Date(iso+"T12:00:00").getDay();
 const DOWN={en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],es:["dom","lun","mar","mié","jue","vie","sáb"]};
-const pname=id=>{ const p=P.find(x=>x.id===id); if(p) return T(p.name); if(String(id).startsWith("m_")){ const m=(D.menu||[]).find(x=>x.id===String(id).slice(2)); if(m) return itemName(m)||m.name; } return id; };
+const pname=id=>{ const p=P.find(x=>x.id===id); if(p) return prodLabel(p); if(String(id).startsWith("m_")){ const m=(D.menu||[]).find(x=>x.id===String(id).slice(2)); if(m) return itemName(m)||m.name; } return id; };
 // drink or dish of a sales key (app products carry their category; menu items m_<id> use the menu's)
 const saleCat=id=>{ const p=P.find(x=>x.id===id); if(p) return p.cat||"bebida"; const m=String(id).startsWith("m_")?(D.menu||[]).find(x=>x.id===String(id).slice(2)):null; return m?m.cat||"comida":"bebida"; };
 // what a bill line counts as in Sales: the app product, or the menu item (dishes and other drinks)
@@ -1963,11 +1965,11 @@ function refreshNow(){
 const head=(eyebrow,h,p)=>`<div class="hero"><div><div class="eyebrow">${eyebrow}</div><h2>${h}</h2><p>${p}</p></div></div>`;
 const field=(id,label,input)=>`<div class="f"><label for="${id}">${label}</label>${input}</div>`;
 const val=id=>{const el=document.getElementById(id);return el?el.value.trim():"";};
-const prodOptions=(sel)=>P.map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(T(p.name))}</option>`).join("");
+const prodOptions=(sel)=>P.map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(prodLabel(p))}</option>`).join("");
 // Sales log: app products + every other menu item (dishes and drinks)
 const saleOptions=sel=>{ const extra=(D.menu||[]).filter(m=>m.active!==false&&!m.prodId).map(m=>({id:"m_"+m.id,n:itemName(m)||m.name,c:m.cat}));
   const onMenu=p=>!(D.menu||[]).length||(D.menu||[]).some(m=>m.active!==false&&m.prodId===p.id);   // built-in products only when they are on the menu
-  const all=[...P.filter(onMenu).map(p=>({id:p.id,n:T(p.name),c:p.cat||"bebida"})),...extra];
+  const all=[...P.filter(onMenu).map(p=>({id:p.id,n:prodLabel(p),c:p.cat||"bebida"})),...extra];
   const grp=(c,l)=>{ const xs=all.filter(x=>(x.c==="comida")===(c==="comida")); return xs.length?`<optgroup label="${l}">${xs.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.n)}</option>`).join("")}</optgroup>`:""; };
   return grp("bebida",tt("Drinks","Bebidas"))+grp("comida",tt("Dishes","Platos")); };
 async function copyText(txt){ try{await navigator.clipboard.writeText(txt);toast(tt("Copied","Copiado"));}catch(e){toast(tt("Select the text and copy it manually.","Selecciona el texto y cópialo manualmente."));} }
@@ -2466,7 +2468,7 @@ const PAYMENTS=[["cash","Cash","Efectivo"],["card","Card","Tarjeta"],["transfer"
 const payName=k=>{const x=PAYMENTS.find(p=>p[0]===k);return x?tt(x[1],x[2]):k;};
 const GST_DEFAULT=5;
 const dishKey=d=>String(d||"").trim().toLowerCase();
-const menuNamesOf=m=>{const p=m.prodId?P.find(x=>x.id===m.prodId):null;return [m.name,m.name_en,m.name_es,p&&p.name.en,p&&p.name.es].filter(Boolean);};
+const menuNamesOf=m=>{const p=m.prodId?P.find(x=>x.id===m.prodId):null;return [m.name,m.name_en,m.name_es,p&&p.name.en,p&&p.name.es,...String(m.aka||"").split("|")].filter(Boolean);};
 const menuFind=d=>{const k=dishKey(d);return D.menu.find(x=>menuNamesOf(x).some(n=>dishKey(n)===k));};
 const priceOf=d=>{const m=menuFind(d);return m?num(m.price):0;};
 const taxRate=()=>{const r=D.bill&&D.bill.taxRate!=null?num(D.bill.taxRate):GST_DEFAULT;return r>=0&&r<=100?r:GST_DEFAULT;};
@@ -2836,7 +2838,7 @@ function menuView(){
       <div class="hint" id="mnDocMsg" aria-live="polite">${mnDocMsg}</div></div>
      <p class="hint" id="mnMsg" aria-live="polite"></p>
      <div class="acts"><button type="button" class="btn sm ghost" id="mnSeed">${tt(`Load this app's ${P.length} drinks and dishes into the menu`,`Cargar las ${P.length} bebidas y platos de esta app al menú`)}</button></div>
-     <p class="hint">${tt("Only an administrator can change the menu. An item that is off stays in the list but is not suggested in orders or bills.","Solo un administrador puede cambiar el menú. Un ítem apagado queda en la lista pero no se sugiere en órdenes ni cuentas.")}</p></div>
+     <p class="hint">${tt("Only an administrator can change the menu. To rename a dish or drink, click its name in the list, type the new one and press Enter. An item that is off stays in the list but is not suggested in orders or bills.","Solo un administrador puede cambiar el menú. Para cambiar el nombre de un plato o bebida, haz clic en su nombre en la lista, escribe el nuevo y pulsa Enter. Un ítem apagado queda en la lista pero no se sugiere en órdenes ni cuentas.")}</p></div>
     <div class="panel"><h3 id="mnTitle"></h3><div id="mnList"></div></div>
    </div></section>`;
 }
@@ -2867,6 +2869,16 @@ function wireMenu(){
   const list=document.getElementById("mnList");
   list.addEventListener("change",async e=>{
     const id=e.target.closest("tr")?.dataset.id; if(!id) return; const f=e.target.dataset.f;
+    if(f==="name"){ const it=D.menu.find(x=>x.id===id); if(!it) return; const old=itemName(it);
+      let nm=e.target.value.trim().replace(/\s+/g," ").slice(0,60); if(nm) nm=nm.charAt(0).toUpperCase()+nm.slice(1);
+      if(!nm){ e.target.value=old; toast(tt("The name can't be empty.","El nombre no puede quedar vacío.")); return; }
+      if(nm===old) return;
+      const dup=D.menu.find(x=>x.id!==id&&[x.name,x.name_en,x.name_es,itemName(x)].some(n=>dishKey(n)===dishKey(nm)));
+      if(dup){ e.target.value=old; toast(tt(`“${nm}” is already on the menu.`,`“${nm}” ya está en el menú.`)); return; }
+      const aka=[...new Set([...String(it.aka||"").split("|"),old,it.name].filter(x=>x&&dishKey(x)!==dishKey(nm)))].join("|");
+      await dbUpd("menu",id,{name:nm,name_es:nm,name_en:nm,customName:true,aka});
+      if(recipeOf(id)) await dbUpd("recipes","r"+id,{item:nm});
+      toast(tt(`Renamed to “${nm}”.`,`Nombre cambiado a “${nm}”.`)); }
     if(f==="price") await dbUpd("menu",id,{price:Math.max(0,toCAD(e.target.value))});
     if(f==="active") await dbUpd("menu",id,{active:e.target.checked});
     if(f==="kind") await dbUpd("menu",id,{kind:e.target.value});
@@ -2889,7 +2901,7 @@ function listMenu(){
   if(el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT") return;
   const groups=(MENU_KINDS[menuCat]||[]).map(kd=>[kd[0],rows.filter(r=>(r.kind||"otro")===kd[0])]).filter(g=>g[1].length);
   setHTML(el,rows.length?`<div class="tablewrap"><table class="dt menutbl"><thead><tr><th>${tt("Name","Nombre")}</th><th>${tt("Price","Precio")} (${curSym()})</th><th>${tt("Note","Nota")}</th><th>${tt("On","Activo")}</th><th></th></tr></thead><tbody>
-   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td>${esc(itemName(m))}${m.prodId?` <span class="badge ok">${tt("app recipe","receta de la app")}</span>`:""}</td>
+   ${groups.map(([kd,items])=>`<tr class="grp"><th colspan="5">${kindName(menuCat,kd)} <span class="badge">${items.length}</span></th></tr>`+items.map(m=>`<tr data-id="${esc(m.id)}"><td><input class="txt" data-f="name" maxlength="60" value="${esc(itemName(m))}" aria-label="${tt("Name","Nombre")}" title="${tt("Click to rename","Clic para cambiar el nombre")}">${m.prodId&&!m.customName?` <span class="badge ok">${tt("app recipe","receta de la app")}</span>`:""}</td>
      <td><input data-f="price" type="number" min="0" step="0.01" value="${esc(inCur(m.price))}" aria-label="${tt("Price","Precio")} (${curSym()})"></td>
      <td><input class="txt" data-f="notes" value="${esc(m.notes||"")}" aria-label="${tt("Note","Nota")}"></td>
      <td><input data-f="active" type="checkbox" style="width:auto"${m.active!==false?" checked":""} aria-label="${tt("On","Activo")}"></td>
@@ -3505,7 +3517,7 @@ function forecastHTML(){
   const f=weekdayForecast(); const {hrs,days}=hourlyProfile();
   if(!f) return `<p class="empty">${tt("Needs at least 7 days of sales (Module 3). Forecast = average of the same weekday over the last 4 weeks.","Necesita al menos 7 días de ventas (Módulo 3). Predicción = promedio del mismo día de la semana en las últimas 4 semanas.")}</p>`;
   const hh=Object.keys(hrs).sort();
-  return `<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(T(p.name))}</th>`).join("")}<th>${tt("Total cups","Total vasos")}</th></tr></thead><tbody>${f.map(r=>`<tr><td class="nw">${DOWN[state.lang][dow(r.date)]} ${+r.date.slice(8)}</td>${P.map(p=>`<td>${Math.round(r.per[p.id])}</td>`).join("")}<td><b>${Math.round(r.cups)}</b></td></tr>`).join("")}</tbody></table></div>
+  return `<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(prodLabel(p))}</th>`).join("")}<th>${tt("Total cups","Total vasos")}</th></tr></thead><tbody>${f.map(r=>`<tr><td class="nw">${DOWN[state.lang][dow(r.date)]} ${+r.date.slice(8)}</td>${P.map(p=>`<td>${Math.round(r.per[p.id])}</td>`).join("")}<td><b>${Math.round(r.cups)}</b></td></tr>`).join("")}</tbody></table></div>
    <p class="hint">${tt("Estimate from your own sales: average of the same weekday, last 4 weeks.","Estimación con tus propias ventas: promedio del mismo día de la semana, últimas 4 semanas.")}</p>
    ${hh.length?`<h4 class="minih">${tt("Average cups by hour","Vasos promedio por hora")} (${days} ${tt("days with hourly data","días con datos por hora")})</h4><div class="hours">${hh.map(h=>{const v=hrs[h]/Math.max(1,days);const mx=Math.max(...hh.map(k=>hrs[k]/Math.max(1,days)));return `<div class="hr" title="${h}:00 — ${v.toFixed(1)}"><span style="height:${Math.max(4,v/mx*60)}px"></span><small>${h}</small></div>`;}).join("")}</div>`:`<p class="hint">${tt("Add the hour when you log sales to see the hourly forecast.","Agrega la hora al registrar ventas para ver la predicción por hora.")}</p>`}`;
 }
@@ -3525,7 +3537,7 @@ ${base}`;
   out.textContent=tt("Thinking…","Pensando…");
   try{ const j=await SAMPLE.json(prompt,{cache:false});
     if(!j||!Array.isArray(j.days)) throw {code:"invalid_json"};
-    out.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(T(p.name))}</th>`).join("")}</tr></thead><tbody>${j.days.map(d=>`<tr><td>${esc(d.date)}</td>${P.map(p=>`<td>${Math.round(num(d.cups?.[p.id]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div><ul class="plain">${(j.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul><p class="hint">${tt("AI-adjusted estimate — check it against your judgement.","Estimación ajustada por IA — compárala con tu criterio.")}</p>`;
+    out.innerHTML=`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Day","Día")}</th>${P.map(p=>`<th>${esc(prodLabel(p))}</th>`).join("")}</tr></thead><tbody>${j.days.map(d=>`<tr><td>${esc(d.date)}</td>${P.map(p=>`<td>${Math.round(num(d.cups?.[p.id]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div><ul class="plain">${(j.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul><p class="hint">${tt("AI-adjusted estimate — check it against your judgement.","Estimación ajustada por IA — compárala con tu criterio.")}</p>`;
   }catch(e){ out.textContent=aiErr(e); }
 }
 
