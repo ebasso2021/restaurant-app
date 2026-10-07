@@ -3932,8 +3932,8 @@ function listLabels(){ const sel=document.getElementById("lbItem"); if(!sel||doc
 
 /* ================= MODULE 3 — SALES & ANALYTICS ================= */
 let range=14;
-/* ----- operating costs (settings/opex): fixed costs of running the place, entered per week / month / year ----- */
-const OPEX_FREQ=[["week","per week","por semana",52/12],["month","per month","por mes",1],["year","per year","por año",1/12]];
+/* ----- operating costs (settings/opex): fixed costs of running the place, entered per day / week / month / year ----- */
+const OPEX_FREQ=[["day","per day","por día",365/12],["week","per week","por semana",52/12],["month","per month","por mes",1],["year","per year","por año",1/12]];
 const OPEX_BASE=[["staff","Staff (wages)","Personal (sueldos)","month"],["rent","Rent","Alquiler del local","month"],["electricity","Electricity","Electricidad","month"],
   ["taxes","Taxes (property, business, other)","Impuestos (predial, negocio, otros)","year"],["insurance","Insurance","Seguros","year"],["licences","Annual licences","Licencias anuales","year"],
   ["permits","Annual permits (e.g. AHS food handling)","Permisos anuales (p. ej. manipulación de alimentos AHS)","year"],["maintenance","Equipment maintenance","Mantenimiento de equipos","year"],["other","Other operating expenses","Otros gastos operativos","month"]];
@@ -4050,7 +4050,7 @@ function m3(){
     <div id="bcBox"></div>
     <p class="hint">${tt("For each bill number, by date: what the dishes and drinks sold for (subtotal less discount, without GST or tip) and what they cost — each line × its recipe's cost per portion with the Kardex weighted average cost, saved when the bill is charged. Cost of sales = Kardex cost + that day's operating costs (monthly total × 12 ÷ 365), shared among the day's bills by their sales. Days with no bills are not shown. ≈ = older bill, costed with today's weighted average. ! = a dish without a saved recipe or an ingredient without Kardex cost.","Por cada número de cuenta, por fecha: en cuánto se vendieron los platos y bebidas (subtotal menos descuento, sin GST ni propina) y cuánto costaron — cada línea × el costo por porción de su receta con el costo promedio ponderado del Kardex, guardado al cobrar. Costo de ventas = costo del Kardex + los costos operativos de ese día (total mensual × 12 ÷ 365), repartidos entre las cuentas del día según su venta. Los días sin cuentas no se muestran. ≈ = cuenta antigua, costeada con el promedio ponderado de hoy. ! = un plato sin receta guardada o un ingrediente sin costo en el Kardex.")}</p></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
-    <p class="hint" style="margin:0 0 10px">${tt("Enter each cost as you pay it — per week, per month or per year. The app converts everything to a monthly amount, subtracts it from the gross margin of the period and shows your net profit and break-even point. Amounts in","Ingresa cada costo como lo pagas — por semana, por mes o por año. La app lo convierte todo a un monto mensual, lo resta del margen bruto del periodo y muestra tu utilidad neta y punto de equilibrio. Montos en")} ${curSym()}.</p>
+    <p class="hint" style="margin:0 0 10px">${tt("Enter each cost as you pay it — per day, per week, per month or per year. The app converts everything to a monthly amount, subtracts it from the gross margin of the period and shows your net profit and break-even point. Amounts in","Ingresa cada costo como lo pagas — por día, por semana, por mes o por año. La app lo convierte todo a un monto mensual, lo resta del margen bruto del periodo y muestra tu utilidad neta y punto de equilibrio. Montos en")} ${curSym()}.</p>
     <div id="opexBox"></div>
     <form id="opexAdd" class="fgrid" style="margin-top:12px">
      ${field("oxName",tt("Other cost (name)","Otro costo (nombre)"),`<input id="oxName" maxlength="60" placeholder="${tt("Internet, POS, cleaning…","Internet, POS, limpieza…")}">`)}
