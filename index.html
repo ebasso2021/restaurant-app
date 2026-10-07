@@ -4226,7 +4226,7 @@ function costBoxHTML(){
     if(sale!=null){ saleSum+=sale; saleN++; }
     const why=[...pc.missing.map(n=>n.includes("(")?n:n+": "+tt("no Kardex cost","sin costo en Kardex")),...pc.unlinked.map(n=>n+": "+tt("not linked","sin vincular")),...pc.bad.map(n=>n+": "+tt("unit","unidad"))].join(" · ");
     const det=pc.lines.filter(l=>l.cost!=null).map(l=>`${l.n} ${nice(l.per)} ${unitLbl(l.it.unit)} = ${money2(l.cost)}`).join(" · ");
-    return `<tr><td>${esc(itemName(x.m)||x.m.name)}${det?`<small>${esc(det)}</small>`:""}</td><td class="nw"><b>${pc.cost>0?money2(pc.cost):"—"}</b>${why?`<small class="alltxt">⚠ ${esc(why)}</small>`:""}</td>
+    return `<tr><td${det?` title="${esc(det)}"`:""}>${esc(itemName(x.m)||x.m.name)}</td><td class="nw"><b>${pc.cost>0?money2(pc.cost):"—"}</b>${why?`<small class="alltxt">⚠ ${esc(why)}</small>`:""}</td>
       <td class="nw">${price>0?money2(price):"—"}</td><td class="nw">${mg!=null?`<span class="badge ${mg<target?"bad":"ok"}">${Math.round(mg)}%</span>`:pc.cost>0&&price>0?`<span class="badge warn">${tt("Cost incomplete","Costo incompleto")}</span>`:"—"}</td>
       <td class="nw">${port!=null?`<b class="${port===0?"alltxt":""}">${port}</b>${pp.limit?`<small>${tt("runs out first","se acaba primero")}: ${esc(pp.limit)}</small>`:""}`:"—"}</td>
       <td class="nw">${sale!=null?`<b>${money2(sale)}</b>`:"—"}</td></tr>`; }).join("");
