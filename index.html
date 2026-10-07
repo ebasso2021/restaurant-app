@@ -3238,6 +3238,22 @@ function askConfirm(title,msg,okLabel){ return new Promise(res=>{
   w.addEventListener("click",e=>{ const b=e.target.closest("[data-cfm]"); if(b) done(b.dataset.cfm==="1"); else if(e.target===w) done(false); });
   document.addEventListener("keydown",key,true); document.body.appendChild(w); w.querySelector('[data-cfm="0"]').focus(); }); }
 /* ✓ Save an edited stock row: no blanks or 0; stock changes go to the Kardex as a count / adjustment */
+// units an item can switch to: same family (g ↔ kg, mL ↔ L) always — quantities are converted and the cost per kg / L stays;
+// another family (weight ↔ volume ↔ pieces) only while the item has no stock and no Kardex movements
+const invUnitName=u=>({g:tt("grams (g)","gramos (g)"),kg:tt("kilos (kg)","kilos (kg)"),ml:tt("millilitres (mL)","mililitros (mL)"),mL:tt("millilitres (mL)","mililitros (mL)"),L:tt("litres (L)","litros (L)"),pc:tt("pieces","unidades")})[u]||u;
+const invHasMoves=it=>num(it.qty)>0||(D.kardex||[]).some(k=>k.itemId===it.id);
+function invUnitOpts(it,cur){ const locked=invHasMoves(it), list=UNITS.includes(it.unit)?UNITS:[it.unit,...UNITS];
+  return list.map(u=>{ const off=locked&&baseOf(u)!==baseOf(it.unit); return `<option value="${u}"${u===cur?" selected":""}${off?` disabled title="${esc(tt("Only while the item has no stock or Kardex movements","Solo mientras el artículo no tenga stock ni movimientos en el Kardex"))}"`:""}>${esc(invUnitName(u))}</option>`; }).join(""); }
+const invUnitF=(from,to)=>factorOf({unit:to})/factorOf({unit:from});   // e.g. kg → g = ×1000
+async function invChangeUnit(it,to){ const from=it.unit; if(to===from) return true;
+  if(baseOf(to)!==baseOf(from)){
+    if(invHasMoves(it)){ toast(tt("This item has stock or Kardex movements: it can only change between g ↔ kg or mL ↔ L.","Este artículo tiene stock o movimientos en el Kardex: solo puede cambiar entre g ↔ kg o mL ↔ L.")); return false; }
+    await dbUpd("inventory",it.id,{unit:to,cost:0,costPer:baseOf(to),...(to==="pc"?{pack:1}:{})}); return true; }
+  const f=invUnitF(from,to);
+  await dbUpd("inventory",it.id,{unit:to,qty:r3(num(it.qty)*f),costPer:baseOf(to)});
+  for(const k of (D.kardex||[]).filter(k=>k.itemId===it.id)){ const bal=r3(num(k.balQty)*f), sn=kxSnap({unit:to,pack:1,balQty:bal,avgCost:k.avgCost});
+    await dbUpd("kardex",k.id,{unit:to,qty:r3(num(k.qty)*f),balQty:bal,costPkg:sn.costPkg,perSub:sn.perSub,stockVal:sn.stockVal,balValue:sn.stockVal}); }
+  return true; }
 async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>document.querySelector(`#invTable [data-f="${f}"][data-id="${id}"]`);
   const fl=[["name",tt("Item","Artículo"),"text"],["min",tt("Alert","Alerta"),"pos"],["par",tt("Max. quantity","Cantidad máxima"),"pos"],...(it.unit==="pc"?[["pack",tt("Pieces per package","Piezas por paquete"),"pos"]]:[])];
   const bad=[]; fl.forEach(([f,l,k])=>{ const el=rowQ(f); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:k==="zero"?(v!==""&&num(v)>=0):(v!==""&&num(v)>0); el.setAttribute("aria-invalid",ok?"false":"true"); if(!ok) bad.push(l); });
@@ -3247,12 +3263,14 @@ async function invSave(id){ const it=invItem(id); if(!it) return; const rowQ=f=>
   const code=rowQ("barcode")?v("barcode"):String(it.barcode||""), cErr=bcCheck(code,id);
   if(cErr){ if(rowQ("barcode")) rowQ("barcode").setAttribute("aria-invalid","true"); return toast(tt("Barcode: ","Código de barras: ")+cErr); }
   if(!DB) return noDb();
+  const unit=rowQ("unit")?v("unit"):it.unit;
+  if(unit!==it.unit&&!(await invChangeUnit(it,unit))){ rowQ("unit").setAttribute("aria-invalid","true"); return; }
   const name=v("name").slice(0,60), upd={name,min:num(v("min")),par:num(v("par")),barcode:code,updated:new Date().toISOString()};
   await dbUpd("inventory",id,upd);
   if(name!==it.name) for(const k of D.kardex.filter(k=>k.itemId===id)) await dbUpd("kardex",k.id,{item:name});
-  const it2={...it,...upd};
-  if(it.unit==="pc"){ const n=Math.max(1,Math.round(num(v("pack")))); if(n!==packOf(it)){ const pkg=num(it.cost)*packOf(it); await dbUpd("inventory",id,{pack:n}); await kardexMove({...it2,pack:n},{type:"cost",reason:"cost",unitCost:pkg/n,ref:tt(`Package of ${n}: ${money2(pkg)} ÷ ${n}`,`Paquete de ${n}: ${money2(pkg)} ÷ ${n}`)}); it2.pack=n; } }
-  invEdit=null; invDraft={}; toast(tt(`“${name}” saved.`,`“${name}” guardado.`)); listM2(); }
+  const it2={...it,...upd,unit};
+  if(it.unit==="pc"&&unit==="pc"){ const n=Math.max(1,Math.round(num(v("pack")))); if(n!==packOf(it)){ const pkg=num(it.cost)*packOf(it); await dbUpd("inventory",id,{pack:n}); await kardexMove({...it2,pack:n},{type:"cost",reason:"cost",unitCost:pkg/n,ref:tt(`Package of ${n}: ${money2(pkg)} ÷ ${n}`,`Paquete de ${n}: ${money2(pkg)} ÷ ${n}`)}); it2.pack=n; } }
+  invEdit=null; invDraft={}; toast(tt(`“${name}” saved.`,`“${name}” guardado.`)+(unit!==it.unit?" "+tt(`Unit: ${unitLbl(it.unit)} → ${unitLbl(unit)}.`,`Unidad: ${unitLbl(it.unit)} → ${unitLbl(unit)}.`):"")); listM2(); }
 /* Kitchen & inventory: no blank fields and no 0 / 0.00 values. fields = [id, label, "text" | "pos"] */
 function reqCheck(fields){ const bad=[];
   fields.forEach(([id,lbl,k])=>{ const el=document.getElementById(id); if(!el) return; const v=String(el.value||"").trim(), ok=k==="text"?!!v:k==="zero"?(v!==""&&num(v)>=0):(v!==""&&num(v)>0);
@@ -3292,6 +3310,10 @@ function wireM2(){
     toast(tt(`${adds.length} items added`,`${adds.length} artículos agregados`));
   };
   // stock table: rows are read-only until ✏ Edit; changes are kept as a draft and saved with ✓ Save
+  document.getElementById("invTable").addEventListener("change",e=>{ const sel=e.target.closest('select[data-f="unit"]'); if(!sel) return;
+    const prev=sel.dataset.prev||sel.dataset.old, to=sel.value; sel.dataset.prev=to; invDraft.unit=to;
+    if(baseOf(prev)!==baseOf(to)) return; const f=invUnitF(prev,to);
+    ["min","par"].forEach(k=>{ const el=document.querySelector(`#invTable [data-f="${k}"][data-id="${sel.dataset.id}"]`); if(el&&el.value!==""){ el.value=r3(num(el.value)*f); invDraft[k]=el.value; } }); });
   document.getElementById("invTable").addEventListener("input",e=>{ const inp=e.target.closest("[data-f]"); if(!inp||inp.dataset.id!==invEdit) return; invDraft[inp.dataset.f]=inp.value; if(inp.getAttribute("aria-invalid")==="true") inp.setAttribute("aria-invalid","false"); });
   ["invTable"].forEach(id=>{const el=document.getElementById(id);el.addEventListener("focusout",()=>setTimeout(()=>{if(!el.contains(document.activeElement))refreshAI();},50));});
   document.getElementById("invTable").addEventListener("click",async e=>{
@@ -3407,7 +3429,7 @@ function listM2(){
      <td class="nw">${s[2]==="low"?`<span class="badge bad" title="${esc(tt(`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} ≤ minimum ${fmtQ(num(i.min))} ${unitLbl(i.unit)}`,`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} ≤ mínimo ${fmtQ(num(i.min))} ${unitLbl(i.unit)}`))}">⛔ ${tt("Under minimum","Bajo el mínimo")}</span>`:s[2]==="over"?`<span class="badge warn" title="${esc(tt(`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} > maximum ${fmtQ(num(i.par))} ${unitLbl(i.unit)}`,`Stock ${fmtQ(stockQty(i))} ${unitLbl(i.unit)} > máximo ${fmtQ(num(i.par))} ${unitLbl(i.unit)}`))}">▲ ${tt("Overstocked","Con exceso")}</span>`:`<span class="dimtxt">—</span>`}</td>
      <td class="nw">${canInv?`<button class="btn sm ghost" data-invedit="${i.id}" aria-label="${tt("Edit","Editar")} ${esc(i.name)}">✏ ${tt("Edit","Editar")}</button> `:""}<button class="btn sm ghost" data-kx="${i.id}" title="Kardex" aria-label="Kardex ${esc(i.name)}">📒</button>${canInv?` <button class="btn sm ghost" data-del="${i.id}" title="${tt("Delete","Eliminar")}" aria-label="${tt("Delete","Eliminar")} ${esc(i.name)}">✕</button>`:""}</td></tr>`;
      return `<tr class="editing"><td><input data-f="name" data-id="${i.id}" class="txt" maxlength="60" value="${esc(dv(i,"name",i.name))}" aria-label="${tt("Item","Artículo")}"><small class="bcode">▮▯▮ <input data-f="barcode" data-id="${i.id}" class="txt" maxlength="48" autocomplete="off" spellcheck="false" placeholder="${tt("Barcode","Código de barras")}" value="${esc(dv(i,"barcode",i.barcode||""))}" aria-label="${tt("Barcode","Código de barras")} ${esc(i.name)}"> <button type="button" class="linkbtn" data-bcgen="${i.id}">⚙ ${tt("Generate","Generar")}</button></small>${i.unit==="pc"?`<small class="packf">${tt("Pieces per package:","Piezas por paquete:")} <input data-f="pack" data-id="${i.id}" type="number" min="1" step="1" value="${esc(dv(i,"pack",packOf(i)))}" aria-label="${tt("Pieces per package","Piezas por paquete")} ${esc(i.name)}"></small>`:""}</td>
-     <td>${u}</td><td class="nw">${kxLastBalHTML(i)}</td>
+     <td><select data-f="unit" data-id="${i.id}" data-old="${esc(i.unit)}" data-prev="${esc(dv(i,"unit",i.unit))}" aria-label="${tt("Unit","Unidad")} ${esc(i.name)}">${invUnitOpts(i,dv(i,"unit",i.unit))}</select></td><td class="nw">${kxLastBalHTML(i)}</td>
      <td><input data-f="min" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"min",num(i.min)))}" aria-label="${tt("Alert","Alerta")} ${esc(i.name)}"></td>
      <td><input data-f="par" data-id="${i.id}" type="number" step="any" min="0" value="${esc(dv(i,"par",num(i.par)))}" aria-label="${tt("Max. quantity","Cantidad máxima")} ${esc(i.name)}"></td>
      <td></td>
@@ -4161,13 +4183,21 @@ function wireM3(){
 function costBoxHTML(){
   const target=num(D.costs&&D.costs._target)||60;
   const items=D.menu.filter(m=>m.active!==false).map(m=>{ const r=recipeOf(m.id); return {m,r:r&&r.locked?r:null}; });
+  let saleSum=0, saleN=0;
   const rows=items.filter(x=>x.r).map(x=>{ const pc=portionCost(x.r), price=num(x.m.price), mg=price>0&&pc.known?(price-pc.cost)/price*100:null;
+    // portions the current stock allows × the price = what the item would bring in if all of them were sold
+    const pp=portionsPossible(x.r), port=pp.linked?pp.best:null, sale=port!=null&&price>0?cost2(port*price):null;
+    if(sale!=null){ saleSum+=sale; saleN++; }
     const why=[...pc.missing.map(n=>n.includes("(")?n:n+": "+tt("no Kardex cost","sin costo en Kardex")),...pc.unlinked.map(n=>n+": "+tt("not linked","sin vincular")),...pc.bad.map(n=>n+": "+tt("unit","unidad"))].join(" · ");
     const det=pc.lines.filter(l=>l.cost!=null).map(l=>`${l.n} ${nice(l.per)} ${unitLbl(l.it.unit)} = ${money2(l.cost)}`).join(" · ");
     return `<tr><td>${esc(itemName(x.m)||x.m.name)}${det?`<small>${esc(det)}</small>`:""}</td><td class="nw"><b>${pc.cost>0?money2(pc.cost):"—"}</b>${why?`<small class="alltxt">⚠ ${esc(why)}</small>`:""}</td>
-      <td class="nw">${price>0?money2(price):"—"}</td><td class="nw">${mg!=null?`<span class="badge ${mg<target?"bad":"ok"}">${Math.round(mg)}%</span>`:pc.cost>0&&price>0?`<span class="badge warn">${tt("Cost incomplete","Costo incompleto")}</span>`:"—"}</td></tr>`; }).join("");
+      <td class="nw">${price>0?money2(price):"—"}</td><td class="nw">${mg!=null?`<span class="badge ${mg<target?"bad":"ok"}">${Math.round(mg)}%</span>`:pc.cost>0&&price>0?`<span class="badge warn">${tt("Cost incomplete","Costo incompleto")}</span>`:"—"}</td>
+      <td class="nw">${port!=null?`<b class="${port===0?"alltxt":""}">${port}</b>${pp.limit?`<small>${tt("runs out first","se acaba primero")}: ${esc(pp.limit)}</small>`:""}`:"—"}</td>
+      <td class="nw">${sale!=null?`<b>${money2(sale)}</b>`:"—"}</td></tr>`; }).join("");
   const manual=P.filter(p=>!(prodCost(p.id).src==="kardex"));
-  return (rows?`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Plato / bebida")}</th><th>${tt("Cost per portion","Costo por porción")}</th><th>${tt("Price","Precio")}</th><th>${tt("Margin","Margen")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+  return (rows?`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Plato / bebida")}</th><th>${tt("Cost per portion","Costo por porción")}</th><th>${tt("Price","Precio")}</th><th>${tt("Margin","Margen")}</th><th title="${tt("Portions possible with the current stock","Porciones posibles con el stock actual")}">${tt("Portions in stock","Porciones en stock")}</th><th title="${tt("Portions in stock × price","Porciones en stock × precio")}">${tt("Sale total (all portions)","Venta total (todas las porciones)")}</th></tr></thead><tbody>${rows}</tbody>
+     ${saleN?`<tfoot><tr><th colspan="5">${tt("Total if every item sold all its portions","Total si cada producto vendiera todas sus porciones")}</th><th class="nw">${money2(saleSum)}</th></tr></tfoot>`:""}</table></div>
+     <p class="hint">${tt("Sale total = portions possible with the current stock × the menu price (before GST). Each item is counted as if it had the stock to itself — items that share ingredients compete for them, so the overall total is an upper limit.","Venta total = porciones posibles con el stock actual × el precio del menú (sin GST). Cada producto se cuenta como si tuviera el stock solo para él — los productos que comparten ingredientes compiten por ellos, así que el total general es un máximo.")}</p>
      <p class="hint">${tt("Cost per portion = each ingredient of the saved recipe (1 portion) × its weighted average cost in the Kardex. It updates by itself with every purchase.","Costo por porción = cada ingrediente de la receta guardada (1 porción) × su costo promedio ponderado del Kardex. Se actualiza solo con cada compra.")}</p>`
     :`<p class="empty">${tt("Save the recipes (Recipes tab) and link their ingredients to inventory to cost each item from the Kardex.","Guarda las recetas (tab Recetas) y vincula sus ingredientes al inventario para costear cada producto con el Kardex.")}</p>`)
    +(manual.length?`<h4 class="minih">${tt("Manual cost (only for drinks without a recipe cost)","Costo manual (solo para bebidas sin costo de receta)")}</h4><div class="costgrid">${manual.map(p=>`<label class="f"><span>${esc(T(p.name))}</span><input data-cost="${p.id}" type="number" min="0" step="0.01" value="${num(D.costs[p.id])?inCur(D.costs[p.id]):""}" placeholder="${curSym()}"></label>`).join("")}</div>`:"");
