@@ -4143,7 +4143,8 @@ function wireM3(){
   if(g("bcUnclear")) g("bcUnclear").onclick=async e=>{ const nb={...(D.bill||{})}; delete nb.costClearedAt; delete nb.costClearedBy;
     await dbSet("settings/bill",{...nb,costClearedAt:"",costClearedBy:""}); D.bill={...nb};
     e.currentTarget.hidden=true; setHTML(g("bcBox"),billCostsHTML()); toast(tt("All bills shown again.","Se muestran todas las cuentas otra vez.")); };
-  if(g("costBox")) g("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
+  if(g("costBox")) g("costBox").addEventListener("change",e=>{ if(e.target.id==="cpDays"){ const v=Math.max(1,Math.min(366,Math.round(num(e.target.value))||7)); cpDays=v; try{ localStorage.setItem("top-cpdays",String(v)); }catch(_){} setHTML(g("costBox"),costBoxHTML()); return; }
+    const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
   if(g("sAI")) g("sAI").onclick=salesAI;
   if(g("opexBox")) wireOpex();
   if(g("kxItem")){
@@ -4217,6 +4218,8 @@ function wireM3(){
   }
 }
 // "Cost per cup": every menu item with a saved recipe, costed with the Kardex weighted average; manual cost only when there is no recipe cost
+// days the stock is expected to last — operating costs of that many days are taken from the margin of gain (remembered per browser)
+let cpDays=(()=>{ try{ const v=parseInt(localStorage.getItem("top-cpdays"),10); return v>0?v:7; }catch(e){ return 7; } })();
 function costBoxHTML(){
   const target=num(D.costs&&D.costs._target)||60;
   const items=D.menu.filter(m=>m.active!==false).map(m=>{ const r=recipeOf(m.id); return {m,r:r&&r.locked?r:null}; });
@@ -4235,8 +4238,13 @@ function costBoxHTML(){
       <td class="nw">${ctot!=null?`${money2(ctot)}${pc.known?"":` <span class="badge warn" title="${tt("Cost incomplete","Costo incompleto")}">!</span>`}`:"—"}</td>
       <td class="nw">${prof!=null?`<b class="${prof<0?"alltxt":""}">${money2(prof)}</b>`:"—"}</td></tr>`; }).join("");
   const profSum=cost2(saleSum-costSum), profPct=saleSum>0?Math.round(profSum/saleSum*100):null;
+  // margin of gain = sales if every portion in stock is sold − stock value − operating costs of the days the stock lasts
+  const stockTot=cost2(D.inventory.reduce((s,i)=>s+stockValue(i),0)), oxTot=cost2(opexDaily()*cpDays), gain=cost2(saleSum-stockTot-oxTot), gainPct=saleSum>0?Math.round(gain/saleSum*100):null;
   const manual=P.filter(p=>!(prodCost(p.id).src==="kardex"));
-  return (rows&&saleN?`<div class="kpis">${[[money2(saleSum),tt("sales if every portion in stock is sold","venta si se vende cada porción en stock"),""],[money2(costSum),tt("cost of those portions (Kardex)","costo de esas porciones (Kardex)"),""],[money2(profSum),tt("profit","ganancia")+(profPct!=null?` · ${profPct}%`:""),profSum<0?"bad":""]].map(k=>`<div class="kpi ${k[2]}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("")}</div>`:"")
+  return (rows&&saleN?`<div class="kpis">${[[money2(saleSum),tt("sales if every portion in stock is sold","venta si se vende cada porción en stock"),""],[money2(costSum),tt("cost of those portions (Kardex)","costo de esas porciones (Kardex)"),""],[money2(profSum),tt("profit","ganancia")+(profPct!=null?` · ${profPct}%`:""),profSum<0?"bad":""],
+     [money2(gain),tt("margin of gain","margen de ganancia")+(gainPct!=null?` · ${gainPct}%`:""),gain<0?"bad":"okk"]].map(k=>`<div class="kpi ${k[2]}"><div class="big">${k[0]}</div><div class="lbl">${k[1]}</div></div>`).join("")}</div>
+     <p class="hint gainline">${tt("Margin of gain","Margen de ganancia")} = ${money2(saleSum)} ${tt("sales","venta")} − ${money2(stockTot)} ${tt("stock value","valor del stock")} − ${money2(oxTot)} ${tt("operating costs of","costos operativos de")}
+      <input id="cpDays" type="number" min="1" max="366" step="1" value="${cpDays}" style="width:4.5em" aria-label="${tt("Days the stock lasts","Días que dura el stock")}"> ${tt("day(s)","día(s)")} (${money2(opexDaily())} ${tt("per day","por día")})${opexDaily()>0?"":` — ⚠ ${tt("no operating costs entered yet","aún no hay costos operativos")}`}</p>`:"")
    +(rows?`<div class="tablewrap"><table class="dt"><thead><tr><th>${tt("Item","Plato / bebida")}</th><th>${tt("Cost per portion","Costo por porción")}</th><th>${tt("Price","Precio")}</th><th>${tt("Margin","Margen")}</th><th title="${tt("Portions possible with the current stock","Porciones posibles con el stock actual")}">${tt("Portions in stock","Porciones en stock")}</th><th title="${tt("Portions in stock × price","Porciones en stock × precio")}">${tt("Sale total (all portions)","Venta total (todas las porciones)")}</th><th title="${tt("Portions in stock × cost per portion","Porciones en stock × costo por porción")}">${tt("Cost total (all portions)","Costo total (todas las porciones)")}</th><th title="${tt("Sale total − cost total","Venta total − costo total")}">${tt("Profit (all portions)","Ganancia (todas las porciones)")}</th></tr></thead><tbody>${rows}</tbody>
      ${saleN?`<tfoot><tr><th colspan="5">${tt("Total if every item sold all its portions","Total si cada producto vendiera todas sus porciones")}</th><th class="nw">${money2(saleSum)}</th><th class="nw">${money2(costSum)}</th><th class="nw">${money2(profSum)}</th></tr></tfoot>`:""}</table></div>
      <p class="hint">${tt("Sale total = portions possible with the current stock × the menu price (before GST). Each item is counted as if it had the stock to itself — items that share ingredients compete for them, so the overall total is an upper limit.","Venta total = porciones posibles con el stock actual × el precio del menú (sin GST). Cada producto se cuenta como si tuviera el stock solo para él — los productos que comparten ingredientes compiten por ellos, así que el total general es un máximo.")}</p>
@@ -4266,7 +4274,7 @@ function listM3(){
   if(st0){ const inv=[...D.inventory].sort((a,b)=>stockValue(b)-stockValue(a)); const tot=inv.reduce((s,i)=>s+stockValue(i),0);
     setHTML(st0,inv.length?`<div class="kpi"><div class="big">${money(tot)}</div><div class="lbl">${tt("total stock value","valor total del stock")}</div></div><ul class="rows">${inv.slice(0,8).map(i=>`<li><div>${esc(i.name)}<small>${num(i.qty)} ${esc(unitLbl(i.unit))}</small></div><b>${money2(stockValue(i))}</b></li>`).join("")}</ul><p class="hint">${tt("From 2 · Kitchen & inventory. The Kardex tab has every movement.","Desde 2 · Cocina e inventario. La pestaña Kardex tiene cada movimiento.")}</p>`:`<p class="empty">${tt("No stock items yet.","Aún no hay artículos en stock.")}</p>`); }
   const ob=document.getElementById("opexBox"); if(ob&&!ob.contains(document.activeElement)) setHTML(ob,opexHTML());
-  if(cb&&document.activeElement?.dataset?.cost===undefined) setHTML(cb,costBoxHTML());
+  if(cb&&document.activeElement?.dataset?.cost===undefined&&document.activeElement?.id!=="cpDays") setHTML(cb,costBoxHTML());
   const days=salesDays(range), tot=days.map(dayTotals);
   const rev=tot.reduce((s,t)=>s+t.rev,0), cups=tot.reduce((s,t)=>s+t.cups,0);
   const st=prodStats(range), costKnown=st.filter(s=>s.cups>0).every(s=>s.hasCost), cost=st.reduce((s,x)=>s+x.cost,0);
