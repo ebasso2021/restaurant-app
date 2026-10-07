@@ -3059,6 +3059,19 @@ async function kardexMove(it,m){
 }
 /* Restart the Kardex: only erases every movement in the Kardex database. It reads nothing and writes nothing else;
    from then on the Kardex is fed by purchases (entries) and billed sales, waste and counts (exits) */
+// "Delete sales & bills": erases every daily sales record and every bill (receipts), then replays every item's Kardex
+// so balances, weighted average costs and inventory are recalculated. The Kardex movements themselves stay (stock is not given back).
+const canSalesReset=()=>MODE!=="sheet"||(SESSION&&SESSION.role==="admin");
+async function salesReset(){
+  if(!DB) return noDb();
+  const sales=[...D.sales], bills=[...D.bills];
+  for(const x of sales) if(x.id) await dbDel("sales",x.id);
+  for(const b of bills) if(b.id) await dbDel("bills",b.id);
+  if(D.bill&&D.bill.costClearedAt) await dbSet("settings/bill",{...D.bill,costClearedAt:"",costClearedBy:""});
+  const items=await kxRecalcAll();
+  if(DB._refresh) ["sales","bills","kardex","inventory"].forEach(c=>DB._refresh(c));
+  return {sales:sales.length,bills:bills.length,items};
+}
 async function kardexReset(){
   if(!DB) return noDb();
   const old=[...D.kardex]; for(const k of old) if(k.id) await dbDel("kardex",k.id);
@@ -4031,7 +4044,8 @@ function m3(){
    </div>
    <div class="panel" style="margin-top:20px"><div class="flexrow"><h3 style="margin:0">🧾 ${tt("Cost of sales by bill","Costo de ventas por cuenta")}</h3>
      ${field("bcDays",tt("Period","Periodo"),`<select id="bcDays">${[[1,tt("Today","Hoy")],[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===bcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
-     ${canWrite("settings")?`<button type="button" class="btn sm ghost" id="bcClear" title="${tt("Hide every bill charged up to now from this table (the bills stay saved)","Ocultar de esta tabla todas las cuentas cobradas hasta ahora (las cuentas siguen guardadas)")}">🧹 ${tt("Clear","Limpiar")}</button><button type="button" class="btn sm ghost" id="bcUnclear"${bcCleared()?"":" hidden"}>↺ ${tt("Show all again","Mostrar todo otra vez")}</button>`:""}</div>
+     ${canWrite("settings")?`<button type="button" class="btn sm ghost" id="bcClear" title="${tt("Hide every bill charged up to now from this table (the bills stay saved)","Ocultar de esta tabla todas las cuentas cobradas hasta ahora (las cuentas siguen guardadas)")}">🧹 ${tt("Clear","Limpiar")}</button><button type="button" class="btn sm ghost" id="bcUnclear"${bcCleared()?"":" hidden"}>↺ ${tt("Show all again","Mostrar todo otra vez")}</button>`:""}
+     ${canSalesReset()?`<button type="button" class="btn sm ghost" id="salesReset" title="${tt("Administrator: permanently delete every sales record and every bill, then recalculate the whole Kardex and the inventory. Purchases, Kardex movements, waste and operating costs are kept.","Administrador: borra para siempre todas las ventas y todas las cuentas, y recalcula todo el Kardex y el inventario. Se conservan compras, movimientos del Kardex, mermas y costos operativos.")}">🗑 ${tt("Delete sales & bills","Borrar ventas y cuentas")}</button>`:""}</div>
     <div id="bcBox"></div>
     <p class="hint">${tt("For each bill number, by date: what the dishes and drinks sold for (subtotal less discount, without GST or tip) and what they cost — each line × its recipe's cost per portion with the Kardex weighted average cost, saved when the bill is charged. Cost of sales = Kardex cost + that day's operating costs (monthly total × 12 ÷ 365), shared among the day's bills by their sales. Days with no bills are not shown. ≈ = older bill, costed with today's weighted average. ! = a dish without a saved recipe or an ingredient without Kardex cost.","Por cada número de cuenta, por fecha: en cuánto se vendieron los platos y bebidas (subtotal menos descuento, sin GST ni propina) y cuánto costaron — cada línea × el costo por porción de su receta con el costo promedio ponderado del Kardex, guardado al cobrar. Costo de ventas = costo del Kardex + los costos operativos de ese día (total mensual × 12 ÷ 365), repartidos entre las cuentas del día según su venta. Los días sin cuentas no se muestran. ≈ = cuenta antigua, costeada con el promedio ponderado de hoy. ! = un plato sin receta guardada o un ingrediente sin costo en el Kardex.")}</p></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
@@ -4120,6 +4134,11 @@ function wireM3(){
     D.bill={...(D.bill||{}),costClearedAt:new Date().toISOString(),costClearedBy:who};
     b.disabled=false; b.classList.remove("armed"); b.textContent="🧹 "+tt("Clear","Limpiar"); if(g("bcUnclear")) g("bcUnclear").hidden=false;
     setHTML(g("bcBox"),billCostsHTML()); toast(tt("Cost of sales by bill cleared. The bills are still saved.","Costo de ventas por cuenta limpiado. Las cuentas siguen guardadas.")); };
+  if(g("salesReset")) g("salesReset").onclick=async e=>{ const b=e.currentTarget, lbl="🗑 "+tt("Delete sales & bills","Borrar ventas y cuentas");
+    if(!b.classList.contains("armed")){ b.classList.add("armed"); b.textContent=tt(`Delete ${D.sales.length} sales days and ${D.bills.length} bills for good? Click again`,`¿Borrar para siempre ${D.sales.length} días de ventas y ${D.bills.length} cuentas? Clic otra vez`); setTimeout(()=>{ if(b.isConnected&&!b.disabled){ b.classList.remove("armed"); b.textContent=lbl; } },6000); return; }
+    b.disabled=true; b.textContent="⏳ "+tt("Deleting and recalculating…","Borrando y recalculando…");
+    const r=await salesReset(); b.disabled=false; b.classList.remove("armed"); b.textContent=lbl; if(!r) return;
+    toast(tt(`Deleted ${r.sales} sales days and ${r.bills} bills. Kardex recalculated for ${r.items} items.`,`Se borraron ${r.sales} días de ventas y ${r.bills} cuentas. Kardex recalculado para ${r.items} artículos.`)); render(); };
   if(g("bcUnclear")) g("bcUnclear").onclick=async e=>{ const nb={...(D.bill||{})}; delete nb.costClearedAt; delete nb.costClearedBy;
     await dbSet("settings/bill",{...nb,costClearedAt:"",costClearedBy:""}); D.bill={...nb};
     e.currentTarget.hidden=true; setHTML(g("bcBox"),billCostsHTML()); toast(tt("All bills shown again.","Se muestran todas las cuentas otra vez.")); };
