@@ -2530,9 +2530,15 @@ function billCostOf(lines){ let cost=0, known=true; const out=[];
 const billRevenue=b=>cost2(num(b.subtotal)-num(b.discount));   // what the food and drinks sold for (no GST, no tip)
 function billCost(b){ if(b.cost!=null&&b.cost!=="") return {cost:num(b.cost),known:b.costKnown!==false,est:false}; const c=billCostOf(b.lines); return {cost:c.cost,known:c.known,est:true}; }
 let bcDays=30;
+// "Clear": hides from this table every bill charged up to that moment (the bills themselves stay saved — receipts, sales and Kardex untouched)
+const bcCleared=()=>String((D.bill&&D.bill.costClearedAt)||"");
+const bcTime=b=>{ const v=b.paid||b.created; const d=v?new Date(v):null; return d&&!isNaN(d)?d.getTime():new Date(String(b.date||"")+"T23:59:59").getTime(); };
+const bcShown=b=>{ const c=bcCleared(); return !c||!(bcTime(b)<=new Date(c).getTime()); };
+function bcClearNote(){ const c=bcCleared(); if(!c) return ""; const d=new Date(c);
+  return `<p class="hint">🧹 ${tt(`Cleared on ${kxStamp(d).slice(0,16).replace("T"," ")}${D.bill.costClearedBy?` by ${esc(D.bill.costClearedBy)}`:""} — only bills charged after that are shown. The bills are still saved.`,`Limpiado el ${kxStamp(d).slice(0,16).replace("T"," ")}${D.bill.costClearedBy?` por ${esc(D.bill.costClearedBy)}`:""} — solo se muestran las cuentas cobradas después. Las cuentas siguen guardadas.`)}</p>`; }
 function billCostsHTML(){
-  const since=bcDays?addDays(today(),-bcDays+1):"", bills=D.bills.filter(b=>b.status!=="void"&&(!since||String(b.date||"")>=since)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.paid||b.created||"").localeCompare(String(a.paid||a.created||"")));
-  if(!bills.length) return `<p class="empty">${tt("No bills in this period.","No hay cuentas en este periodo.")}</p>`;
+  const since=bcDays?addDays(today(),-bcDays+1):"", bills=D.bills.filter(b=>b.status!=="void"&&bcShown(b)&&(!since||String(b.date||"")>=since)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.paid||b.created||"").localeCompare(String(a.paid||a.created||"")));
+  if(!bills.length) return bcClearNote()+`<p class="empty">${tt("No bills in this period.","No hay cuentas en este periodo.")}</p>`;
   const days=[...new Set(bills.map(b=>b.date))], ox=cost2(opexDaily()); // operating costs of one day: part of that day's cost of sales
   const pct=(r,c)=>r>0?Math.round((r-c)/r*100)+"%":"—";
   let T={rev:0,cost:0,ox:0,n:0};
@@ -2547,7 +2553,7 @@ function billCostsHTML(){
         <td class="nw">${money2(rev-tot)}</td><td class="nw">${mg==null?"—":`<span class="badge ${mg<0?"bad":"ok"}">${Math.round(mg)}%</span>`}</td></tr>`; }).join("");
     T.rev+=dr; T.cost+=dc; T.ox+=dox; T.n+=bs.length;
     return `<tr class="dayrow"><td colspan="4"><b>${esc(d)}</b> · ${bs.length} ${tt("bill(s)","cuenta(s)")}</td><td class="nw"><b>${money2(dr)}</b></td><td class="nw"><b>${money2(dc)}</b></td><td class="nw"><b>${money2(dox)}</b></td><td class="nw"><b>${money2(dc+dox)}</b></td><td class="nw"><b>${money2(dr-dc-dox)}</b></td><td class="nw">${pct(dr,dc+dox)}</td></tr>`+lines; }).join("");
-  return (ox>0?"":`<p class="hint warnnote">⚠ ${tt("No operating costs entered yet — add them in “Operating costs” below so each day's cost of sales includes them.","Aún no hay costos operativos — agrégalos en “Costos operativos” abajo para que el costo de ventas de cada día los incluya.")}</p>`)
+  return bcClearNote()+(ox>0?"":`<p class="hint warnnote">⚠ ${tt("No operating costs entered yet — add them in “Operating costs” below so each day's cost of sales includes them.","Aún no hay costos operativos — agrégalos en “Costos operativos” abajo para que el costo de ventas de cada día los incluya.")}</p>`)
    +`<div class="tablewrap"><table class="dt bcost"><thead><tr><th>${tt("Time","Hora")}</th><th>${tt("Bill no.","N° de cuenta")}</th><th>${tt("Table","Mesa")}</th><th>${tt("Items","Ítems")}</th><th>${tt("Sales (no GST/tip)","Venta (sin GST/propina)")}</th><th>${tt("Cost (Kardex)","Costo (Kardex)")}</th><th>${tt("Operating costs (daily)","Costos operativos (diario)")}</th><th>${tt("Cost of sales","Costo de ventas")}</th><th>${tt("Net margin","Margen neto")}</th><th>%</th></tr></thead>
     <tbody>${rows}</tbody><tfoot><tr><td colspan="4"><b>${tt("Total","Total")}</b> · ${T.n} ${tt("bill(s)","cuenta(s)")} · ${days.length} ${tt("day(s)","día(s)")}</td><td class="nw"><b>${money2(T.rev)}</b></td><td class="nw"><b>${money2(T.cost)}</b></td><td class="nw"><b>${money2(T.ox)}</b></td><td class="nw"><b>${money2(T.cost+T.ox)}</b></td><td class="nw"><b>${money2(T.rev-T.cost-T.ox)}</b></td><td class="nw">${pct(T.rev,T.cost+T.ox)}</td></tr></tfoot></table></div>`;
 }
@@ -4024,7 +4030,8 @@ function m3(){
     <div class="stack"><div class="panel"><h3>${tt("Stock value","Valor del stock")}</h3><div id="m3Stock"></div></div></div>
    </div>
    <div class="panel" style="margin-top:20px"><div class="flexrow"><h3 style="margin:0">🧾 ${tt("Cost of sales by bill","Costo de ventas por cuenta")}</h3>
-     ${field("bcDays",tt("Period","Periodo"),`<select id="bcDays">${[[1,tt("Today","Hoy")],[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===bcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}</div>
+     ${field("bcDays",tt("Period","Periodo"),`<select id="bcDays">${[[1,tt("Today","Hoy")],[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===bcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
+     ${canWrite("settings")?`<button type="button" class="btn sm ghost" id="bcClear" title="${tt("Hide every bill charged up to now from this table (the bills stay saved)","Ocultar de esta tabla todas las cuentas cobradas hasta ahora (las cuentas siguen guardadas)")}">🧹 ${tt("Clear","Limpiar")}</button><button type="button" class="btn sm ghost" id="bcUnclear"${bcCleared()?"":" hidden"}>↺ ${tt("Show all again","Mostrar todo otra vez")}</button>`:""}</div>
     <div id="bcBox"></div>
     <p class="hint">${tt("For each bill number, by date: what the dishes and drinks sold for (subtotal less discount, without GST or tip) and what they cost — each line × its recipe's cost per portion with the Kardex weighted average cost, saved when the bill is charged. Cost of sales = Kardex cost + that day's operating costs (monthly total × 12 ÷ 365), shared among the day's bills by their sales. Days with no bills are not shown. ≈ = older bill, costed with today's weighted average. ! = a dish without a saved recipe or an ingredient without Kardex cost.","Por cada número de cuenta, por fecha: en cuánto se vendieron los platos y bebidas (subtotal menos descuento, sin GST ni propina) y cuánto costaron — cada línea × el costo por porción de su receta con el costo promedio ponderado del Kardex, guardado al cobrar. Costo de ventas = costo del Kardex + los costos operativos de ese día (total mensual × 12 ÷ 365), repartidos entre las cuentas del día según su venta. Los días sin cuentas no se muestran. ≈ = cuenta antigua, costeada con el promedio ponderado de hoy. ! = un plato sin receta guardada o un ingrediente sin costo en el Kardex.")}</p></div>
    <div class="panel" style="margin-top:20px"><h3>${tt("Operating costs","Costos operativos")}</h3>
@@ -4106,6 +4113,16 @@ function wireM3(){
   if(g("rangeBtns")) g("rangeBtns").onclick=e=>{const b=e.target.closest("[data-range]"); if(!b) return; range=+b.dataset.range; render();};
   if(g("tMargin")) g("tMargin").onchange=e=>dbSet("settings/costs",{...D.costs,_target:num(e.target.value)});
   if(g("bcDays")) g("bcDays").onchange=e=>{ bcDays=num(e.target.value); setHTML(g("bcBox"),billCostsHTML()); };
+  if(g("bcClear")) g("bcClear").onclick=async e=>{ const b=e.currentTarget;
+    if(!b.classList.contains("armed")){ b.classList.add("armed"); b.textContent=tt("Clear the table?","¿Limpiar la tabla?"); setTimeout(()=>{ if(b.isConnected){ b.classList.remove("armed"); b.textContent="🧹 "+tt("Clear","Limpiar"); } },5000); return; }
+    b.disabled=true; const who=SESSION?(SESSION.name||SESSION.user):"";
+    await dbSet("settings/bill",{...(D.bill||{}),costClearedAt:new Date().toISOString(),costClearedBy:who});
+    D.bill={...(D.bill||{}),costClearedAt:new Date().toISOString(),costClearedBy:who};
+    b.disabled=false; b.classList.remove("armed"); b.textContent="🧹 "+tt("Clear","Limpiar"); if(g("bcUnclear")) g("bcUnclear").hidden=false;
+    setHTML(g("bcBox"),billCostsHTML()); toast(tt("Cost of sales by bill cleared. The bills are still saved.","Costo de ventas por cuenta limpiado. Las cuentas siguen guardadas.")); };
+  if(g("bcUnclear")) g("bcUnclear").onclick=async e=>{ const nb={...(D.bill||{})}; delete nb.costClearedAt; delete nb.costClearedBy;
+    await dbSet("settings/bill",{...nb,costClearedAt:"",costClearedBy:""}); D.bill={...nb};
+    e.currentTarget.hidden=true; setHTML(g("bcBox"),billCostsHTML()); toast(tt("All bills shown again.","Se muestran todas las cuentas otra vez.")); };
   if(g("costBox")) g("costBox").addEventListener("change",e=>{const i=e.target.closest("[data-cost]"); if(i) dbSet("settings/costs",{...D.costs,[i.dataset.cost]:toCAD(i.value)});});
   if(g("sAI")) g("sAI").onclick=salesAI;
   if(g("opexBox")) wireOpex();
