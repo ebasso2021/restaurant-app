@@ -331,6 +331,9 @@ body.locked .wrap{display:none}
 .resdetail{margin-top:12px;padding:12px;background:var(--sunk);border-radius:10px;display:flex;flex-direction:column;gap:4px;font-size:14px}
 .dimtxt{color:var(--muted)}
 table.dt td.nw{white-space:nowrap}
+/* Cost per portion: full width, headers wrap so every column fits on screen */
+.costwide table.dt th{white-space:normal;vertical-align:bottom;line-height:1.25}
+.costwide table.dt td small{white-space:normal}
 table.dt td small{display:block;color:var(--muted);font-size:12px}
 table.dt input{width:84px;font:500 14px var(--mono);padding:4px 6px;border:1px solid transparent;border-radius:6px;background:var(--sunk);color:var(--ink)}
 table.dt input.txt{width:120px;font-family:var(--body)}
@@ -4036,11 +4039,9 @@ function m3(){
    </div>
 `;
   else if(m3Sub==="costs") body=`
-   <div class="grid">
-    <div class="stack">
-     <div class="panel"><h3>${tt("Cost per portion (Kardex weighted average)","Costo por porción (promedio ponderado del Kardex)")}</h3><div id="costBox"></div></div>
-    </div>
-    <div class="stack"><div class="panel"><h3>${tt("Stock value","Valor del stock")}</h3><div id="m3Stock"></div></div></div>
+   <div class="stack">
+    <div class="panel costwide"><h3>${tt("Cost per portion (Kardex weighted average)","Costo por porción (promedio ponderado del Kardex)")}</h3><div id="costBox"></div></div>
+    <div class="panel"><h3>${tt("Stock value","Valor del stock")}</h3><div id="m3Stock"></div></div>
    </div>
    <div class="panel" style="margin-top:20px"><div class="flexrow"><h3 style="margin:0">🧾 ${tt("Cost of sales by bill","Costo de ventas por cuenta")}</h3>
      ${field("bcDays",tt("Period","Periodo"),`<select id="bcDays">${[[1,tt("Today","Hoy")],[7,tt("7 days","7 días")],[30,tt("30 days","30 días")],[90,tt("90 days","90 días")],[0,tt("All","Todo")]].map(o=>`<option value="${o[0]}"${o[0]===bcDays?" selected":""}>${o[1]}</option>`).join("")}</select>`)}
