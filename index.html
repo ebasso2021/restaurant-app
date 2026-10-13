@@ -768,7 +768,7 @@ const tabsEl=document.getElementById("tabs"), main=document.getElementById("main
 function renderTabs(){
   const nav=tabsEl.closest("nav"); if(nav) nav.hidden=isGuest();
   if(isGuest()){ tabsEl.innerHTML=""; return; }
-  const items=[{id:"recipes",label:state.lang==="es"?"Recetas":"Recipes",c:"var(--accent)"},{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"menu",label:state.lang==="es"?"Menú":"Menu",c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"}];
+  const items=[{id:"recipes",label:state.lang==="es"?"Recetas":"Recipes",c:"var(--accent)"},{sep:1},{id:"ai",label:T(UI.ai),c:"var(--accent)"},{id:"menu",label:state.lang==="es"?"Menú":"Menu",c:"var(--accent)"},{id:"rules",label:T(UI.rules),c:"var(--accent)"},{id:"path",label:T(UI.path),c:"var(--accent)"},{id:"meetings",label:tt("Meetings","Reuniones"),c:"var(--accent)"}];
   tabsEl.innerHTML=items.map(it=>it.sep?'<span class="sep" aria-hidden="true"></span>':
     `<button role="tab" id="tab-${it.id}" aria-selected="${state.tab===it.id}" data-tab="${it.id}" style="--c:${it.c}"><span class="dot"></span>${it.label}</button>`).join("");
 }
@@ -1390,7 +1390,7 @@ async function saveFile(filename,text){
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:filename.endsWith(".csv")?"text/csv":"application/json"})); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); return true; }catch(e){ toast(tt("Could not save the file.","No se pudo guardar el archivo.")); return false; }
 }
 function toCSV(rows,fields){ const q=v=>{v=v==null?"":String(v); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}; return "\ufeff"+[fields.join(","),...rows.map(r=>fields.map(f=>q(r[f])).join(","))].join("\r\n"); }
-const D={kardex:[],inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},opex:{},kxMonths:{},staff:{}};
+const D={kardex:[],inventory:[],waste:[],reservations:[],sales:[],posts:[],reviews:[],tables:[],orders:[],menu:[],bills:[],recipes:[],costs:{},bill:{},path:{},meetings:{},opex:{},kxMonths:{},staff:{}};
 if(!state.aiView) state.aiView="overview";
 
 const LOADED=new Set(); // collections that have answered at least once
@@ -1774,10 +1774,12 @@ function startData(){
     DB.doc("settings/kardex").onSnapshot(s=>{D.kxMonths=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/staff").onSnapshot(s=>{D.staff=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/path").onSnapshot(s=>{D.path=s.exists?{...s.data()}:{};refreshAI();},()=>{});
+    DB.doc("settings/meetings").onSnapshot(s=>{D.meetings=s.exists?{...s.data()}:{};refreshAI();},()=>{});
     DB.doc("settings/opex").onSnapshot(s=>{D.opex=s.exists?{...s.data()}:{};refreshAI();},()=>{}); }
 }
 function startSheet(url){
   MODE="sheet"; DB=makeSheetDB(url); if(lsGet(LS_KEY)) SAMPLE=makeApiSample();
+  MDOCS={st:"idle",list:[]}; // never keep another user's document list
   capsReady=true; startData();
   document.getElementById("login").hidden=true; document.body.classList.remove("locked");
   renderUserBox(); render();
@@ -1960,6 +1962,7 @@ function refreshNow(){
     return; }
   if(state.tab==="menu"){ listMenu(); return; }
   if(state.tab==="path"){ const sig=JSON.stringify(D.path||{}); if(sig!==pathSig&&pathEdit==null){ pathSig=sig; render(); } return; }
+  if(state.tab==="meetings"){ const sig=JSON.stringify(D.meetings||{}); const ae=document.activeElement; if(sig!==mtgSig&&mtgEdit==null&&!(main.contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))){ mtgSig=sig; render(); } return; }
   if(state.tab!=="ai") return;
   const v=state.aiView;
   if(v==="m1") listM1(); else if(v==="m2") listM2(); else if(v==="m3") listM3(); else if(v==="m4") listM4(); else if(v==="m5") listM5(); else if(v==="tables") listTables(); else if(v==="kitchen") listOrders(); else if(v==="orders") listOrdPP(); else if(v==="bill") listBill();
@@ -4629,6 +4632,157 @@ function path(){
   </section>`;
 }
 
+/* ----- Meeting documents: admin only. Files live in a private Google Drive folder; the server checks the role. ----- */
+const MDOC_MAX=10*1024*1024;
+var MDOCS={st:"idle",list:[]};
+const docAdmin=()=>MODE==="sheet"&&!!SESSION&&SESSION.role==="admin";
+const fmtSize=n=>n>=1048576?(Math.round(n/104857.6)/10)+" MB":n>=1024?Math.round(n/1024)+" KB":n+" B";
+function mdocErr(e){
+  const c=e&&e.code;
+  if(c==="bad_collection"||c==="bad_action") toast(tt("Update the Google Apps Script (Deploy → New version) to use meeting documents.","Actualiza el Google Apps Script (Implementar → Nueva versión) para usar documentos de reuniones."));
+  else if(c==="too_big") toast(tt("The file is larger than 10 MB.","El archivo pesa más de 10 MB."));
+  else if(c==="forbidden") toast(tt("Only an administrator can use meeting documents.","Solo un administrador puede usar los documentos de reuniones."));
+  else toast(tt("Couldn't reach the documents. Try again.","No se pudo acceder a los documentos. Inténtalo de nuevo.")+(e&&e.message?" ("+e.message+")":""));
+}
+async function mdocsLoad(force){
+  if(!docAdmin()||(!force&&MDOCS.st!=="idle")) return;
+  MDOCS.st="loading"; paintDocs();
+  try{ const j=await sheetCall(serverUrl(),{action:"mdocs_list"}); MDOCS={st:"ok",list:j.docs||[]}; }
+  catch(e){ MDOCS={st:"err",list:[],err:e}; }
+  paintDocs();
+}
+function paintDocs(){
+  document.querySelectorAll("[data-mdocs]").forEach(el=>{
+    const id=el.dataset.mdocs, docs=MDOCS.list.filter(d=>d.meeting===id).sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+    const body=MDOCS.st==="loading"||MDOCS.st==="idle"?`<p class="hint">${tt("Loading documents…","Cargando documentos…")}</p>`
+      :MDOCS.st==="err"?`<p class="hint">${MDOCS.err&&(MDOCS.err.code==="bad_collection"||MDOCS.err.code==="bad_action")?tt("Update the Google Apps Script (Deploy → New version) to use documents.","Actualiza el Google Apps Script (Implementar → Nueva versión) para usar documentos."):tt("Couldn't load the documents.","No se pudieron cargar los documentos.")} <button type="button" class="btn sm ghost" data-mdreload="1">↻ ${tt("Retry","Reintentar")}</button></p>`
+      :docs.length?`<ul class="plain" style="list-style:none;padding:0;margin:8px 0">${docs.map(d=>`<li style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0">📄 <b>${esc(d.name)}</b> <span class="dimtxt">· ${fmtSize(d.size||0)}${d.by?" · "+esc(d.by):""}${d.at?" · "+esc(new Date(d.at).toLocaleDateString(state.lang==="es"?"es-CA":"en-CA")):""}</span>
+          <button type="button" class="btn sm ghost" data-mdget="${esc(d.id)}">⬇ ${tt("Open","Abrir")}</button>
+          <button type="button" class="btn sm ghost" data-mddel="${esc(d.id)}">🗑</button></li>`).join("")}</ul>`
+      :`<p class="hint">${tt("No documents yet.","Todavía no hay documentos.")}</p>`;
+    el.innerHTML=`<b>📎 ${tt("Documents","Documentos")}</b> <span class="badge">🔒 ${tt("Admin only","Solo administrador")}</span>${body}
+      <label class="btn sm ghost" style="cursor:pointer">⬆ ${tt("Add documents","Agregar documentos")}<input type="file" multiple hidden data-mdup="${esc(id)}"></label>`;
+  });
+}
+const fileB64=f=>new Promise((ok,ko)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]||""); r.onerror=()=>ko(r.error); r.readAsDataURL(f); });
+async function mdocsUpload(meetingId,files){
+  if(!docAdmin()) return toast(tt("Only an administrator can add documents.","Solo un administrador puede agregar documentos."));
+  files=[...(files||[])]; if(!files.length) return;
+  let n=0;
+  for(const f of files){
+    if(f.size>MDOC_MAX){ toast(tt(`"${f.name}" is larger than 10 MB.`,`"${f.name}" pesa más de 10 MB.`)); continue; }
+    toast(tt(`Uploading "${f.name}"…`,`Subiendo "${f.name}"…`));
+    try{ const j=await sheetCall(serverUrl(),{action:"mdocs_upload",meeting:meetingId,name:f.name,type:f.type||"application/octet-stream",data:await fileB64(f)});
+      if(j.doc){ if(!MDOCS.list.some(x=>x.id===j.doc.id)) MDOCS.list=[...MDOCS.list,j.doc]; if(MDOCS.st!=="ok") MDOCS.st="ok"; } n++; paintDocs(); }
+    catch(e){ mdocErr(e); }
+  }
+  if(n) toast(tt(`${n} document(s) added.`,`${n} documento(s) agregado(s).`));
+}
+async function mdocsOpen(id,btn){
+  const w=window.open("","_blank"); // opened now so the browser does not block it
+  if(btn) btn.disabled=true;
+  try{ const j=await sheetCall(serverUrl(),{action:"mdocs_get",id});
+    const bin=atob(j.data||""), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+    const url=URL.createObjectURL(new Blob([u8],{type:j.type||"application/octet-stream"}));
+    if(w&&/^(application\/pdf|image\/|text\/plain)/.test(j.type||"")) w.location.href=url;
+    else { if(w) w.close(); const a=document.createElement("a"); a.href=url; a.download=j.name||"document"; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){ if(w) w.close(); mdocErr(e); }
+  finally{ if(btn) btn.disabled=false; }
+}
+async function mdocsDelete(id){
+  try{ await sheetCall(serverUrl(),{action:"mdocs_delete",id}); MDOCS.list=MDOCS.list.filter(d=>d.id!==id); paintDocs(); toast(tt("Document deleted.","Documento eliminado.")); }
+  catch(e){ mdocErr(e); }
+}
+
+/* ----- Meetings: schedule, notes and action items, saved in settings/meetings ----- */
+let mtgEdit=null, mtgSig="";
+const mtgList=()=>{ const l=(D.meetings||{}).items; return Array.isArray(l)?l:[]; };
+const mtgCan=()=>!!DB&&canWrite("settings");
+async function mtgSave(list,msg){ await dbSet("settings/meetings",{...(D.meetings||{}),items:list}); D.meetings={...(D.meetings||{}),items:list}; mtgEdit=null; render(); if(msg) toast(msg); }
+function mtgCard(m){
+  const ed=mtgEdit===m.id, can=mtgCan(), past=(m.date||"")<today();
+  const when=m.date?new Date(m.date+"T12:00").toLocaleDateString(state.lang==="es"?"es-CA":"en-CA",{weekday:"short",year:"numeric",month:"short",day:"numeric"}):"";
+  if(ed) return `<div class="panel" data-mt="${esc(m.id)}"><h4>✎ ${tt("Edit meeting","Editar reunión")}</h4>${mtgForm(m)}</div>`;
+  return `<div class="panel${m.done?" done":""}" data-mt="${esc(m.id)}">
+    <h4>${esc(m.title||tt("(no title)","(sin título)"))} ${m.done?`<span class="badge ok">✓ ${tt("Held","Realizada")}</span>`:past?`<span class="badge">${tt("Past","Pasada")}</span>`:""}</h4>
+    <p class="hint">📅 ${esc(when)}${m.time?" · 🕒 "+esc(m.time)+(m.end?" – "+esc(m.end):""):""}${m.place?" · 📍 "+esc(m.place):""}</p>
+    ${m.people?`<p>👥 ${esc(m.people)}</p>`:""}
+    ${m.agenda?`<div class="pnote"><b>${tt("Agenda","Agenda")}:</b> ${esc(m.agenda).replace(/\n/g,"<br>")}</div>`:""}
+    ${m.notes?`<div class="pnote">📝 ${esc(m.notes).replace(/\n/g,"<br>")}</div>`:""}
+    ${m.actions?`<div class="pnote">✅ <b>${tt("Action items","Tareas")}:</b> ${esc(m.actions).replace(/\n/g,"<br>")}</div>`:""}
+    ${docAdmin()?`<div class="pnote" data-mdocs="${esc(m.id)}"></div>`:""}
+    ${can?`<div class="acts"><button type="button" class="btn sm ghost" data-medit="${esc(m.id)}">✎ ${tt("Edit","Editar")}</button>
+      <button type="button" class="btn sm${m.done?" ghost":""}" data-mdone="${esc(m.id)}" aria-pressed="${!!m.done}">${m.done?"↺ "+tt("Mark as not held","Marcar como no realizada"):"✓ "+tt("Mark as held","Marcar como realizada")}</button>
+      <button type="button" class="btn sm ghost" data-mdel="${esc(m.id)}">🗑 ${tt("Delete","Eliminar")}</button></div>`:""}
+  </div>`;
+}
+function mtgForm(m){
+  m=m||{}; const k=m.id?"e":"n";
+  return `<form class="fgrid" data-mform="${esc(m.id||"")}">
+    ${field("mTitle"+k,tt("Title","Título"),`<input id="mTitle${k}" required maxlength="120" value="${esc(m.title||"")}">`)}
+    ${field("mDate"+k,tt("Date","Fecha"),`<input id="mDate${k}" type="date" required value="${esc(m.date||today())}">`)}
+    ${field("mTime"+k,tt("Start time","Hora de inicio"),`<input id="mTime${k}" type="time" value="${esc(m.time||"")}">`)}
+    ${field("mEnd"+k,tt("End time","Hora de fin"),`<input id="mEnd${k}" type="time" value="${esc(m.end||"")}">`)}
+    ${field("mPlace"+k,tt("Place or link","Lugar o enlace"),`<input id="mPlace${k}" maxlength="200" value="${esc(m.place||"")}">`)}
+    ${field("mPeople"+k,tt("Attendees","Participantes"),`<input id="mPeople${k}" maxlength="300" value="${esc(m.people||"")}">`)}
+    <div class="f full"><label for="mAgenda${k}">${tt("Agenda","Agenda")}</label><textarea id="mAgenda${k}" rows="3" maxlength="2000">${esc(m.agenda||"")}</textarea></div>
+    <div class="f full"><label for="mNotes${k}">${tt("Notes / minutes","Notas / acta")}</label><textarea id="mNotes${k}" rows="3" maxlength="3000">${esc(m.notes||"")}</textarea></div>
+    <div class="f full"><label for="mActions${k}">${tt("Action items (who does what, by when)","Tareas (quién hace qué y para cuándo)")}</label><textarea id="mActions${k}" rows="3" maxlength="2000">${esc(m.actions||"")}</textarea></div>
+    ${!m.id&&docAdmin()?`<div class="f full"><label for="mFiles${k}">📎 ${tt("Documents (admin only, max 10 MB each)","Documentos (solo administrador, máx. 10 MB c/u)")}</label><input id="mFiles${k}" type="file" multiple></div>`:""}
+    <div class="acts"><button class="btn" type="submit">💾 ${m.id?tt("Save changes","Guardar cambios"):tt("Add meeting","Agregar reunión")}</button>${m.id?`<button type="button" class="btn ghost" data-mcancel="1">${tt("Cancel","Cancelar")}</button>`:""}</div>
+  </form>`;
+}
+function meetings(){
+  const all=mtgList().slice().sort((a,b)=>((a.date||"")+(a.time||"")).localeCompare((b.date||"")+(b.time||"")));
+  const t=today(), up=all.filter(m=>(m.date||"")>=t&&!m.done), past=all.filter(m=>!((m.date||"")>=t&&!m.done)).reverse();
+  return `<section class="meetings" style="--pc:var(--accent);--pc2:var(--accent)">
+   <div class="hero"><div><div class="eyebrow">Taste of Peru</div><h2>${tt("Meetings","Reuniones")}</h2><p>${tt("Plan team, supplier and partner meetings, keep the minutes and track the action items.","Planifica reuniones con el equipo, proveedores y socios, guarda el acta y da seguimiento a las tareas.")}</p></div></div>
+   ${!DB?`<p class="note">${tt("Open the app in Claude (or sign in on the website) to save meetings.","Abre la app en Claude (o inicia sesión en la web) para guardar reuniones.")}</p>`:!mtgCan()?`<p class="note">${tt("Read only for your role.","Solo lectura para tu rol.")}</p>`:""}
+   ${mtgCan()?`<div class="panel"><h3>${tt("New meeting","Nueva reunión")}</h3>${mtgForm(null)}</div>`:""}
+   <h3>${tt("Upcoming","Próximas")} (${up.length})</h3>
+   ${up.length?up.map(mtgCard).join(""):`<p class="hint">${tt("No upcoming meetings.","No hay reuniones próximas.")}</p>`}
+   <h3>${tt("Past and held","Pasadas y realizadas")} (${past.length})</h3>
+   ${past.length?past.map(mtgCard).join(""):`<p class="hint">${tt("Nothing here yet.","Todavía no hay nada aquí.")}</p>`}
+  </section>`;
+}
+function wireMeetings(){
+  const box=main.querySelector(".meetings"); if(!box) return;
+  box.onsubmit=async e=>{
+    const f=e.target.closest("[data-mform]"); if(!f) return; e.preventDefault();
+    if(!mtgCan()) return noDb();
+    const id=f.dataset.mform, k=id?"e":"n", v=x=>(document.getElementById(x+k)?.value||"").trim();
+    const data={title:v("mTitle").slice(0,120),date:v("mDate"),time:v("mTime"),end:v("mEnd"),place:v("mPlace").slice(0,200),people:v("mPeople").slice(0,300),
+      agenda:v("mAgenda").slice(0,2000),notes:v("mNotes").slice(0,3000),actions:v("mActions").slice(0,2000),updated:new Date().toISOString()};
+    if(!data.title||!data.date) return toast(tt("Add a title and a date.","Agrega un título y una fecha."));
+    if(data.time&&data.end&&data.end<=data.time) return toast(tt("The end time must be after the start time.","La hora de fin debe ser después de la hora de inicio."));
+    const files=!id&&docAdmin()?[...(document.getElementById("mFilesn")?.files||[])]:[];
+    const list=mtgList();
+    if(id) await mtgSave(list.map(m=>m.id===id?{...m,...data}:m),tt("Meeting updated.","Reunión actualizada."));
+    else { const nid="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      await mtgSave([...list,{id:nid,done:false,by:SESSION?SESSION.name||SESSION.user:"",...data}],tt("Meeting added.","Reunión agregada."));
+      if(files.length) await mdocsUpload(nid,files); }
+  };
+  box.onclick=async e=>{
+    const d=e.target.closest("[data-mdget],[data-mddel],[data-mdreload]");
+    if(d){ if(!docAdmin()) return;
+      if(d.dataset.mdreload!=null) return mdocsLoad(true);
+      if(d.dataset.mdget!=null) return mdocsOpen(d.dataset.mdget,d);
+      if(d.dataset.mddel!=null){ if(d.dataset.sure!=="1"){ d.dataset.sure="1"; d.textContent="⚠ "+tt("Click again to delete","Haz clic otra vez para eliminar"); return; } return mdocsDelete(d.dataset.mddel); } }
+    const b=e.target.closest("[data-medit],[data-mcancel],[data-mdone],[data-mdel]"); if(!b) return;
+    if(!mtgCan()) return noDb();
+    if(b.dataset.medit!=null){ mtgEdit=b.dataset.medit; render(); document.getElementById("mTitlee")?.focus(); return; }
+    if(b.dataset.mcancel!=null){ mtgEdit=null; render(); return; }
+    const list=mtgList();
+    if(b.dataset.mdone!=null){ const id=b.dataset.mdone; await mtgSave(list.map(m=>m.id===id?{...m,done:!m.done}:m)); return; }
+    if(b.dataset.mdel!=null){ const id=b.dataset.mdel, m=list.find(x=>x.id===id);
+      if(b.dataset.sure!=="1"){ b.dataset.sure="1"; b.textContent="⚠ "+tt("Click again to delete","Haz clic otra vez para eliminar"); return; }
+      await mtgSave(list.filter(x=>x.id!==id),tt("Meeting deleted.","Reunión eliminada.")+(m&&m.title?" ("+m.title+")":""));
+      if(docAdmin()) for(const doc of MDOCS.list.filter(x=>x.meeting===id)) await mdocsDelete(doc.id); }
+  };
+  box.onchange=e=>{ const inp=e.target.closest("[data-mdup]"); if(!inp) return; const fs=[...inp.files]; inp.value=""; mdocsUpload(inp.dataset.mdup,fs); };
+}
+
 function render(){
   document.documentElement.lang=state.lang;
   document.getElementById("btnEn").setAttribute("aria-pressed",state.lang==="en");
@@ -4644,6 +4798,7 @@ function render(){
   else if(state.tab==="ai"){ main.innerHTML=aiSys(); wireAI(); }
   else if(state.tab==="menu"){ main.innerHTML=menuView(); wireMenu(); listMenu(); }
   else if(state.tab==="path"){ main.innerHTML=path(); wirePath(); pathSig=JSON.stringify(D.path||{}); }
+  else if(state.tab==="meetings"){ main.innerHTML=meetings(); wireMeetings(); mtgSig=JSON.stringify(D.meetings||{}); if(docAdmin()){ if(MDOCS.st==="idle") mdocsLoad(); else paintDocs(); } }
   else main.innerHTML=rules();
   renderUserBox(); renderCurBox();
 }

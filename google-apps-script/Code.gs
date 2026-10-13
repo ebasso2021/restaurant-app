@@ -199,7 +199,7 @@ function doPost(e) {
   try { body = JSON.parse(e.postData && e.postData.contents || "{}"); } catch (err) { return out_({ ok: false, error: "bad_json" }); }
   return handle_(body);
 }
-const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1, versions: 1, guest: 1 };
+const LOCK_FREE = { ping: 1, me: 1, list: 1, users_list: 1, logout: 1, versions: 1, guest: 1, mdocs_list: 1, mdocs_get: 1 };
 /* ---- change versions: every write stamps its tab, so the app only re-reads tabs that changed ---- */
 const TOUCHED_ = {};
 function touch_(col) { if (SHEETS[col]) TOUCHED_[col] = 1; }
@@ -271,6 +271,13 @@ function handle_(req) {
       return out_({ ok: false, error: "bad_action" });
     }
 
+    // meeting documents: admin only (checked here, on the server)
+    if (action.indexOf("mdocs_") === 0) {
+      if (!s) return out_({ ok: false, error: "auth" });
+      if (s.role !== "admin") return out_({ ok: false, error: "forbidden" });
+      try { return out_(mdocs_(action, req, s)); } catch (err) { return out_({ ok: false, error: "server", message: String(err && err.message || err) }); }
+    }
+
     if (!SHEETS[col]) return out_({ ok: false, error: "bad_collection" });
     if (action === "list") {
       if (!s) return out_({ ok: false, error: "auth" });
@@ -325,6 +332,54 @@ function deleteOp_(s, col, id) {
   if (col === "sales") salesDetail_(id, null);
   touch_(col);
   return { ok: true };
+}
+
+/* ---------------- meeting documents (admin only) ----------------
+ * Files are kept in a private Google Drive folder of the script owner ("Taste of Peru – Documentos de reuniones").
+ * Only a signed-in admin can upload, list, download or delete them; other roles never see them.
+ * The first time after updating this code, run any function (or redeploy) and accept the new Google Drive permission. */
+const MDOC_MAX = 10 * 1024 * 1024; // 10 MB per file
+function mdocsFolder_() {
+  const p = PropertiesService.getScriptProperties(), id = p.getProperty("mdocs_folder");
+  if (id) { try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
+  const f = DriveApp.createFolder("Taste of Peru – Documentos de reuniones (privado)");
+  p.setProperty("mdocs_folder", f.getId());
+  return f;
+}
+function mdocInfo_(f) {
+  let m = {}; try { m = JSON.parse(f.getDescription() || "{}"); } catch (e) {}
+  return { id: f.getId(), name: f.getName(), size: f.getSize(), type: f.getMimeType(), meeting: String(m.m || ""), by: String(m.by || ""), at: String(m.at || "") };
+}
+function mdocFile_(id) { // only files inside the documents folder
+  id = String(id || ""); if (!/^[A-Za-z0-9_\-]{10,100}$/.test(id)) return null;
+  try {
+    const f = DriveApp.getFileById(id), folderId = mdocsFolder_().getId(), ps = f.getParents();
+    while (ps.hasNext()) if (ps.next().getId() === folderId) return f.isTrashed() ? null : f;
+  } catch (e) {}
+  return null;
+}
+function mdocs_(action, req, s) {
+  const mid = String(req.meeting || "");
+  if (action === "mdocs_list") {
+    const out = [], it = mdocsFolder_().getFiles();
+    while (it.hasNext()) { const f = it.next(); if (f.isTrashed()) continue; const d = mdocInfo_(f); if (!mid || d.meeting === mid) out.push(d); }
+    return { ok: true, docs: out };
+  }
+  if (action === "mdocs_upload") {
+    if (!/^[A-Za-z0-9_\-]{1,60}$/.test(mid)) return { ok: false, error: "bad_request" };
+    const name = String(req.name || "").replace(/[\u0000-\u001f\/\\]/g, " ").trim().slice(0, 150) || "documento";
+    const type = /^[\w.+\-]+\/[\w.+\-]+$/.test(String(req.type || "")) ? String(req.type) : "application/octet-stream";
+    let bytes; try { bytes = Utilities.base64Decode(String(req.data || "")); } catch (e) { return { ok: false, error: "bad_request" }; }
+    if (!bytes.length) return { ok: false, error: "bad_request" };
+    if (bytes.length > MDOC_MAX) return { ok: false, error: "too_big" };
+    const f = mdocsFolder_().createFile(Utilities.newBlob(bytes, type, name));
+    f.setDescription(JSON.stringify({ m: mid, by: s.name || s.user, at: new Date().toISOString() }));
+    return { ok: true, doc: mdocInfo_(f) };
+  }
+  const f = mdocFile_(req.id); if (!f) return { ok: false, error: "not_found" };
+  if (action === "mdocs_get") { const b = f.getBlob(); return { ok: true, name: f.getName(), type: b.getContentType(), data: Utilities.base64Encode(b.getBytes()) }; }
+  if (action === "mdocs_delete") { f.setTrashed(true); return { ok: true }; }
+  return { ok: false, error: "bad_action" };
 }
 
 /* ---------------- spreadsheet menu: create the first admin and manage users ---------------- */
