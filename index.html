@@ -17,8 +17,8 @@ small.bcode input{width:160px;max-width:100%;font:12px var(--mono)}
 tr.bchit td{background:var(--ok-bg)!important}
 .lbprev{overflow:auto;margin-top:10px;max-width:100%}
 .lbprev iframe{display:block;border:1px solid var(--line);background:#fff;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-</style><meta name="theme-color" content="#5B2366"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Taste of Peru"><meta name="format-detection" content="telephone=no"><link rel="apple-touch-icon" href="img/icon-180.png"><link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png"></head><body>
-<title>Taste of Peru</title>
+</style><meta name="theme-color" content="#5B2366"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="MishKi"><meta name="format-detection" content="telephone=no"><link rel="apple-touch-icon" href="img/icon-180.png"><link rel="icon" type="image/png" sizes="192x192" href="img/icon-192.png"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png"></head><body>
+<title>MishKi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -296,7 +296,7 @@ body.locked .wrap{display:none}
 @media (max-width:600px){.builtby img{height:22px}}
 @media print{.builtby{display:none}}
 .loginwrap{position:fixed;inset:0;z-index:50;overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:24px 16px;box-sizing:border-box;
-  background:url("img/taste-of-peru-login.jpg") center/min(100vw,100vh,1024px) no-repeat,#000}
+  background:url("img/MishKi_logo.png") center/min(100vw,100vh,1024px) no-repeat,#000}
 @media (max-width:899px){.loginwrap{align-items:flex-start;padding-top:calc(min(92vw,440px) * .80);background-position:center 8px;background-size:min(92vw,440px)}}
 .loginCard{width:100%;max-width:400px;background:var(--surface);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:24px;
   box-shadow:0 12px 40px rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
@@ -420,7 +420,7 @@ small.packf input{width:56px!important;padding:2px 4px!important;font-size:12px!
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1 id="appTitle">Taste of Peru</h1>
+      <h1 id="appTitle">MishKi</h1>
       <p id="appSub"></p>
     </div>
     <div id="userBox" class="userbox" hidden></div>
@@ -1310,15 +1310,15 @@ function aiOverview(){
    ["Reviews and reputation","Analyzes reviews and spots complaint patterns."]
   ];
   const mods=es?[
-   ["Atención al cliente",["Chatbot para WhatsApp, Instagram y web","Reservas automáticas","Confirmación de mesas","Recomendaciones personalizadas"],"Para Taste of Peru: responder alérgenos (leche, sulfitos) y la nota “no pasteurizado” sin prometer beneficios de salud."],
-   ["Cocina e inventario",["Control de stock en tiempo real","Alertas de faltantes","Predicción de demanda por hora","Órdenes de compra automáticas"],"Para Taste of Peru: stock de pulpas congeladas, maíz morado, quinua y maca; conectar con las calculadoras de lote y los registros de PCC (temperaturas, descongelación)."],
-   ["Ventas y análisis",["Dashboard de ventas, márgenes y platos más rentables","Detección de productos que rotan pero no dejan utilidad","Proyecciones diarias y semanales"],"Para Taste of Peru: costo por vaso de cada bebida a partir de las recetas de esta app."],
+   ["Atención al cliente",["Chatbot para WhatsApp, Instagram y web","Reservas automáticas","Confirmación de mesas","Recomendaciones personalizadas"],"Para MishKi: responder alérgenos (leche, sulfitos) y la nota “no pasteurizado” sin prometer beneficios de salud."],
+   ["Cocina e inventario",["Control de stock en tiempo real","Alertas de faltantes","Predicción de demanda por hora","Órdenes de compra automáticas"],"Para MishKi: stock de pulpas congeladas, maíz morado, quinua y maca; conectar con las calculadoras de lote y los registros de PCC (temperaturas, descongelación)."],
+   ["Ventas y análisis",["Dashboard de ventas, márgenes y platos más rentables","Detección de productos que rotan pero no dejan utilidad","Proyecciones diarias y semanales"],"Para MishKi: costo por vaso de cada bebida a partir de las recetas de esta app."],
    ["Marketing",["Generación automática de contenido","Optimización de anuncios","Publicaciones programadas","Análisis de engagement"],"Filtro obligatorio: nada de afirmaciones de salud marcadas como falsas o no verificadas en las pestañas de producto."],
    ["Reseñas y reputación",["Respuestas automáticas a reseñas","Detección de problemas recurrentes","Reportes semanales"],"Revisa a mano las respuestas sobre quejas de salud o intoxicación antes de publicarlas."]
   ]:[
-   ["Customer service",["Chatbot for WhatsApp, Instagram and web","Automatic bookings","Table confirmation","Personalized recommendations"],"For Taste of Peru: answer allergen (milk, sulphites) and “unpasteurized” questions without promising health benefits."],
-   ["Kitchen and inventory",["Real-time stock control","Shortage alerts","Hourly demand forecast","Automatic purchase orders"],"For Taste of Peru: stock of frozen pulps, purple corn, quinoa and maca; link to the batch calculators and CCP logs (temperatures, thawing)."],
-   ["Sales and analytics",["Dashboard of sales, margins and most profitable items","Spot items that sell but don't make money","Daily and weekly sales projections"],"For Taste of Peru: cost per cup for each drink, from this app's recipes."],
+   ["Customer service",["Chatbot for WhatsApp, Instagram and web","Automatic bookings","Table confirmation","Personalized recommendations"],"For MishKi: answer allergen (milk, sulphites) and “unpasteurized” questions without promising health benefits."],
+   ["Kitchen and inventory",["Real-time stock control","Shortage alerts","Hourly demand forecast","Automatic purchase orders"],"For MishKi: stock of frozen pulps, purple corn, quinoa and maca; link to the batch calculators and CCP logs (temperatures, thawing)."],
+   ["Sales and analytics",["Dashboard of sales, margins and most profitable items","Spot items that sell but don't make money","Daily and weekly sales projections"],"For MishKi: cost per cup for each drink, from this app's recipes."],
    ["Marketing",["Automatic content generation","Ad optimization","Scheduled posts","Engagement analysis"],"Required filter: no health claims marked false or unverified on the product tabs."],
    ["Reviews and reputation",["Automatic review replies","Recurring-problem detection","Weekly reports"],"Check replies about illness or food-safety complaints by hand before posting."]
   ];
@@ -1464,7 +1464,7 @@ function settingsView(){
   if(MODE==="claude") return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Data and AI","Datos e IA"),tt("You're using the app inside Claude: data is saved in Claude and AI uses your Claude account. Nothing to set up here.","Estás usando la app dentro de Claude: los datos se guardan en Claude y la IA usa tu cuenta de Claude. No hay nada que configurar aquí."))}</section>`;
   const me=`<div class="panel" style="margin-bottom:20px"><h3>${tt("My session","Mi sesión")}</h3><p>👤 <b>${esc(SESSION?SESSION.name||SESSION.user:"")}</b> (${esc(SESSION?SESSION.user:"")}) · ${esc(SESSION?roleName(SESSION.role):"")}</p><p class="hint">${tt("Sessions end after 6 hours or when you close this browser tab.","La sesión termina a las 6 horas o al cerrar esta pestaña del navegador.")}</p></div>`;
   if(!admin) return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Your account","Tu cuenta"),tt("Only administrators can change settings and users.","Solo los administradores pueden cambiar ajustes y usuarios."))}${me}</section>`;
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Users, data and AI","Usuarios, datos e IA"),tt("Data is saved in the Google Sheet “Taste of Peru – datos” in Google Drive. Every user signs in with their own username and password.","Los datos se guardan en la hoja “Taste of Peru – datos” de Google Drive. Cada usuario entra con su propio usuario y contraseña."))}
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${head(tt("Settings","Ajustes"),tt("Users, data and AI","Usuarios, datos e IA"),tt("Data is saved in the Google Sheet “MishKi – datos” in Google Drive. Every user signs in with their own username and password.","Los datos se guardan en la hoja “MishKi – datos” de Google Drive. Cada usuario entra con su propio usuario y contraseña."))}
    ${me}${usersPanel()}
    <div class="panel" style="margin-bottom:20px"><h3>${tt("Server","Servidor")}</h3><p class="hint" style="word-break:break-all">${esc(serverUrl())}</p>
     <form id="sheetForm" class="fgrid">${field("sUrl",tt("New Apps Script web app URL (ends in /exec)","Nueva URL de la app web de Apps Script (termina en /exec)"),`<input id="sUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec">`)}<button class="btn ghost" type="submit">${tt("Change server","Cambiar servidor")}</button></form><p class="hint" id="sMsg" aria-live="polite"></p></div>
@@ -1499,8 +1499,8 @@ function wireSettings(){
   const bkBusy=on=>{ document.getElementById("expBtn").disabled=on; document.getElementById("impFile").disabled=on; };
   let bkUrl=null;
   document.getElementById("expBtn").onclick=async()=>{ bkBusy(true); bk(tt("Reading every tab of the Google Sheet…","Leyendo todas las pestañas de la hoja de Google…"));
-    try{ const data=await DB._dump(), n=Object.keys(data).length, name="taste-of-peru-backup-"+today()+".json";
-      const text=JSON.stringify({app:"taste-of-peru",version:1,exported:new Date().toISOString(),count:n,data},null,2);
+    try{ const data=await DB._dump(), n=Object.keys(data).length, name="mishki-backup-"+today()+".json";
+      const text=JSON.stringify({app:"mishki",version:1,exported:new Date().toISOString(),count:n,data},null,2);
       if(DL){ if(await saveFile(name,text)) bk(tt(`Backup downloaded (${n} records).`,`Respaldo descargado (${n} registros).`)); else bk(""); return; }
       // website: start the download, and also leave a link — a browser may block a download that starts several seconds after the click
       if(bkUrl) URL.revokeObjectURL(bkUrl); bkUrl=URL.createObjectURL(new Blob([text],{type:"application/json"}));
@@ -1511,7 +1511,7 @@ function wireSettings(){
       :tt("Backup NOT downloaded: ","Respaldo NO descargado: ")+String(err&&(err.message||err.code)||err)); }
     finally{ bkBusy(false); } };
   document.getElementById("impFile").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return;
-    let j; try{ j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object"||Array.isArray(j.data)||(j.app&&j.app!=="taste-of-peru")) throw 0; }
+    let j; try{ j=JSON.parse(await f.text()); if(!j||typeof j.data!=="object"||Array.isArray(j.data)||(j.app&&j.app!=="mishki"&&j.app!=="taste-of-peru")) throw 0; }
     catch(err){ bk(tt("That file is not a valid backup.","Ese archivo no es un respaldo válido.")); return; }
     const n=Object.keys(j.data).length; if(!n){ bk(tt("That backup has no records.","Ese respaldo no tiene registros.")); return; }
     if(!confirm(tt(`Copy ${n} records from this backup (${String(j.exported||"").slice(0,10)}) into the Google Sheet? Records with the same ID are replaced; others are kept.`,`¿Copiar ${n} registros de este respaldo (${String(j.exported||"").slice(0,10)}) a la hoja de Google? Los registros con el mismo ID se reemplazan; los demás se conservan.`))) return;
@@ -1723,7 +1723,7 @@ function showLogin(msg){
   const needUrl=!serverUrl();
   box.innerHTML=`<div class="loginCard" role="dialog" aria-labelledby="loginTitle">
     <div class="lang" role="group" aria-label="Language" style="float:right"><button type="button" data-lang="en" aria-pressed="${state.lang==="en"}">EN</button><button type="button" data-lang="es" aria-pressed="${state.lang==="es"}">ES</button></div>
-    <h1 id="loginTitle">Taste of Peru</h1>
+    <h1 id="loginTitle">MishKi</h1>
     <p class="dimtxt">${tt("Sign in to continue","Inicia sesión para continuar")}</p>
     <form id="loginForm">
       <div class="f" ${needUrl?"":"hidden"} id="urlRow"><label for="lgUrl">${tt("Server URL (Apps Script, ends in /exec) — only the first time","URL del servidor (Apps Script, termina en /exec) — solo la primera vez")}</label><input id="lgUrl" type="url" value="${esc(serverUrl())}" placeholder="https://script.google.com/macros/s/.../exec"></div>
@@ -1915,7 +1915,7 @@ function aiSys(){
   if(!canView(state.aiView)) state.aiView=(ROLE_VIEWS[myRole()]||[])[0]||MODS.find(m=>canView(m.id)).id;
   const v=state.aiView;
   const banner = !capsReady ? `<p class="capnote">${tt("Connecting to data and AI…","Conectando con datos e IA…")}</p>`
-    : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “Taste of Peru – datos”.","Datos: hoja de Google “Taste of Peru – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
+    : MODE!=="claude" ? `<p class="capnote">${tt("Data: Google Sheet “MishKi – datos”.","Datos: hoja de Google “MishKi – datos”.")} ${SAMPLE?tt("AI is on.","IA activa."):tt("AI is off","IA apagada")+(SESSION&&SESSION.role==="admin"?` — <button type="button" class="linkbtn" data-aiview="settings">⚙ ${tt("add an API key","agregar clave de API")}</button>`:"")+"."}</p>`
     : (!DB||!SAMPLE) ? `<p class="capnote warnnote">${!DB?tt("Data saving is unavailable in this view — open the published app in Claude to save records.","El guardado de datos no está disponible en esta vista — abre la app publicada en Claude para guardar registros.")+" ":""}${!SAMPLE?tt("AI features are unavailable in this view.","Las funciones de IA no están disponibles en esta vista."):""}</p>` : "";
   if(isGuest()) return m1();
   const nav=`<div class="subnav" role="tablist" aria-label="${tt("AI modules","Módulos de IA")}">${MODS.filter(m=>canView(m.id)).map(m=>`<button type="button" role="tab" data-aiview="${m.id}" aria-selected="${v===m.id}">${state.lang==="es"?m.es:m.en}</button>`).join("")}</div>`;
@@ -1984,7 +1984,7 @@ async function copyText(txt){ try{await navigator.clipboard.writeText(txt);toast
 let chatTurns=[], chatCtl=null, guestPane=null; // guest: which panel is open ("chat" | "book" | null)
 function m1(){
   const G=isGuest();
-  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${G?head(tt("Welcome","Bienvenido"),"Taste of Peru",tt("Choose an option: ask our assistant about the menu, allergens and recommendations, or book a table.","Elige una opción: pregunta a nuestro asistente sobre el menú, alérgenos y recomendaciones, o reserva una mesa."))
+  return `<section style="--pc:var(--accent);--pc2:var(--accent)">${G?head(tt("Welcome","Bienvenido"),"MishKi",tt("Choose an option: ask our assistant about the menu, allergens and recommendations, or book a table.","Elige una opción: pregunta a nuestro asistente sobre el menú, alérgenos y recomendaciones, o reserva una mesa."))
    :head(tt("Module 1","Módulo 1"),tt("Customer service","Atención al cliente"),tt("Test the customer assistant, take bookings and confirm tables. The assistant only knows your menu, allergens and the claim rules in this app.","Prueba el asistente para clientes, toma reservas y confirma mesas. El asistente solo conoce tu menú, los alérgenos y las reglas de afirmaciones de esta app."))}
   ${G?`<div class="gChoice" role="group" aria-label="${tt("What would you like to do?","¿Qué te gustaría hacer?")}">
     <button type="button" class="btn" id="gBtnChat" aria-pressed="${guestPane==="chat"}" aria-controls="gPaneChat">💬 ${tt("Ask a question","Hacer una pregunta")}</button>
@@ -2018,7 +2018,7 @@ function m1(){
 }
 function bubble(t){return `<div class="bub ${t.role==="user"?"me":"bot"}">${esc(t.content)}</div>`;}
 function chatRules(){
-  return `You are the customer-service assistant of "Taste of Peru", a small Peruvian drinks and desserts counter in Edmonton, Alberta. Answer customers briefly and warmly in the language they write in.
+  return `You are the customer-service assistant of "MishKi", a small Peruvian drinks and desserts counter in Edmonton, Alberta. Answer customers briefly and warmly in the language they write in.
 Menu:
 ${MENU_TEXT()}
 Rules: ${CLAIM_RULES()} If a customer asks about allergies, name the allergens listed above and tell them to confirm with staff. Drinks made from unpasteurized pulp may be unpasteurized. For bookings, collect name, date, time and number of people, then say staff will confirm — never confirm a booking yourself. You do not know prices, opening hours or the address unless the customer's message contains them: say staff will confirm. Give personalized recommendations based on what the customer says they like. Keep answers to 2-4 short sentences of plain text with no lists, markdown or emoji, because they may be read aloud.`;
@@ -2125,8 +2125,8 @@ function wireM1(){
 }
 function confirmMsg(r){
   return state.lang==="es"
-   ? `Hola ${r.name}, confirmamos tu reserva en Taste of Peru para ${r.party} persona(s) el ${r.date} a las ${r.time}${r.table!==""&&r.table!=null?` (mesa ${r.table})`:""}. ¡Te esperamos!`
-   : `Hi ${r.name}, your Taste of Peru booking for ${r.party} is confirmed for ${r.date} at ${r.time}${r.table!==""&&r.table!=null?` (table ${r.table})`:""}. See you soon!`;
+   ? `Hola ${r.name}, confirmamos tu reserva en MishKi para ${r.party} persona(s) el ${r.date} a las ${r.time}${r.table!==""&&r.table!=null?` (mesa ${r.table})`:""}. ¡Te esperamos!`
+   : `Hi ${r.name}, your MishKi booking for ${r.party} is confirmed for ${r.date} at ${r.time}${r.table!==""&&r.table!=null?` (table ${r.table})`:""}. See you soon!`;
 }
 /* ---- send the confirmation to the customer: SMS app on phones/tablets/Mac, e-mail app for e-mail addresses ---- */
 function resPhone(c){ c=String(c||""); if(/@/.test(c)) return null; const plus=/^\s*\+/.test(c), d=c.replace(/\D/g,"");
@@ -2136,7 +2136,7 @@ const isIOS=()=>/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform=
 const isMacDesk=()=>/Macintosh/.test(navigator.userAgent)&&!(navigator.maxTouchPoints>1);
 const smsOK=()=>matchMedia("(pointer:coarse)").matches||isIOS()||isMacDesk(); // devices with a Messages / SMS app
 function smsHref(num,body){ return "sms:"+num+(isIOS()||isMacDesk()?"&":"?")+"body="+encodeURIComponent(body); }
-function mailHref(to,body){ return "mailto:"+to+"?subject="+encodeURIComponent(tt("Your booking at Taste of Peru","Tu reserva en Taste of Peru"))+"&body="+encodeURIComponent(body); }
+function mailHref(to,body){ return "mailto:"+to+"?subject="+encodeURIComponent(tt("Your booking at MishKi","Tu reserva en MishKi"))+"&body="+encodeURIComponent(body); }
 function openLink(href){ const a=document.createElement("a"); a.href=href; a.rel="noopener"; a.style.display="none"; document.body.appendChild(a); a.click(); a.remove(); }
 function notifyBooking(r){ // must run inside the click (before any await) so the phone lets the app open
   const body=confirmMsg(r), ph=resPhone(r.contact), em=resEmail(r.contact);
@@ -2608,7 +2608,7 @@ function loadTableLines(){
 }
 function receiptText(b){
   const L=[], cur=b.currency||"CAD", rt=b.rate==null?1:num(b.rate);
-  L.push("TASTE OF PERU"); L.push(tt("Table","Mesa")+" "+b.table+"  ·  "+b.date+" "+(b.paid||"").slice(11,16));
+  L.push("MishKi"); L.push(tt("Table","Mesa")+" "+b.table+"  ·  "+b.date+" "+(b.paid||"").slice(11,16));
   L.push("".padEnd(34,"-"));
   (b.lines||[]).forEach(l=>{ const left=`${l.qty}x ${l.dish}`.slice(0,23); L.push(left.padEnd(24)+fmtCur(num(l.qty)*num(l.price),cur,rt).padStart(10)); });
   L.push("".padEnd(34,"-"));
@@ -4358,7 +4358,7 @@ function wireM4(){
     const prod=val("gProd"), ch=val("gCh"), goal=val("gGoal"), lang=val("gLang"), notes=val("gNotes");
     const about=prod==="all"?"the whole menu":P.find(p=>p.id===prod).name.en+" — "+P.find(p=>p.id===prod).intro.en;
     const L=lang==="both"?"Write each option in English followed by Spanish.":lang==="es"?"Write in Spanish.":"Write in English.";
-    const prompt=`Write 3 different ${goal==="ad"?"paid ad":goal} options for ${ch} for "Taste of Peru", a small Peruvian drinks and desserts counter in Edmonton, Alberta. Topic: ${about}. ${notes?"Details from the owner: "+notes+".":""}
+    const prompt=`Write 3 different ${goal==="ad"?"paid ad":goal} options for ${ch} for "MishKi", a small Peruvian drinks and desserts counter in Edmonton, Alberta. Topic: ${about}. ${notes?"Details from the owner: "+notes+".":""}
 Menu for reference:
 ${MENU_TEXT()}
 Rules: ${CLAIM_RULES()} Do not invent prices, dates, discounts or addresses the owner did not give. Fit the channel's length and style. ${L}
@@ -4461,7 +4461,7 @@ async function draftReply(r){
   const box=document.getElementById("rp"+r.id); if(!SAMPLE||!box) return;
   const risky=RISK.test(r.text);
   box.value=tt("Thinking…","Pensando…");
-  try{ await SAMPLE(`Write a short public reply from the owner of "Taste of Peru" (a Peruvian drinks counter in Edmonton) to this ${num(r.stars)}-star ${r.source} review. Reply in the review's language. Be warm and specific, thank them, and address any complaint without excuses. ${risky?"The review mentions a possible health or safety problem: do not admit fault or discuss medical details publicly; apologize for the experience, say you take it seriously, and invite them to contact the business privately.":""} ${CLAIM_RULES()} Do not invent facts, offers or names. Reply with the text only.
+  try{ await SAMPLE(`Write a short public reply from the owner of "MishKi" (a Peruvian drinks counter in Edmonton) to this ${num(r.stars)}-star ${r.source} review. Reply in the review's language. Be warm and specific, thank them, and address any complaint without excuses. ${risky?"The review mentions a possible health or safety problem: do not admit fault or discuss medical details publicly; apologize for the experience, say you take it seriously, and invite them to contact the business privately.":""} ${CLAIM_RULES()} Do not invent facts, offers or names. Reply with the text only.
 REVIEW: ${r.text}`,{cache:false,modelTier:"quick",onText:({text})=>{box.value=text;}}); }
   catch(e){ box.value=e.text||r.reply||""; toast(aiErr(e)); }
 }
@@ -4737,7 +4737,7 @@ function meetings(){
   const all=mtgList().slice().sort((a,b)=>((a.date||"")+(a.time||"")).localeCompare((b.date||"")+(b.time||"")));
   const t=today(), up=all.filter(m=>(m.date||"")>=t&&!m.done), past=all.filter(m=>!((m.date||"")>=t&&!m.done)).reverse();
   return `<section class="meetings" style="--pc:var(--accent);--pc2:var(--accent)">
-   <div class="hero"><div><div class="eyebrow">Taste of Peru</div><h2>${tt("Meetings","Reuniones")}</h2><p>${tt("Plan team, supplier and partner meetings, keep the minutes and track the action items.","Planifica reuniones con el equipo, proveedores y socios, guarda el acta y da seguimiento a las tareas.")}</p></div></div>
+   <div class="hero"><div><div class="eyebrow">MishKi</div><h2>${tt("Meetings","Reuniones")}</h2><p>${tt("Plan team, supplier and partner meetings, keep the minutes and track the action items.","Planifica reuniones con el equipo, proveedores y socios, guarda el acta y da seguimiento a las tareas.")}</p></div></div>
    ${!DB?`<p class="note">${tt("Open the app in Claude (or sign in on the website) to save meetings.","Abre la app en Claude (o inicia sesión en la web) para guardar reuniones.")}</p>`:!mtgCan()?`<p class="note">${tt("Read only for your role.","Solo lectura para tu rol.")}</p>`:""}
    ${mtgCan()?`<div class="panel"><h3>${tt("New meeting","Nueva reunión")}</h3>${mtgForm(null)}</div>`:""}
    <h3>${tt("Upcoming","Próximas")} (${up.length})</h3>
@@ -4787,7 +4787,7 @@ function render(){
   document.documentElement.lang=state.lang;
   document.getElementById("btnEn").setAttribute("aria-pressed",state.lang==="en");
   document.getElementById("btnEs").setAttribute("aria-pressed",state.lang==="es");
-  document.getElementById("appTitle").textContent=state.lang==="es"?"Taste of Peru":"Taste of Peru";
+  document.getElementById("appTitle").textContent=state.lang==="es"?"MishKi":"MishKi";
   { const bl=document.getElementById("builtLbl"); if(bl) bl.textContent=state.lang==="es"?"Construido por":"Built by"; }
   document.getElementById("appSub").textContent=isGuest()?tt("Peruvian drinks, desserts and dishes in Edmonton.","Bebidas, postres y platos peruanos en Edmonton."):T(UI.sub);
   document.getElementById("disc").textContent=T(UI.disc);

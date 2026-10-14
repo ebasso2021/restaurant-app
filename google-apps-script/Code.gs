@@ -1,11 +1,11 @@
 /**
- * Taste of Peru — Google Sheets database + user login for the app on GitHub Pages.
- * Works with the spreadsheet "Taste of Peru – datos".
+ * MishKi — Google Sheets database + user login for the app on GitHub Pages.
+ * Works with the spreadsheet "MishKi – datos".
  *
  * Setup (one time):
- *  1. Open "Taste of Peru – datos" → Extensions → Apps Script. Paste this whole file, Save.
+ *  1. Open "MishKi – datos" → Extensions → Apps Script. Paste this whole file, Save.
  *  2. Choose the function  instalarFormulas  → Run → authorize (writes the sheet formulas).
- *  3. Reload the spreadsheet. A new menu "Taste of Peru" appears → "Crear o cambiar usuario…"
+ *  3. Reload the spreadsheet. A new menu "MishKi" appears → "Crear o cambiar usuario…"
  *     → create your first user with role  admin.  (This also creates the tabs Usuarios and Roles.)
  *  4. Deploy → New deployment → Web app.  Execute as: Me   Who has access: Anyone → Deploy.
  *     After changing this code later: Deploy → Manage deployments → ✏ → Version: New version → Deploy.
@@ -335,14 +335,14 @@ function deleteOp_(s, col, id) {
 }
 
 /* ---------------- meeting documents (admin only) ----------------
- * Files are kept in a private Google Drive folder of the script owner ("Taste of Peru – Documentos de reuniones").
+ * Files are kept in a private Google Drive folder of the script owner ("MishKi – Documentos de reuniones").
  * Only a signed-in admin can upload, list, download or delete them; other roles never see them.
  * The first time after updating this code, run any function (or redeploy) and accept the new Google Drive permission. */
 const MDOC_MAX = 10 * 1024 * 1024; // 10 MB per file
 function mdocsFolder_() {
   const p = PropertiesService.getScriptProperties(), id = p.getProperty("mdocs_folder");
   if (id) { try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {} }
-  const f = DriveApp.createFolder("Taste of Peru – Documentos de reuniones (privado)");
+  const f = DriveApp.createFolder("MishKi – Documentos de reuniones (privado)");
   p.setProperty("mdocs_folder", f.getId());
   return f;
 }
@@ -384,7 +384,7 @@ function mdocs_(action, req, s) {
 
 /* ---------------- spreadsheet menu: create the first admin and manage users ---------------- */
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu("Taste of Peru")
+  SpreadsheetApp.getUi().createMenu("MishKi")
     .addItem("Crear o cambiar usuario…", "menuUsuario")
     .addItem("Instalar fórmulas", "instalarFormulas")
     .addItem("Reiniciar Kardex (borrar todo)", "reiniciarKardex")
@@ -392,7 +392,7 @@ function onOpen() {
 }
 function menuUsuario() {
   const ui = SpreadsheetApp.getUi(); usersSheet_();
-  const ask = function (q) { const r = ui.prompt("Taste of Peru", q, ui.ButtonSet.OK_CANCEL); if (r.getSelectedButton() !== ui.Button.OK) throw new Error("cancel"); return r.getResponseText().trim(); };
+  const ask = function (q) { const r = ui.prompt("MishKi", q, ui.ButtonSet.OK_CANCEL); if (r.getSelectedButton() !== ui.Button.OK) throw new Error("cancel"); return r.getResponseText().trim(); };
   try {
     const user = ask("Usuario (3-40 letras/números, sin espacios) / Username:");
     const name = ask("Nombre completo / Full name:");
@@ -619,14 +619,14 @@ function kardex_(it, type, reason, qty, unitCost, balQty, avgCost, ref, by, extr
     ref: ref || "", by: by || "", created: Utilities.formatDate(now, tz_(), "yyyy-MM-dd HH:mm:ss"), when: Utilities.formatDate(now, tz_(), "yyyy-MM-dd'T'HH:mm:ss.SSS"), itemId: it.id, costPer: baseOf_(it.unit), pack: pk });
 }
 // Only erases every row of the "Kardex" tab (keeps the headers). It reads nothing else; from then on the Kardex
-// is fed by purchases. Menu Taste of Peru → Reiniciar Kardex, or run it from the editor.
+// is fed by purchases. Menu MishKi → Reiniciar Kardex, or run it from the editor.
 function reiniciarKardex() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), sh = sheet_("kardex");
   const want = ["ID", "json"].concat(FIELDS.kardex.map(function (f) { return f[1]; }));
   const lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
     sh.clear(); sh.getRange(1, 1, 1, want.length).setValues([want]); sh.setFrozenRows(1); sh.hideColumns(2);
-    try { ss.toast("Kardex limpio", "Taste of Peru"); } catch (e) {}
+    try { ss.toast("Kardex limpio", "MishKi"); } catch (e) {}
   } finally { lock.releaseLock(); }
 }
 // Puts the "Kardex" tab in the new column order (Artículo, Costo promedio ponderado, Por g / mL / und, Valor del stock,
@@ -723,5 +723,5 @@ function instalarFormulas() {
   put("Recetas", "H2", '=ARRAYFORMULA(IF(B2:B="","",IF(D2:D=E2:E,IF(REGEXMATCH(LOWER(D2:D),"^(g|ml)$"),C2:C/1000,C2:C)*IFERROR(G2:G*1,0),"convertir unidad")))'); // cost per kg / L / piece
   ss.getSheetByName("Recetas").getRange("H2:H").setNumberFormat("#,##0.00");
 
-  ss.toast("Fórmulas instaladas / Formulas installed", "Taste of Peru", 5);
+  ss.toast("Fórmulas instaladas / Formulas installed", "MishKi", 5);
 }
